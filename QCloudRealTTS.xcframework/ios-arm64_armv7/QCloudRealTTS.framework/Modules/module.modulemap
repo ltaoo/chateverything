@@ -1,0 +1,12 @@
+//
+//  QCloudRealTTS.modulemap
+//  QCloudRealTTS
+//
+//  Created by tbolp on 2024/11/12.
+//
+
+framework module QCloudRealTTS {
+    header "QCloudRealTTSController.h"
+
+    export *
+}

@@ -34,7 +34,8 @@ struct ChatMessage: Identifiable, Equatable {
     }
 }
 
-let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
+// let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
+let prompt = "You are an speaking examiner.";
 
 // 聊天详情页面
 struct ChatDetailView: View {
@@ -54,7 +55,12 @@ struct ChatDetailView: View {
     
     @StateObject private var audioRecorder = AudioRecorder()
     @State private var showingPermissionAlert = false
-    private let synthesizer = AVSpeechSynthesizer()
+    @State private var isSpeaking = false
+    
+    init(chatSession: ChatSession, model: LLMService) {
+        self.chatSession = chatSession
+        self.model = model
+    }
     
     private func startRecording() {
         #if os(iOS)
@@ -115,7 +121,7 @@ struct ChatDetailView: View {
         
         // 停止录音并进行语音识别
         audioRecorder.stopRecording { url in
-        print("complete audio recoding, the url: \(url)")
+            print("complete audio recoding, the url: \(String(describing: url))")
             if let url = url {
                 recognizeSpeech(url: url)
             }
@@ -127,6 +133,20 @@ struct ChatDetailView: View {
         recordingStartTime = nil
         scale = 1.0
         audioRecorder.cancelRecording()
+    }
+    
+    private func toggleSpeaking(text: String) {
+        if isSpeaking {
+            TTSManager.shared.stopSpeaking()
+            isSpeaking = false
+        } else {
+            TTSManager.shared.speak(text) {
+                DispatchQueue.main.async {
+                    self.isSpeaking = false
+                }
+            }
+            isSpeaking = true
+        }
     }
     
     private func recognizeSpeech(url: URL) {
@@ -156,16 +176,6 @@ struct ChatDetailView: View {
                     do {
                         let response = try await self.model.chat(content: recognizedText)
                         
-                        // 设置音频会话
-                        #if os(iOS)
-                        do {
-                            try AVAudioSession.sharedInstance().setCategory(.playback)
-                            try AVAudioSession.sharedInstance().setActive(true)
-                        } catch {
-                            print("Failed to set audio session: \(error)")
-                        }
-                        #endif
-                        
                         DispatchQueue.main.async {
                             // 先添加消息
                             let botMessage = ChatMessage(content: response, 
@@ -176,20 +186,8 @@ struct ChatDetailView: View {
                             self.messages.append(botMessage)
                             self.isLoading = false
                             
-                            // 配置并播放语音
-                            let utterance = AVSpeechUtterance(string: response)
-                            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-                            utterance.rate = 0.5
-                            utterance.pitchMultiplier = 1.0
-                            utterance.volume = 1.0
-                            
-                            // 停止任何正在播放的语音
-                            if self.synthesizer.isSpeaking {
-                                self.synthesizer.stopSpeaking(at: .immediate)
-                            }
-                            
-                            // 开始播放新的语音
-                            self.synthesizer.speak(utterance)
+                            // 自动开始朗读响应
+                            self.toggleSpeaking(text: response)
                         }
                     } catch {
                         print("LLM chat error: \(error)")
@@ -231,8 +229,13 @@ struct ChatDetailView: View {
                 ScrollViewReader { proxy in
                     LazyVStack(spacing: 12) {
                         ForEach(messages) { message in
-                            MessageBubbleView(message: message)
-                                .id(message.id)
+                            MessageBubbleView(message: message,
+                                             isSpeaking: $isSpeaking,
+                                             onSpeakToggle: { text in
+                                toggleSpeaking(text: text)
+                            },
+                            audioRecorder: audioRecorder)
+                            .id(message.id)
                         }
                     }
                     .padding()
@@ -597,7 +600,7 @@ private struct MessageTextNodeView: View {
     }
     
     private var underlineColor: Color {
-        print("node.error: \(node.error?.type)")
+        print("node.error: \(String(describing: node.error?.type))")
         guard node.error != nil else { return .clear }
         switch node.error?.type {
         case "error": return .red
@@ -695,14 +698,20 @@ struct MessageBubbleView: View {
     @State private var isShowingTranslation = false
     @State private var translatedText: String = ""
     @State private var isPlaying = false
-    @State private var isBlurred: Bool // 新增状态
-    let synthesizer = AVSpeechSynthesizer()
-    @StateObject private var audioRecorder = AudioRecorder()
+    @State private var isBlurred: Bool
+    @Binding var isSpeaking: Bool
+    let onSpeakToggle: (String) -> Void
+    let audioRecorder: AudioRecorder
     
-    init(message: ChatMessage) {
+    init(message: ChatMessage, 
+         isSpeaking: Binding<Bool>, 
+         onSpeakToggle: @escaping (String) -> Void,
+         audioRecorder: AudioRecorder) {
         self.message = message
-        // 初始化 isBlurred 状态
-        _isBlurred = State(initialValue: !message.isMe) // 修改这里
+        _isBlurred = State(initialValue: !message.isMe)
+        _isSpeaking = isSpeaking
+        self.onSpeakToggle = onSpeakToggle
+        self.audioRecorder = audioRecorder
     }
     
     var nodes: [MsgTextNode] {
@@ -740,7 +749,7 @@ struct MessageBubbleView: View {
                 .padding(12)
                 .background(message.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
                 .cornerRadius(16)
-                .if(isBlurred && !message.isMe) { view in // 修改这里
+                .if(isBlurred && !message.isMe) { view in
                     view.blur(radius: 5)
                 }
                 
@@ -750,7 +759,7 @@ struct MessageBubbleView: View {
                         if !message.isMe { Spacer() }
                         
                         // 显示按钮（仅对非用户消息显示）
-                        if !message.isMe { // 修改这里
+                        if !message.isMe {
                             Button(action: {
                                 isBlurred.toggle()
                             }) {
@@ -798,11 +807,11 @@ struct MessageBubbleView: View {
                         // 文本朗读按钮（仅对非用户消息显示）
                         if !message.isMe {
                             Button(action: {
-                                speakMessage()
+                                onSpeakToggle(message.content)
                             }) {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "speaker.wave.2.fill")
-                                    Text("朗读")
+                                    Image(systemName: isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                    Text(isSpeaking ? "停止" : "朗读")
                                         .font(.caption)
                                 }
                                 .foregroundColor(.gray)
@@ -829,7 +838,7 @@ struct MessageBubbleView: View {
             isPresented: $isShowingActions,
             actions: {
                 Button("保存") { saveMessage() }
-                Button("发音") { speakMessage() }
+                Button("朗读") { onSpeakToggle(message.content) }
                 Button("翻译") { translateMessage() }
                 Button("优化") { optimizeMessage() }
                 Button("查错") { checkErrors() }
@@ -843,12 +852,6 @@ struct MessageBubbleView: View {
         // 实现保存逻辑
         // NSPasteboard.general.clearContents()
         // NSPasteboard.general.setString(message.content, forType: .string)
-    }
-    
-    func speakMessage() {
-        let utterance = AVSpeechUtterance(string: message.content)
-        utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
-        synthesizer.speak(utterance)
     }
     
     func translateMessage() {
@@ -905,3 +908,4 @@ private struct ErrorIndicatorView: View {
         }
     }
 }
+

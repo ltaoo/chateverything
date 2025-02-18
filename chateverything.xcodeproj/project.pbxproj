@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		A63811832D64C949003EA4C9 /* LLM in Frameworks */ = {isa = PBXBuildFile; productRef = A63811822D64C949003EA4C9 /* LLM */; };
+		A63811942D64EE67003EA4C9 /* QCloudTTS.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */; };
+		A63811952D64EE67003EA4C9 /* QCloudTTS.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A63811C02D64F7D8003EA4C9 /* QCloudRealTTS.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */; };
+		A63811C12D64F803003EA4C9 /* QCloudRealTTS.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,7 +31,24 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		A63811962D64EE67003EA4C9 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				A63811C12D64F803003EA4C9 /* QCloudRealTTS.xcframework in Embed Frameworks */,
+				A63811952D64EE67003EA4C9 /* QCloudTTS.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = QCloudTTS.xcframework; sourceTree = "<group>"; };
+		A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = QCloudRealTTS.xcframework; sourceTree = "<group>"; };
 		A6778D6D2D5352EC00447C17 /* chateverything.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = chateverything.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6778D7D2D5352ED00447C17 /* chateverythingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chateverythingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6778D872D5352ED00447C17 /* chateverythingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chateverythingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -57,6 +78,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A63811832D64C949003EA4C9 /* LLM in Frameworks */,
+				A63811C02D64F7D8003EA4C9 /* QCloudRealTTS.xcframework in Frameworks */,
+				A63811942D64EE67003EA4C9 /* QCloudTTS.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +107,8 @@
 				A6778D802D5352ED00447C17 /* chateverythingTests */,
 				A6778D8A2D5352ED00447C17 /* chateverythingUITests */,
 				A6778D6E2D5352EC00447C17 /* Products */,
+				A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */,
+				A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */,
 			);
 			sourceTree = "<group>";
 		};
@@ -107,6 +132,7 @@
 				A6778D692D5352EC00447C17 /* Sources */,
 				A6778D6A2D5352EC00447C17 /* Frameworks */,
 				A6778D6B2D5352EC00447C17 /* Resources */,
+				A63811962D64EE67003EA4C9 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
