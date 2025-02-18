@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import Speech
 
 // 聊天消息模型
 struct ChatMessage: Identifiable {
@@ -228,11 +229,15 @@ struct ChatDetailView: View {
     @State private var messages: [ChatMessage] = [
         ChatMessage(content: "你好！", isMe: false, timestamp: Date().addingTimeInterval(-3600)),
         ChatMessage(content: "最近怎么样？", isMe: true, timestamp: Date().addingTimeInterval(-1800)),
-        ChatMessage(content: "一切都好", isMe: false, timestamp: Date())
+        ChatMessage(content: "一切都好", isMe: false, timestamp: Date().addingTimeInterval(-1200)),
+        ChatMessage(content: "I develop a chat app that can recognize speech of person speaking.", isMe: true, timestamp: Date())
     ]
     @State private var isRecording = false
     @State private var recordingStartTime: Date?
     @State private var scale: CGFloat = 1.0
+    
+    @StateObject private var audioRecorder = AudioRecorder()
+    @State private var showingPermissionAlert = false
     
     var body: some View {
         VStack {
@@ -322,6 +327,13 @@ struct ChatDetailView: View {
             .padding(.horizontal)
             .padding(.vertical, 12)
             .background(Color.gray.opacity(0.05))
+            
+            // 在 ChatDetailView 中添加警告对话框
+            .alert("需要权限", isPresented: $showingPermissionAlert) {
+                Button("确定") {}
+            } message: {
+                Text("请在设置中允许使用麦克风和语音识别功能")
+            }
         }
         .navigationTitle(chatSession.name)
         #if os(iOS)
@@ -330,27 +342,78 @@ struct ChatDetailView: View {
     }
     
     private func startRecording() {
-        isRecording = true
-        recordingStartTime = Date()
-        // 开始录音动画
-        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
-            scale = 1.2
+        #if os(iOS)
+        // 检查麦克风权限
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+            DispatchQueue.main.async {
+                if granted {
+                    self.isRecording = true
+                    self.recordingStartTime = Date()
+                    // 开始录音动画
+                    withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
+                        self.scale = 1.2
+                    }
+                    // 开始录音
+                    self.audioRecorder.startRecording()
+                } else {
+                    self.showingPermissionAlert = true
+                }
+            }
         }
-        // TODO: 实现录音开始逻辑
+        #else
+        // macOS implementation
+        self.isRecording = true
+        self.recordingStartTime = Date()
+        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
+            self.scale = 1.2
+        }
+        self.audioRecorder.startRecording()
+        #endif
     }
     
     private func stopRecording() {
         isRecording = false
         recordingStartTime = nil
         scale = 1.0
-        // TODO: 实现录音结束并发送逻辑
+        
+        // 停止录音并进行语音识别
+        audioRecorder.stopRecording { url in
+        print("complete audio recoding, the url: \(url)")
+            if let url = url {
+                recognizeSpeech(url: url)
+            }
+        }
     }
     
     private func cancelRecording() {
         isRecording = false
         recordingStartTime = nil
         scale = 1.0
-        // TODO: 实现取消录音逻辑
+        audioRecorder.cancelRecording()
+    }
+    
+    private func recognizeSpeech(url: URL) {
+        // 怎么支持英文
+        let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+        let request = SFSpeechURLRecognitionRequest(url: url)
+        
+        recognizer?.recognitionTask(with: request) { result, error in
+            guard let result = result else {
+                print("Recognition failed with error: \(error?.localizedDescription ?? "unknown error")")
+                return
+            }
+            
+            if result.isFinal {
+                let recognizedText = result.bestTranscription.formattedString
+                DispatchQueue.main.async {
+                    // 将识别的文本作为消息发送
+                    let message = ChatMessage(content: recognizedText, 
+                                           isMe: true, 
+                                           timestamp: Date())
+                    self.messages.append(message)
+                }
+            }
+        }
     }
     
     private func formatDuration(from startTime: Date) -> String {
@@ -374,6 +437,59 @@ struct ChatDetailView: View {
         messages.append(botMessage)
         
         messageText = ""
+    }
+}
+
+// 录音管理类
+class AudioRecorder: ObservableObject {
+    private var audioRecorder: AVAudioRecorder?
+    private var recordingURL: URL?
+    
+    init() {
+        setupAudioSession()
+    }
+    
+    private func setupAudioSession() {
+        #if os(iOS)
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.playAndRecord, mode: .default)
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to set up audio session: \(error)")
+        }
+        #endif
+    }
+    
+    func startRecording() {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        recordingURL = documentsPath.appendingPathComponent("recording.m4a")
+        
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 44100.0,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+        ]
+        
+        do {
+            audioRecorder = try AVAudioRecorder(url: recordingURL!, settings: settings)
+            audioRecorder?.record()
+        } catch {
+            print("Could not start recording: \(error)")
+        }
+    }
+    
+    func stopRecording(completion: @escaping (URL?) -> Void) {
+        audioRecorder?.stop()
+        completion(recordingURL)
+    }
+    
+    func cancelRecording() {
+        audioRecorder?.stop()
+        if let url = recordingURL {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 }
 
@@ -421,26 +537,26 @@ struct WavyLine: Shape {
 }
 
 // 添加自定义 Tooltip 视图
-private struct TooltipView: View {
-    let text: String
+// private struct TooltipView: View {
+//     let text: String
     
-    var body: some View {
-        VStack(spacing: 0) {
-            // 提示内容
-            Text(text)
-                .font(.system(size: 14))
-                .padding(8)
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(4)
+//     var body: some View {
+//         VStack(spacing: 0) {
+//             // 提示内容
+//             Text(text)
+//                 .font(.system(size: 14))
+//                 .padding(8)
+//                 .background(Color(NSColor.windowBackgroundColor))
+//                 .cornerRadius(4)
             
-            // 箭头
-            Triangle()
-                .fill(Color(UIColor.systemBackground))
-                .frame(width: 10, height: 5)
-        }
-        .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
-    }
-}
+//             // 箭头
+//             Triangle()
+//                 .fill(Color(NSColor.windowBackgroundColor))
+//                 .frame(width: 10, height: 5)
+//         }
+//         .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+//     }
+// }
 
 // 添加三角形箭头形状
 private struct Triangle: Shape {
@@ -475,14 +591,6 @@ private struct MessageTextNodeView: View {
             .onTapGesture {
                 isShowingTooltip.toggle()
             }
-            .overlay(
-                Group {
-                    if isShowingTooltip, let error = node.error {
-                        TooltipView(text: error.reason)
-                            .offset(y: 25)
-                    }
-                }
-            )
             .onAppear {
                 // 点击其他区域时关闭 tooltip
               
@@ -522,16 +630,150 @@ private struct MessageContentView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Display nodes in a single line using HStack
-            HStack(spacing: 0) {
+            // Use FlexibleView instead of HStack for automatic wrapping
+            // FlexibleView(data: nodes) { node in
+            //     MessageTextNodeView(node: node, isMe: isMe)
+            // }
+            FlowLayout(spacing: 0) { 
                 ForEach(nodes) { node in
                     MessageTextNodeView(node: node, isMe: isMe)
                 }
             }
+            // HStack(spacing: 0) {
+            // nodes.reduce(Text("")) { result, node in
+            //     result + MessageTextNodeView(node: node, isMe: isMe) // 添加空格分隔
+            // }
+            // }
             
             if isShowingTranslation && !translatedText.isEmpty {
                 TranslationView(text: translatedText, isMe: isMe)
             }
+        }
+    }
+}
+
+// struct FlexibleView<Data: Collection, Content: View>: View where Data.Element: Identifiable {
+//     let data: Data
+//     let spacing: CGFloat
+//     let content: (Data.Element) -> Content
+    
+//     init(
+//         data: Data,
+//         spacing: CGFloat = 4,
+//         @ViewBuilder content: @escaping (Data.Element) -> Content
+//     ) {
+//         self.data = data
+//         self.spacing = spacing
+//         self.content = content
+//     }
+    
+//     var body: some View {
+//         GeometryReader { geometry in
+//             FlowLayoutView(
+//                 availableWidth: geometry.size.width,
+//                 data: Array(data),
+//                 spacing: spacing,
+//                 content: content
+//             )
+//         }
+//     }
+// }
+
+// private struct FlowLayoutView<Data: Identifiable, Content: View>: View {
+//     let availableWidth: CGFloat
+//     let data: [Data]
+//     let spacing: CGFloat
+//     let content: (Data) -> Content
+    
+//     @State private var elementsSize: [Data.ID: CGSize] = [:]
+//     @State private var positions: [Data.ID: CGPoint] = [:]
+    
+//     var body: some View {
+//         ZStack(alignment: .topLeading) {
+//             ForEach(data) { item in
+//                 content(item)
+//                     .fixedSize()
+//                     .background(GeometryReader { geo in
+//                         Color.clear.onAppear {
+//                             elementsSize[item.id] = geo.size
+//                             calculateLayout()
+//                         }
+//                     })
+//                     .alignmentGuide(.leading) { _ in
+//                         -(positions[item.id]?.x ?? 0)
+//                     }
+//                     .alignmentGuide(.top) { _ in
+//                         -(positions[item.id]?.y ?? 0)
+//                     }
+//             }
+//         }
+//     }
+    
+//     private func calculateLayout() {
+//         var currentX: CGFloat = 0
+//         var currentY: CGFloat = 0
+//         var lineHeight: CGFloat = 0
+        
+//         for item in data {
+//             guard let size = elementsSize[item.id] else { continue }
+            
+//             if currentX + size.width > availableWidth {
+//                 // Move to next line
+//                 currentX = 0
+//                 currentY += lineHeight + spacing
+//                 lineHeight = 0
+//             }
+            
+//             positions[item.id] = CGPoint(x: currentX, y: currentY)
+//             currentX += size.width + spacing
+//             lineHeight = max(lineHeight, size.height)
+//         }
+//     }
+// }
+
+// 自定义流式布局容器
+struct FlowLayout: Layout {
+    let spacing: CGFloat
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        
+        var totalHeight: CGFloat = 0
+        var lineWidth: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        
+        for size in sizes {
+            if lineWidth + size.width + spacing > proposal.width! {
+                totalHeight += lineHeight + spacing
+                lineWidth = size.width
+                lineHeight = size.height
+            } else {
+                lineWidth += size.width + spacing
+                lineHeight = max(lineHeight, size.height)
+            }
+        }
+        totalHeight += lineHeight
+        return CGSize(width: proposal.width!, height: totalHeight)
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var lineHeight: CGFloat = 0
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            
+            if x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+            
+            subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: .unspecified)
+            
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
         }
     }
 }
@@ -544,21 +786,39 @@ struct MessageBubbleView: View {
     let synthesizer = AVSpeechSynthesizer()
     
     var nodes: [MsgTextNode] {
-        [MsgTextNode(id: 1, 
-                     text: "There ", 
-                     type: "text",
-                     error: nil),
-        MsgTextNode(id: 2, 
-                     text: "are", 
-                     type: "text",
-                     error: TextError(type: "error",
-                                    reason: "拼写错误",
-                                    correction: "正确拼写")),
-        MsgTextNode(id: 3, 
-                     text: " a mistake in the sentence.", 
-                     type: "text",
-                     error: nil)
-        ]
+        // 将消息内容按空格分割，并保留空格作为独立节点
+        var nodeId = 0
+        var result: [MsgTextNode] = []
+        
+        let words = message.content.split(includesSeparators: true) { $0.isWhitespace }
+        for word in words {
+            nodeId += 1
+            let node = MsgTextNode(
+                id: nodeId,
+                text: String(word),
+                type: word.allSatisfy { $0.isWhitespace } ? "space" : "text",
+                error: nil
+            )
+            result.append(node)
+        }
+        
+        return result
+
+        //  [MsgTextNode(id: 1, 
+        //              text: "There ", 
+        //              type: "text",
+        //              error: nil),
+        // MsgTextNode(id: 2, 
+        //              text: "are", 
+        //              type: "text",
+        //              error: TextError(type: "error",
+        //                             reason: "拼写错误",
+        //                             correction: "正确拼写")),
+        // MsgTextNode(id: 3, 
+        //              text: " a mistake in the sentence.", 
+        //              type: "text",
+        //              error: nil)
+        // ]
     }
     
     var body: some View {
@@ -660,6 +920,33 @@ private struct ErrorIndicatorView: View {
                 .padding(.vertical, 4)
             }
         }
+    }
+}
+
+// 添加 String 扩展来支持保留分隔符的分割
+extension String {
+    func split(includesSeparators: Bool, 
+              whereSeparator isSeparator: (Character) -> Bool) -> [Substring] {
+        var result: [Substring] = []
+        var start = self.startIndex
+        
+        for i in self.indices {
+            if isSeparator(self[i]) {
+                if i > start {
+                    result.append(self[start..<i])
+                }
+                if includesSeparators {
+                    result.append(self[i...i])
+                }
+                start = self.index(after: i)
+            }
+        }
+        
+        if start < self.endIndex {
+            result.append(self[start..<self.endIndex])
+        }
+        
+        return result
     }
 }
 
