@@ -9,9 +9,7 @@ import SwiftUI
 import AVFoundation
 import Speech
 import Foundation
-
 import LLM
-
 
 // 聊天会话模型
 struct ChatSession: Identifiable {
@@ -74,6 +72,9 @@ struct ContentView: View {
     ]
     
     @State private var seasons: [Season] = []
+    @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
+    
+    @EnvironmentObject private var navigationManager: NavigationStateManager
     
     func loadSeasons() {
         let hostname = "https://media.funzm.com"
@@ -126,61 +127,106 @@ struct ContentView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // 新增的选择按钮
-                Button(action: {
-                    // 按钮点击事件处理
-                }) {
-                    HStack {
-                        Text("🤖")
-                            .font(.title2)
-                        Text("请选择")
-                            .foregroundColor(.primary)
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.gray)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(20)
-                }
-                .padding(.vertical, 12)
-                
-                // 原有的 List 视图
-                List(chatSessions) { session in
-                    NavigationLink(destination: ChatDetailView(
-                        chatSession: session, 
-                        model: LLMService(model: LanguageModel(
-                            providerName: "deepseek",
-                            id: "deepseek-chat",
-                            name: "deepseek-chat",
-                            apiKey: "sk-292831353cda4d1c9f59984067f24379",
-                            apiProxyAddress: "https://api.deepseek.com/chat/completions",
-                            responseHandler: { data in
-                            // print("responseHandler: \(data)")
-                                let decoder = JSONDecoder()
-                                let response = try decoder.decode(DeepseekChatResponse.self, from: data)
-                                return response.choices[0].message.content
+        TabView(selection: $selectedTab) {
+            // 聊天标签页
+            NavigationStack {
+                VStack(spacing: 0) {
+                    // 原有的 List 视图
+                    List(chatSessions) { session in
+                        Button {
+                            let chatDetailView = ChatDetailView(
+                                chatSession: session,
+                                model: LLMService(model: LanguageModel(
+                                    providerName: "deepseek",
+                                    id: "deepseek-chat",
+                                    name: "deepseek-chat",
+                                    apiKey: "sk-292831353cda4d1c9f59984067f24379",
+                                    apiProxyAddress: "https://api.deepseek.com/chat/completions",
+                                    responseHandler: { data in
+                                        let decoder = JSONDecoder()
+                                        let response = try decoder.decode(DeepseekChatResponse.self, from: data)
+                                        return response.choices[0].message.content
+                                    }
+                                ), prompt: prompt)
+                            )
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                navigationManager.navigateToChatDetail(view: chatDetailView)
                             }
-                        ), prompt: prompt)
-                    )) {
-                        ChatRowView(chatSession: session)
+                        } label: {
+                            ChatRowView(chatSession: session)
+                        }
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        HStack {
+                            // 移动到右上角的选择按钮
+                            Button(action: {
+                                // 按钮点击事件处理
+                            }) {
+                                HStack {
+                                    Text("🤖")
+                                        .font(.title2)
+                                    Text("请选择")
+                                        .foregroundColor(.primary)
+                                    Image(systemName: "chevron.down")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(20)
+                            }
+                            
+                            Button(action: {}) {
+                                Image(systemName: "plus.circle")
+                            }
+                        }
                     }
                 }
             }
-            .navigationTitle("微信")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button(action: {}) {
-                        Image(systemName: "plus.circle")
-                    }
-                }
+            .tabItem {
+                Image(systemName: "message.fill")
+                Text("聊天")
             }
+            .tag(0)
+            
+            // 探索标签页
+            NavigationStack {
+                Text("探索页面")
+                    .navigationTitle("探索")
+            }
+            .tabItem {
+                Image(systemName: "safari.fill")
+                Text("探索")
+            }
+            .tag(1)
+            
+            // 发现标签页
+            NavigationStack {
+                DiscoverView()
+            }
+            .tabItem {
+                Image(systemName: "sparkles")
+                Text("发现")
+            }
+            .tag(2)
+            
+            // 我的标签页
+            NavigationStack {
+               MineView()
+            }
+            .tabItem {
+                Image(systemName: "person.fill")
+                Text("我的")
+            }
+            .tag(3)
         }
         .onAppear {
             // loadSeasons()
         }
+        .toolbar(.visible, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
     }
 }
 

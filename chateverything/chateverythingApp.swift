@@ -7,11 +7,20 @@
 
 import SwiftUI
 
+// 导入 NavigationStateManager
 @main
 struct chateverythingApp: App {
+    @StateObject private var navigationManager = NavigationStateManager()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if let currentView = navigationManager.currentView {
+                currentView
+                    .environmentObject(navigationManager)
+            } else {
+                ContentView()
+                    .environmentObject(navigationManager)
+            }
         }
     }
 }

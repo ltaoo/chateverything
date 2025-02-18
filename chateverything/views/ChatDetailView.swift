@@ -45,6 +45,7 @@ let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS spea
 
 // 聊天详情页面
 struct ChatDetailView: View {
+    @EnvironmentObject private var navigationManager: NavigationStateManager
     let chatSession: ChatSession
     let model: LLMService
     @State private var isPlaying = false
@@ -62,6 +63,7 @@ struct ChatDetailView: View {
     @StateObject private var audioRecorder = AudioRecorder()
     @State private var showingPermissionAlert = false
     @State private var isSpeaking = false
+    @State private var showPromptPopover = false
     
     init(chatSession: ChatSession, model: LLMService) {
         self.chatSession = chatSession
@@ -146,11 +148,11 @@ struct ChatDetailView: View {
             TTSManager.shared.stopSpeaking()
             isSpeaking = false
         } else {
-            TTSManager.shared.speak(text) {
-                DispatchQueue.main.async {
-                    self.isSpeaking = false
+            TTSManager.shared.speak(text, completion: {
+                DispatchQueue.main.async { [self] in
+                    isSpeaking = false
                 }
-            }
+            })
             isSpeaking = true
         }
     }
@@ -259,6 +261,20 @@ struct ChatDetailView: View {
 
     var body: some View {
         VStack {
+            // 添加自定义返回按钮
+            HStack {
+                Button {
+                    navigationManager.navigateBack()
+                } label: {
+                    HStack {
+                        Image(systemName: "chevron.left")
+                        Text("返回")
+                    }
+                }
+                .padding()
+                Spacer()
+            }
+            
             ScrollView {
                 ScrollViewReader { proxy in
                     LazyVStack(spacing: 12) {
@@ -310,6 +326,16 @@ struct ChatDetailView: View {
             
             // 底部输入区域
             HStack {
+                Button(action: {
+                    showPromptPopover = true
+                }) {
+                    Image(systemName: "lightbulb.fill")
+                        .foregroundColor(.yellow)
+                }
+                .popover(isPresented: $showPromptPopover) {
+                    PromptListView()
+                }
+                
                 Button(action: {}) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 24))
@@ -422,6 +448,29 @@ struct ChatDetailView: View {
             }
             self.isPlaying = true
         }
+    }
+}
+
+struct PromptListView: View {
+    let prompts = [
+        "请用简单的语言解释",
+        "帮我总结一下要点",
+        "给我一些具体的例子",
+        "这个问题可以换个角度思考吗？",
+        "能详细说明一下吗？"
+    ]
+    
+    var body: some View {
+        List(prompts, id: \.self) { prompt in
+            Button(action: {
+                // TODO: 实现点击提示文本后的操作
+                // 可以将文本复制到输入框或直接发送
+            }) {
+                Text(prompt)
+                    .padding(.vertical, 8)
+            }
+        }
+        .frame(width: 250, height: 300)
     }
 }
 
@@ -606,11 +655,40 @@ private struct Triangle: Shape {
     }
 }
 
+// 添加字典弹窗视图
+private struct DictionaryPopoverView: View {
+    let word: String
+    @State private var definition: String = "Loading..."
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(word)
+                .font(.headline)
+            
+            Divider()
+            
+            Text(definition)
+                .font(.body)
+                .multilineTextAlignment(.leading)
+        }
+        .frame(width: 280)
+        .padding()
+        .onAppear {
+            // 这里可以调用字典 API 获取释义
+            // 暂时使用模拟数据
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                definition = "1. (n.) a sample definition\n2. (v.) another meaning of the word"
+            }
+        }
+    }
+}
+
 // 修改 MessageTextNodeView 结构体
 private struct MessageTextNodeView: View {
     let node: MsgTextNode
     let isMe: Bool
     @State private var isShowingTooltip = false
+    @State private var isShowingDictionary = false
     
     var body: some View {
         Text(node.text)
@@ -625,11 +703,12 @@ private struct MessageTextNodeView: View {
                     )
             }
             .onTapGesture {
-                isShowingTooltip.toggle()
+                if !node.text.trimmingCharacters(in: .whitespaces).isEmpty {
+                    isShowingDictionary = true
+                }
             }
-            .onAppear {
-                // 点击其他区域时关闭 tooltip
-              
+            .popover(isPresented: $isShowingDictionary) {
+                DictionaryPopoverView(word: node.text.trimmingCharacters(in: .whitespaces))
             }
     }
     
@@ -663,7 +742,7 @@ private struct MessageContentView: View {
     let isMe: Bool
     let translatedText: String
     let isShowingTranslation: Bool
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             FlowLayout(spacing: 0) { 
@@ -772,7 +851,6 @@ struct MessageBubbleView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // 消息气泡
             HStack {
                 if message.isMe { Spacer() }
                 
@@ -786,7 +864,7 @@ struct MessageBubbleView: View {
                     .padding(12)
                     .background(message.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
                     .cornerRadius(16)
-                    .if(isBlurred && !message.isMe) { view in
+                     .if(isBlurred && !message.isMe) { view in
                         view.blur(radius: 5)
                     }
                     
