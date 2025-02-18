@@ -57,9 +57,11 @@ public struct LanguageModel {
 
 public class LLMService {
     private let model: LanguageModel
+    private let prompt: String
     
-    public init(model: LanguageModel) {
+    public init(model: LanguageModel, prompt: String = "") {
         self.model = model
+        self.prompt = prompt
     }
     
     public func chat(content: String) async throws -> String {
@@ -70,7 +72,7 @@ public class LLMService {
         
         // 构建请求消息
         let messages = [
-            Message(role: "system", content: ""),
+            Message(role: "system", content: prompt),
             Message(role: "user", content: content)
         ]
         

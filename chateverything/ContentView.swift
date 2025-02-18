@@ -13,12 +13,21 @@ import Foundation
 import LLM
 
 // 聊天消息模型
-struct ChatMessage: Identifiable {
+struct ChatMessage: Identifiable, Equatable {
     let id = UUID()
     let content: String
     let isMe: Bool
     let timestamp: Date
     var nodes: [MsgTextNode]?
+    
+    // 实现 Equatable 协议
+    static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.content == rhs.content &&
+        lhs.isMe == rhs.isMe &&
+        lhs.timestamp == rhs.timestamp &&
+        lhs.nodes == rhs.nodes
+    }
 }
 
 // 聊天会话模型
@@ -171,7 +180,7 @@ struct ContentView: View {
                                 let response = try decoder.decode(DeepseekChatResponse.self, from: data)
                                 return response.choices[0].message.content
                             }
-                        ))
+                        ), prompt: prompt)
                     )) {
                         ChatRowView(chatSession: session)
                     }
@@ -254,6 +263,8 @@ struct ChatDetailView: View {
     @State private var isRecording = false
     @State private var recordingStartTime: Date?
     @State private var scale: CGFloat = 1.0
+    @State private var isLoading = false
+    @State private var cancelHighlighted = false
     
     @StateObject private var audioRecorder = AudioRecorder()
     @State private var showingPermissionAlert = false
@@ -261,24 +272,44 @@ struct ChatDetailView: View {
     var body: some View {
         VStack {
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(messages) { message in
-                        MessageBubbleView(message: message)
+                ScrollViewReader { proxy in
+                    LazyVStack(spacing: 12) {
+                        ForEach(messages) { message in
+                            MessageBubbleView(message: message)
+                                .id(message.id)
+                        }
+                    }
+                    .padding()
+                    .onChange(of: messages) { _ in
+                        if let lastMessage = messages.last {
+                            withAnimation {
+                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            }
+                        }
                     }
                 }
-                .padding()
             }
             
             // 录音状态显示
             if isRecording {
                 HStack {
-                    Text("松开发送，上滑取消")
-                        .foregroundColor(.gray)
                     Spacer()
-                    if let startTime = recordingStartTime {
-                        Text(formatDuration(from: startTime))
-                            .foregroundColor(.gray)
+                    VStack(spacing: 8) {
+                        // Add cancel indicator icon
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(cancelHighlighted ? .red : .gray)
+                            .animation(.easeInOut, value: cancelHighlighted)
+                        
+                        Text("松开发送，上滑取消")
+                            .foregroundColor(cancelHighlighted ? .red : .gray)
+                        if let startTime = recordingStartTime {
+                            Text(formatDuration(from: startTime))
+                                .foregroundColor(.gray)
+                                .monospacedDigit()
+                        }
                     }
+                    Spacer()
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 8)
@@ -294,7 +325,7 @@ struct ChatDetailView: View {
                 
                 Spacer()
                 
-                // 大的居中录音按钮
+                // 修改录音按钮，添加 loading 状态
                 ZStack {
                     // 外圈动画
                     Circle()
@@ -307,9 +338,17 @@ struct ChatDetailView: View {
                         .fill(isRecording ? Color.red.opacity(0.2) : Color.blue.opacity(0.1))
                         .frame(width: 72, height: 72)
                         .overlay(
-                            Image(systemName: isRecording ? "waveform" : "mic.circle.fill")
-                                .font(.system(size: 32))
-                                .foregroundColor(isRecording ? .red : .blue)
+                            Group {
+                                if isLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                                        .scaleEffect(1.5)
+                                } else {
+                                    Image(systemName: isRecording ? "waveform" : "mic.circle.fill")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(isRecording ? .red : .blue)
+                                }
+                            }
                         )
                         .scaleEffect(isRecording ? 0.9 : 1.0)
                 }
@@ -320,9 +359,9 @@ struct ChatDetailView: View {
                         }
                         .simultaneously(with: DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                // 上滑时显示取消提示
-                                if value.translation.height < -50 {
-                                    // TODO: 显示取消提示
+                                // Update cancel highlight based on drag position
+                                withAnimation {
+                                    cancelHighlighted = value.translation.height < -50
                                 }
                             }
                             .onEnded { value in
@@ -331,6 +370,8 @@ struct ChatDetailView: View {
                                 } else {
                                     stopRecording()
                                 }
+                                // Reset cancel highlight
+                                cancelHighlighted = false
                             })
                 )
                 .animation(.spring(response: 0.3), value: isRecording)
@@ -358,14 +399,28 @@ struct ChatDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .onAppear {
+            // 在视图加载时调用 model.chat
+            // Task {
+            //     do {
+            //         let response = try await model.chat(content: prompt)
+            //         let botMessage = ChatMessage(content: response, 
+            //                                    isMe: false, 
+            //                                    timestamp: Date())
+            //         messages.append(botMessage)
+            //     } catch {
+            //         print("Initial chat error: \(error)")
+            //     }
+            // }
+        }
     }
     
     private func startRecording() {
         #if os(iOS)
         // 检查麦克风权限
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
-            DispatchQueue.main.async {
-                if granted {
+            if granted {
+                DispatchQueue.main.async {
                     self.isRecording = true
                     self.recordingStartTime = Date()
                     // 开始录音动画
@@ -374,7 +429,19 @@ struct ChatDetailView: View {
                     }
                     // 开始录音
                     self.audioRecorder.startRecording()
-                } else {
+                    
+                    // 使用 Timer 更新录音时间
+                    Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak timer = Timer()] timer in
+                        if !self.isRecording {
+                            timer.invalidate()
+                        } else {
+                            // 更新 recordingStartTime 来触发视图更新
+                            self.recordingStartTime = Date(timeInterval: 0, since: self.recordingStartTime ?? Date())
+                        }
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
                     self.showingPermissionAlert = true
                 }
             }
@@ -387,6 +454,16 @@ struct ChatDetailView: View {
             self.scale = 1.2
         }
         self.audioRecorder.startRecording()
+        
+        // 使用 Timer 更新录音时间
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak timer = Timer()] timer in
+            if !self.isRecording {
+                timer?.invalidate()
+            } else {
+                // 更新 recordingStartTime 来触发视图更新
+                self.recordingStartTime = Date(timeInterval: 0, since: self.recordingStartTime ?? Date())
+            }
+        }
         #endif
     }
     
@@ -430,6 +507,7 @@ struct ChatDetailView: View {
                                             isMe: true, 
                                             timestamp: Date())
                     self.messages.append(message)
+                    self.isLoading = true
                 }
                 
                 // 使用 Task 处理异步 LLM 调用
@@ -441,9 +519,13 @@ struct ChatDetailView: View {
                                                        isMe: false, 
                                                        timestamp: Date())
                             self.messages.append(botMessage)
+                            self.isLoading = false
                         }
                     } catch {
                         print("LLM chat error: \(error)")
+                        DispatchQueue.main.async {
+                            self.isLoading = false
+                        }
                     }
                 }
             }
@@ -527,13 +609,8 @@ class AudioRecorder: ObservableObject {
     }
 }
 
-struct TextError: Codable {
-    let type: String
-    let reason: String
-    let correction: String
-}
-
-struct MsgTextNode: Codable, Identifiable {
+// 由于 ChatMessage 包含了 MsgTextNode，我们也需要让 MsgTextNode 遵循 Equatable
+struct MsgTextNode: Codable, Identifiable, Equatable {
     let id: Int
     let text: String
     let type: String
@@ -545,6 +622,13 @@ struct MsgTextNode: Codable, Identifiable {
         case type
         case error
     }
+}
+
+// TextError 也需要遵循 Equatable
+struct TextError: Codable, Equatable {
+    let type: String
+    let reason: String
+    let correction: String
 }
 
 // 添加一个新的 WavyLine Shape
@@ -727,22 +811,6 @@ struct MessageBubbleView: View {
         }
         
         return result
-
-        //  [MsgTextNode(id: 1, 
-        //              text: "There ", 
-        //              type: "text",
-        //              error: nil),
-        // MsgTextNode(id: 2, 
-        //              text: "are", 
-        //              type: "text",
-        //              error: TextError(type: "error",
-        //                             reason: "拼写错误",
-        //                             correction: "正确拼写")),
-        // MsgTextNode(id: 3, 
-        //              text: " a mistake in the sentence.", 
-        //              type: "text",
-        //              error: nil)
-        // ]
     }
     
     var body: some View {
@@ -757,7 +825,7 @@ struct MessageBubbleView: View {
                     isShowingTranslation: isShowingTranslation
                 )
                 .padding(12)
-                .background(message.isMe ? Color.blue : Color.gray.opacity(0.2))
+                .background(message.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
                 .cornerRadius(16)
                 .confirmationDialog(
                     "操作选项",
