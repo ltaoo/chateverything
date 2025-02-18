@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A63811832D64C949003EA4C9 /* LLM in Frameworks */ = {isa = PBXBuildFile; productRef = A63811822D64C949003EA4C9 /* LLM */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A6778D7E2D5352ED00447C17 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A63811832D64C949003EA4C9 /* LLM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = chateverything;
 			packageProductDependencies = (
+				A63811822D64C949003EA4C9 /* LLM */,
 			);
 			productName = chateverything;
 			productReference = A6778D6D2D5352EC00447C17 /* chateverything.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = A6778D642D5352EC00447C17;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A63811812D64C949003EA4C9 /* XCLocalSwiftPackageReference "chateverything/Packages/LLM" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A6778D6E2D5352EC00447C17 /* Products */;
 			projectDirPath = "";
@@ -570,6 +579,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A63811812D64C949003EA4C9 /* XCLocalSwiftPackageReference "chateverything/Packages/LLM" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = chateverything/Packages/LLM;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A63811822D64C949003EA4C9 /* LLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LLM;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A6778D652D5352EC00447C17 /* Project object */;
 }

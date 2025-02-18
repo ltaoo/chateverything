@@ -8,6 +8,9 @@
 import SwiftUI
 import AVFoundation
 import Speech
+import Foundation
+
+import LLM
 
 // 聊天消息模型
 struct ChatMessage: Identifiable {
@@ -154,7 +157,22 @@ struct ContentView: View {
                 
                 // 原有的 List 视图
                 List(chatSessions) { session in
-                    NavigationLink(destination: ChatDetailView(chatSession: session)) {
+                    NavigationLink(destination: ChatDetailView(
+                        chatSession: session, 
+                        model: LLMService(model: LanguageModel(
+                            providerName: "deepseek",
+                            id: "deepseek-chat",
+                            name: "deepseek-chat",
+                            apiKey: "sk-292831353cda4d1c9f59984067f24379",
+                            apiProxyAddress: "https://api.deepseek.com/chat/completions",
+                            responseHandler: { data in
+                            // print("responseHandler: \(data)")
+                                let decoder = JSONDecoder()
+                                let response = try decoder.decode(DeepseekChatResponse.self, from: data)
+                                return response.choices[0].message.content
+                            }
+                        ))
+                    )) {
                         ChatRowView(chatSession: session)
                     }
                 }
@@ -222,15 +240,16 @@ struct ChatRowView: View {
     }
 }
 
+let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
+
 // 聊天详情页面
 struct ChatDetailView: View {
     let chatSession: ChatSession
+    let model: LLMService
+    
     @State private var messageText: String = ""
     @State private var messages: [ChatMessage] = [
-        ChatMessage(content: "你好！", isMe: false, timestamp: Date().addingTimeInterval(-3600)),
-        ChatMessage(content: "最近怎么样？", isMe: true, timestamp: Date().addingTimeInterval(-1800)),
-        ChatMessage(content: "一切都好", isMe: false, timestamp: Date().addingTimeInterval(-1200)),
-        ChatMessage(content: "I develop a chat app that can recognize speech of person speaking.", isMe: true, timestamp: Date())
+        ChatMessage(content: prompt, isMe: false, timestamp: Date()),
     ]
     @State private var isRecording = false
     @State private var recordingStartTime: Date?
@@ -393,7 +412,6 @@ struct ChatDetailView: View {
     }
     
     private func recognizeSpeech(url: URL) {
-        // 怎么支持英文
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         let request = SFSpeechURLRecognitionRequest(url: url)
         
@@ -405,12 +423,28 @@ struct ChatDetailView: View {
             
             if result.isFinal {
                 let recognizedText = result.bestTranscription.formattedString
+                
+                // 添加用户消息
                 DispatchQueue.main.async {
-                    // 将识别的文本作为消息发送
                     let message = ChatMessage(content: recognizedText, 
-                                           isMe: true, 
-                                           timestamp: Date())
+                                            isMe: true, 
+                                            timestamp: Date())
                     self.messages.append(message)
+                }
+                
+                // 使用 Task 处理异步 LLM 调用
+                Task {
+                    do {
+                        let response = try await self.model.chat(content: recognizedText)
+                        DispatchQueue.main.async {
+                            let botMessage = ChatMessage(content: response, 
+                                                       isMe: false, 
+                                                       timestamp: Date())
+                            self.messages.append(botMessage)
+                        }
+                    } catch {
+                        print("LLM chat error: \(error)")
+                    }
                 }
             }
         }
@@ -536,28 +570,6 @@ struct WavyLine: Shape {
     }
 }
 
-// 添加自定义 Tooltip 视图
-// private struct TooltipView: View {
-//     let text: String
-    
-//     var body: some View {
-//         VStack(spacing: 0) {
-//             // 提示内容
-//             Text(text)
-//                 .font(.system(size: 14))
-//                 .padding(8)
-//                 .background(Color(NSColor.windowBackgroundColor))
-//                 .cornerRadius(4)
-            
-//             // 箭头
-//             Triangle()
-//                 .fill(Color(NSColor.windowBackgroundColor))
-//                 .frame(width: 10, height: 5)
-//         }
-//         .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
-//     }
-// }
-
 // 添加三角形箭头形状
 private struct Triangle: Shape {
     func path(in rect: CGRect) -> Path {
@@ -630,20 +642,11 @@ private struct MessageContentView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Use FlexibleView instead of HStack for automatic wrapping
-            // FlexibleView(data: nodes) { node in
-            //     MessageTextNodeView(node: node, isMe: isMe)
-            // }
             FlowLayout(spacing: 0) { 
                 ForEach(nodes) { node in
                     MessageTextNodeView(node: node, isMe: isMe)
                 }
             }
-            // HStack(spacing: 0) {
-            // nodes.reduce(Text("")) { result, node in
-            //     result + MessageTextNodeView(node: node, isMe: isMe) // 添加空格分隔
-            // }
-            // }
             
             if isShowingTranslation && !translatedText.isEmpty {
                 TranslationView(text: translatedText, isMe: isMe)
@@ -651,85 +654,6 @@ private struct MessageContentView: View {
         }
     }
 }
-
-// struct FlexibleView<Data: Collection, Content: View>: View where Data.Element: Identifiable {
-//     let data: Data
-//     let spacing: CGFloat
-//     let content: (Data.Element) -> Content
-    
-//     init(
-//         data: Data,
-//         spacing: CGFloat = 4,
-//         @ViewBuilder content: @escaping (Data.Element) -> Content
-//     ) {
-//         self.data = data
-//         self.spacing = spacing
-//         self.content = content
-//     }
-    
-//     var body: some View {
-//         GeometryReader { geometry in
-//             FlowLayoutView(
-//                 availableWidth: geometry.size.width,
-//                 data: Array(data),
-//                 spacing: spacing,
-//                 content: content
-//             )
-//         }
-//     }
-// }
-
-// private struct FlowLayoutView<Data: Identifiable, Content: View>: View {
-//     let availableWidth: CGFloat
-//     let data: [Data]
-//     let spacing: CGFloat
-//     let content: (Data) -> Content
-    
-//     @State private var elementsSize: [Data.ID: CGSize] = [:]
-//     @State private var positions: [Data.ID: CGPoint] = [:]
-    
-//     var body: some View {
-//         ZStack(alignment: .topLeading) {
-//             ForEach(data) { item in
-//                 content(item)
-//                     .fixedSize()
-//                     .background(GeometryReader { geo in
-//                         Color.clear.onAppear {
-//                             elementsSize[item.id] = geo.size
-//                             calculateLayout()
-//                         }
-//                     })
-//                     .alignmentGuide(.leading) { _ in
-//                         -(positions[item.id]?.x ?? 0)
-//                     }
-//                     .alignmentGuide(.top) { _ in
-//                         -(positions[item.id]?.y ?? 0)
-//                     }
-//             }
-//         }
-//     }
-    
-//     private func calculateLayout() {
-//         var currentX: CGFloat = 0
-//         var currentY: CGFloat = 0
-//         var lineHeight: CGFloat = 0
-        
-//         for item in data {
-//             guard let size = elementsSize[item.id] else { continue }
-            
-//             if currentX + size.width > availableWidth {
-//                 // Move to next line
-//                 currentX = 0
-//                 currentY += lineHeight + spacing
-//                 lineHeight = 0
-//             }
-            
-//             positions[item.id] = CGPoint(x: currentX, y: currentY)
-//             currentX += size.width + spacing
-//             lineHeight = max(lineHeight, size.height)
-//         }
-//     }
-// }
 
 // 自定义流式布局容器
 struct FlowLayout: Layout {
