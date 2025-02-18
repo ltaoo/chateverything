@@ -12,14 +12,18 @@ struct ChatMessage: Identifiable, Equatable {
     var nodes: [MsgTextNode]?
     var audioURL: URL? // 新增录音 URL
     var isBlurred: Bool // 移除默认值,在初始化时设置
+    var quizOptions: [QuizOption]? // 新增选项属性
+    var question: String? // 新增问题字段
     
-    init(content: String, isMe: Bool, timestamp: Date, nodes: [MsgTextNode]? = nil, audioURL: URL? = nil) {
+    init(content: String, isMe: Bool, timestamp: Date, nodes: [MsgTextNode]? = nil, audioURL: URL? = nil, quizOptions: [QuizOption]? = nil, question: String? = nil) {
         self.content = content
         self.isMe = isMe
         self.timestamp = timestamp
         self.nodes = nodes
         self.audioURL = audioURL
         self.isBlurred = !isMe // 非用户消息默认模糊
+        self.quizOptions = quizOptions
+        self.question = question
     }
     
     // 实现 Equatable 协议
@@ -30,12 +34,14 @@ struct ChatMessage: Identifiable, Equatable {
         lhs.timestamp == rhs.timestamp &&
         lhs.nodes == rhs.nodes &&
         lhs.audioURL == rhs.audioURL &&
-        lhs.isBlurred == rhs.isBlurred
+        lhs.isBlurred == rhs.isBlurred &&
+        lhs.quizOptions == rhs.quizOptions &&
+        lhs.question == rhs.question
     }
 }
 
-// let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
-let prompt = "You are an speaking examiner.";
+let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
+// let prompt = "You are an speaking examiner.";
 
 // 聊天详情页面
 struct ChatDetailView: View {
@@ -163,13 +169,29 @@ struct ChatDetailView: View {
                 let recognizedText = result.bestTranscription.formattedString
                 
                 DispatchQueue.main.async {
-                    let message = ChatMessage(content: recognizedText, 
-                                            isMe: true, 
-                                            timestamp: Date(),
-                                            nodes: nil,
-                                            audioURL: url)
-                    self.messages.append(message)
+                    // 创建示例选项（实际应该从 AI 响应中解析）
+                    let quizOptions = [
+                        QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
+                        QuizOption(text: "The response lacked coherence", isCorrect: false),
+                        QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
+                        QuizOption(text: "Vocabulary range was limited", isCorrect: false)
+                    ]
+                    
+                    // 添加带有选项的消息
+                    let botMessage = ChatMessage(
+                        content: recognizedText,
+                        isMe: false,
+                        timestamp: Date(),
+                        nodes: nil,
+                        audioURL: nil,
+                        quizOptions: quizOptions,
+                        question: "Based on the speaking response, which statement is most accurate?" // 添加问题
+                    )
+                    self.messages.append(botMessage)
                     self.isLoading = true
+                    
+                    // 自动开始朗读响应
+                    self.toggleSpeaking(text: recognizedText)
                 }
                 
                 Task {
@@ -177,12 +199,24 @@ struct ChatDetailView: View {
                         let response = try await self.model.chat(content: recognizedText)
                         
                         DispatchQueue.main.async {
-                            // 先添加消息
-                            let botMessage = ChatMessage(content: response, 
-                                                       isMe: false, 
-                                                       timestamp: Date(),
-                                                       nodes: nil,
-                                                       audioURL: nil)
+                            // 创建示例选项（实际应该从 AI 响应中解析）
+                            let quizOptions = [
+                                QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
+                                QuizOption(text: "The response lacked coherence", isCorrect: false),
+                                QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
+                                QuizOption(text: "Vocabulary range was limited", isCorrect: false)
+                            ]
+                            
+                            // 添加带有选项的消息
+                            let botMessage = ChatMessage(
+                                content: response,
+                                isMe: false,
+                                timestamp: Date(),
+                                nodes: nil,
+                                audioURL: nil,
+                                quizOptions: quizOptions,
+                                question: "Based on the speaking response, which statement is most accurate?" // 添加问题
+                            )
                             self.messages.append(botMessage)
                             self.isLoading = false
                             
@@ -702,6 +736,7 @@ struct MessageBubbleView: View {
     @Binding var isSpeaking: Bool
     let onSpeakToggle: (String) -> Void
     let audioRecorder: AudioRecorder
+    @State private var localQuizOptions: [QuizOption]?
     
     init(message: ChatMessage, 
          isSpeaking: Binding<Bool>, 
@@ -712,6 +747,7 @@ struct MessageBubbleView: View {
         _isSpeaking = isSpeaking
         self.onSpeakToggle = onSpeakToggle
         self.audioRecorder = audioRecorder
+        _localQuizOptions = State(initialValue: message.quizOptions)
     }
     
     var nodes: [MsgTextNode] {
@@ -735,103 +771,117 @@ struct MessageBubbleView: View {
     }
     
     var body: some View {
-        HStack {
-            if message.isMe { Spacer() }
-            
-            VStack(alignment: message.isMe ? .trailing : .leading) {
-                // 消息气泡
-                MessageContentView(
-                    nodes: nodes,
-                    isMe: message.isMe,
-                    translatedText: translatedText,
-                    isShowingTranslation: isShowingTranslation
-                )
-                .padding(12)
-                .background(message.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
-                .cornerRadius(16)
-                .if(isBlurred && !message.isMe) { view in
-                    view.blur(radius: 5)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            // 消息气泡
+            HStack {
+                if message.isMe { Spacer() }
                 
-                // 操作按钮区域
-                if message.audioURL != nil || !message.isMe {
-                    HStack(spacing: 8) {
-                        if !message.isMe { Spacer() }
-                        
-                        // 显示按钮（仅对非用户消息显示）
-                        if !message.isMe {
-                            Button(action: {
-                                isBlurred.toggle()
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: isBlurred ? "eye.slash.fill" : "eye.fill")
-                                    Text(isBlurred ? "显示" : "隐藏")
-                                        .font(.caption)
-                                }
-                                .foregroundColor(.gray)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(12)
-                            }
-                        }
-                        
-                        // 播放录音按钮（仅对用户消息显示）
-                        if message.isMe, let _ = message.audioURL {
-                            Button(action: {
-                                if let url = message.audioURL {
-                                    if isPlaying {
-                                        audioRecorder.stopPlayback()
-                                        isPlaying = false
-                                    } else {
-                                        audioRecorder.playAudio(url: url) {
-                                            isPlaying = false
-                                        }
-                                        isPlaying = true
-                                    }
-                                }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                                    Text(isPlaying ? "停止" : "回放")
-                                        .font(.caption)
-                                }
-                                .foregroundColor(.gray)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(12)
-                            }
-                        }
-                        
-                        // 文本朗读按钮（仅对非用户消息显示）
-                        if !message.isMe {
-                            Button(action: {
-                                onSpeakToggle(message.content)
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
-                                    Text(isSpeaking ? "停止" : "朗读")
-                                        .font(.caption)
-                                }
-                                .foregroundColor(.gray)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(12)
-                            }
-                        }
-                        
-                        if message.isMe { Spacer() }
+                VStack(alignment: message.isMe ? .trailing : .leading) {
+                    MessageContentView(
+                        nodes: nodes,
+                        isMe: message.isMe,
+                        translatedText: translatedText,
+                        isShowingTranslation: isShowingTranslation
+                    )
+                    .padding(12)
+                    .background(message.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
+                    .cornerRadius(16)
+                    .if(isBlurred && !message.isMe) { view in
+                        view.blur(radius: 5)
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.top, 4)
+                    
+                    // 操作按钮区域
+                    if message.audioURL != nil || !message.isMe {
+                        HStack(spacing: 8) {
+                            if !message.isMe { Spacer() }
+                            
+                            // 显示按钮（仅对非用户消息显示）
+                            if !message.isMe {
+                                Button(action: {
+                                    isBlurred.toggle()
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: isBlurred ? "eye.slash.fill" : "eye.fill")
+                                        Text(isBlurred ? "显示" : "隐藏")
+                                            .font(.caption)
+                                    }
+                                    .foregroundColor(.gray)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(12)
+                                }
+                            }
+                            
+                            // 播放录音按钮（仅对用户消息显示）
+                            if message.isMe, let _ = message.audioURL {
+                                Button(action: {
+                                    if let url = message.audioURL {
+                                        if isPlaying {
+                                            audioRecorder.stopPlayback()
+                                            isPlaying = false
+                                        } else {
+                                            audioRecorder.playAudio(url: url) {
+                                                isPlaying = false
+                                            }
+                                            isPlaying = true
+                                        }
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                                        Text(isPlaying ? "停止" : "回放")
+                                            .font(.caption)
+                                    }
+                                    .foregroundColor(.gray)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(12)
+                                }
+                            }
+                            
+                            // 文本朗读按钮（仅对非用户消息显示）
+                            if !message.isMe {
+                                Button(action: {
+                                    onSpeakToggle(message.content)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                        Text(isSpeaking ? "停止" : "朗读")
+                                            .font(.caption)
+                                    }
+                                    .foregroundColor(.gray)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(12)
+                                }
+                            }
+                            
+                            if message.isMe { Spacer() }
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.top, 4)
+                    }
+                    
+                    ErrorIndicatorView(node: nodes.first)
                 }
                 
-                ErrorIndicatorView(node: nodes.first)
+                if !message.isMe { Spacer() }
             }
             
-            if !message.isMe { Spacer() }
+            // 答题卡片（独立于气泡）
+            if let options = localQuizOptions, let question = message.question {
+                QuizCardView(
+                    question: question,
+                    options: Binding(
+                        get: { options },
+                        set: { localQuizOptions = $0 }
+                    )
+                )
+                .frame(maxWidth: .infinity)
+            }
         }
         .confirmationDialog(
             "操作选项",
@@ -906,6 +956,124 @@ private struct ErrorIndicatorView: View {
                 .padding(.vertical, 4)
             }
         }
+    }
+}
+
+// 修改 QuizOption 结构体
+struct QuizOption: Identifiable, Equatable {
+    let id = UUID()
+    let text: String
+    let isCorrect: Bool
+    var isSelected: Bool = false
+    var hasBeenSelected: Bool = false // 新增：记录是否被选择过
+}
+
+// 更新 QuizCardView 组件
+struct QuizCardView: View {
+    let question: String
+    @Binding var options: [QuizOption]
+    @State private var selectedOption: UUID?
+    @State private var showResult: Bool = false
+    @State private var attempts: Int = 0
+    
+    // 计算网格布局
+    private let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // 问题部分
+            VStack(alignment: .leading, spacing: 8) {
+                Text("评估")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                Text(question)
+                    .font(.headline)
+            }
+            
+            // 选项网格
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(options) { option in
+                    Button(action: {
+                        handleOptionSelection(option)
+                    }) {
+                        HStack {
+                            Text(option.text)
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(2)
+                            Spacer()
+                            if option.hasBeenSelected {
+                                Image(systemName: option.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundColor(option.isCorrect ? .green : .red)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(getBackgroundColor(for: option))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                    }
+                    .disabled(option.hasBeenSelected && !option.isCorrect)
+                }
+            }
+            
+            // 尝试次数提示
+            if attempts > 0 {
+                HStack {
+                    Image(systemName: "info.circle")
+                    Text(attempts == 1 ? "第一次尝试" : "第 \(attempts) 次尝试")
+                    if let option = options.first(where: { $0.hasBeenSelected && $0.isCorrect }) {
+                        Text("- 答对了！")
+                            .foregroundColor(.green)
+                    }
+                }
+                .font(.caption)
+                .foregroundColor(.gray)
+                .padding(.top, 4)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(16)
+    }
+    
+    private func handleOptionSelection(_ option: QuizOption) {
+        attempts += 1
+        
+        // 更新选项状态
+        if option.isCorrect {
+            // 如果选择正确，显示正确标记
+            selectedOption = option.id
+            showResult = true
+        } else {
+            // 如果选择错误，只标记当前选项为错误
+            selectedOption = option.id
+        }
+        
+        // 标记当前选项为已选择
+        if let index = options.firstIndex(where: { $0.id == option.id }) {
+            options[index].hasBeenSelected = true
+        }
+    }
+    
+    private func getBackgroundColor(for option: QuizOption) -> Color {
+        if option.hasBeenSelected {
+            if option.isCorrect {
+                return Color.green.opacity(0.1)
+            } else {
+                return Color.red.opacity(0.1)
+            }
+        }
+        return Color(UIColor.systemBackground)
     }
 }
 

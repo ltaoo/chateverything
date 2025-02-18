@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import QCloudRealTTS
+import Speech
 
 // TTS 引擎协议
 protocol TTSEngine {
@@ -236,5 +237,27 @@ class TTSManager {
     
     func stopSpeaking() {
         currentEngine.stopSpeaking()
+    }
+    
+    func requestSpeechPermission(completion: @escaping (Bool) -> Void) {
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async {
+                switch status {
+                case .authorized:
+                    completion(true)
+                default:
+                    completion(false)
+                }
+            }
+        }
+        
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+            // 麦克风权限请求
+            DispatchQueue.main.async {
+                if !granted {
+                    completion(false)
+                }
+            }
+        }
     }
 } 
