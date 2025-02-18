@@ -2,48 +2,23 @@ import SwiftUI
 import PencilKit
 
 struct HandwritingView: View {
+    let onRecognized: (String) -> Void
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel = HandwritingViewModel()
-    let onComplete: (String) -> Void
+    @State private var recognizedText = ""
     
     var body: some View {
-        NavigationStack {
-            VStack {
-                CanvasView(canvasView: viewModel.canvasView)
-                    .frame(height: 300)
-                    .background(Color.white)
-                    .border(Color.gray)
-                    .padding()
-                    .onAppear {
-                        // 确保视图出现时重新配置画布
-                        viewModel.reconfigureCanvas()
-                    }
-                
-                Spacer()
-                
-                Button("完成") {
-                    let image = viewModel.canvasView.drawing.image(from: viewModel.canvasView.bounds, scale: UIScreen.main.scale)
-                    onComplete("测试文本")
-                    dismiss()
-                }
-                .padding()
-            }
-            .navigationTitle("手写输入")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("清除") {
-                        viewModel.clearCanvas()
-                    }
-                }
+        VStack {
+            Text("Handwriting View")
+                .font(.title)
+            
+            // Add your handwriting implementation here
+            
+            Button("Done") {
+                onRecognized(recognizedText)
+                dismiss()
             }
         }
+        .padding()
     }
 }
 
