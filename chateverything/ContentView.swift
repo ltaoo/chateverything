@@ -74,7 +74,9 @@ struct ContentView: View {
     @State private var seasons: [Season] = []
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
     
-    @EnvironmentObject private var navigationManager: NavigationStateManager
+    @StateObject private var navigationManager = NavigationStateManager()
+    
+    @State private var showingChatConfig = false
     
     func loadSeasons() {
         let hostname = "https://media.funzm.com"
@@ -129,29 +131,41 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             // 聊天标签页
-            NavigationStack {
+            NavigationStack(path: $navigationManager.path) {
                 VStack(spacing: 0) {
                     // 原有的 List 视图
                     List(chatSessions) { session in
-                        Button {
-                            let chatDetailView = ChatDetailView(
+                        NavigationLink {
+let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
+// let prompt = "You are an speaking examiner.";
+                            ChatDetailView(
                                 chatSession: session,
+                                // model: LLMService(model: LanguageModel(
+                                //     providerName: "deepseek",
+                                //     id: "deepseek-chat",
+                                //     name: "deepseek-chat",
+                                //     apiKey: "sk-292831353cda4d1c9f59984067f24379",
+                                //     apiProxyAddress: "https://api.deepseek.com/chat/completions",
+                                //     responseHandler: { data in
+                                //         let decoder = JSONDecoder()
+                                //         let response = try decoder.decode(DeepseekChatResponse.self, from: data)
+                                //         return response.choices[0].message.content
+                                //     }
+                                // ), 
                                 model: LLMService(model: LanguageModel(
-                                    providerName: "deepseek",
-                                    id: "deepseek-chat",
-                                    name: "deepseek-chat",
-                                    apiKey: "sk-292831353cda4d1c9f59984067f24379",
-                                    apiProxyAddress: "https://api.deepseek.com/chat/completions",
+                                    providerName: "doubao",
+                                    id: "ep-20250205141518-nvl9p",
+                                    name: "ep-20250205141518-nvl9p",
+                                    apiKey: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmstY29uc29sZSIsImV4cCI6MTczOTk5MjgxMCwiaWF0IjoxNzM5OTU2ODEwLCJ0IjoidXNlciIsImt2IjoxLCJhaWQiOiIyMTAyMDM0ODI1IiwidWlkIjoiMCIsImlzX291dGVyX3VzZXIiOnRydWUsInJlc291cmNlX3R5cGUiOiJlbmRwb2ludCIsInJlc291cmNlX2lkcyI6WyJlcC0yMDI1MDIwNTE0MTUxOC1udmw5cCJdfQ.Z1GxZIt9zPUHfTEsHm9FctiECbO0SxGGuCF5ZIMWG7J1FMRyvWvK2qCWCXvR8yEHRpxKCEg-y_uVAuBklv90PchOlalJy_nvRidKrptzNJSjRVPFjZCKFd_cwEoqPv3NV-ltH3fc3HJCq0abuU6UR_gKY__Tl2qwcjUnr0tXjit71w9wQM6CQGB_49NvQdbq087ISZmC3yi0XSPVyN2b2F0WBp6lxZUCxdwbKtxVZc0N_SRcJQPNxrgsgjmFxqCjTADZggVT_2sCzqsax0rtGFR8PypiPhnMJyT1FutscqCo69RptOlfFlGect4ol_S9RBa1uyhSK3B_ixfVya8S1g",
+                                    apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
                                     responseHandler: { data in
                                         let decoder = JSONDecoder()
-                                        let response = try decoder.decode(DeepseekChatResponse.self, from: data)
+                                        let response = try decoder.decode(DoubaoChatResponse.self, from: data)
                                         return response.choices[0].message.content
                                     }
-                                ), prompt: prompt)
+                                ),
+                                prompt: prompt)
                             )
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                navigationManager.navigateToChatDetail(view: chatDetailView)
-                            }
                         } label: {
                             ChatRowView(chatSession: session)
                         }
@@ -160,14 +174,13 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         HStack {
-                            // 移动到右上角的选择按钮
                             Button(action: {
-                                // 按钮点击事件处理
+                                showingChatConfig = true
                             }) {
                                 HStack {
                                     Text("🤖")
                                         .font(.title2)
-                                    Text("请选择")
+                                    Text("新对话")
                                         .foregroundColor(.primary)
                                     Image(systemName: "chevron.down")
                                         .foregroundColor(.gray)
@@ -184,7 +197,29 @@ struct ContentView: View {
                         }
                     }
                 }
+                .sheet(isPresented: $showingChatConfig) {
+                    ChatConfigView(isPresented: $showingChatConfig) { model, prompt in
+                        let newSession = ChatSession(
+                            name: "新对话",
+                            avatar: "person.circle.fill",
+                            lastMessage: "开始新对话",
+                            lastMessageTime: Date(),
+                            unreadCount: 0
+                        )
+                        chatSessions.insert(newSession, at: 0)
+                        
+                        let chatDetailView = ChatDetailView(
+                            chatSession: newSession,
+                            model: LLMService(model: model)
+                        )
+                        navigationManager.navigate(to: chatDetailView)
+                    }
+                }
+                .navigationDestination(for: ChatDetailView.self) { view in
+                    view
+                }
             }
+            .environmentObject(navigationManager)
             .tabItem {
                 Image(systemName: "message.fill")
                 Text("聊天")
@@ -193,8 +228,7 @@ struct ContentView: View {
             
             // 探索标签页
             NavigationStack {
-                Text("探索页面")
-                    .navigationTitle("探索")
+                SearchView()
             }
             .tabItem {
                 Image(systemName: "safari.fill")
@@ -303,6 +337,17 @@ extension String {
         }
         
         return result
+    }
+}
+
+// 确保 ChatDetailView 符合 Hashable 协议
+extension ChatDetailView: Hashable {
+    static func == (lhs: ChatDetailView, rhs: ChatDetailView) -> Bool {
+        lhs.chatSession.id == rhs.chatSession.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(chatSession.id)
     }
 }
 

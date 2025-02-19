@@ -1,21 +1,17 @@
 import SwiftUI
 
-public class NavigationStateManager: ObservableObject {
-    @Published var currentView: AnyView?
+class NavigationStateManager: ObservableObject {
+    @Published var path: [ChatDetailView] = []
     
-    init() {
-        self.currentView = nil
-    }
-    
-    func navigateToChatDetail(view: some View) {
-        withAnimation {
-            currentView = AnyView(view)
-        }
+    func navigate(to view: ChatDetailView) {
+        path.append(view)
     }
     
     func navigateBack() {
-        withAnimation {
-            currentView = nil
-        }
+        _ = path.popLast()
+    }
+    
+    func navigateToRoot() {
+        path.removeAll()
     }
 } 

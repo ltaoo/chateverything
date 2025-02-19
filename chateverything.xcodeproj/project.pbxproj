@@ -436,6 +436,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ChatEverything;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "访问录音文件进行语音识别";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "请求使用";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要使用麦克风来进行语音输入";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "需要语音识别权限来将语音转换为文字";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -473,6 +475,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ChatEverything;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "访问录音文件进行语音识别";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "请求使用";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要使用麦克风来进行语音输入";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "需要语音识别权限来将语音转换为文字";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

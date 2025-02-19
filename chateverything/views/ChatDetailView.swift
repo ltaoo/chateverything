@@ -40,8 +40,6 @@ struct ChatMessage: Identifiable, Equatable {
     }
 }
 
-let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
-// let prompt = "You are an speaking examiner.";
 
 // 聊天详情页面
 struct ChatDetailView: View {
@@ -52,7 +50,6 @@ struct ChatDetailView: View {
     
     @State private var messageText: String = ""
     @State private var messages: [ChatMessage] = [
-        ChatMessage(content: prompt, isMe: false, timestamp: Date()),
     ]
     @State private var isRecording = false
     @State private var recordingStartTime: Date?
@@ -71,6 +68,11 @@ struct ChatDetailView: View {
     }
     
     private func startRecording() {
+if isSpeaking {
+            TTSManager.shared.stopSpeaking()
+            isSpeaking = false
+        }
+
         #if os(iOS)
         // 检查麦克风权限
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
@@ -158,81 +160,123 @@ struct ChatDetailView: View {
     }
     
     private func recognizeSpeech(url: URL) {
+        print("recognizeSpeech - 1 \(url)")
+        // 使用静态实例并指定语言
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-        let request = SFSpeechURLRecognitionRequest(url: url)
         
-        recognizer?.recognitionTask(with: request) { result, error in
-            guard let result = result else {
-                print("Recognition failed with error: \(error?.localizedDescription ?? "unknown error")")
-                return
+        // 添加音频源类型提示
+        // request.shouldReportPartialResults = true
+        // request.requiresOnDeviceRecognition = false
+        
+        guard let recognizer = recognizer, recognizer.isAvailable else {
+            print("Speech recognizer not available")
+            DispatchQueue.main.async {
+                self.showingPermissionAlert = true
             }
-            
-            if result.isFinal {
-                let recognizedText = result.bestTranscription.formattedString
-                
-                DispatchQueue.main.async {
-                    // 创建示例选项（实际应该从 AI 响应中解析）
-                    let quizOptions = [
-                        QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
-                        QuizOption(text: "The response lacked coherence", isCorrect: false),
-                        QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
-                        QuizOption(text: "Vocabulary range was limited", isCorrect: false)
-                    ]
+            return
+        }
+        
+        // 请求语音识别权限
+        SFSpeechRecognizer.requestAuthorization { status in
+            switch status {
+            case .authorized:
+                print("Speech recognition authorized")
+        let request = SFSpeechURLRecognitionRequest(url: url)
+                // 继续语音识别流程
+                recognizer.recognitionTask(with: request) { result, error in
+                    if let error = error {
+                        print("Recognition failed with error: \(error.localizedDescription)")
+                        return
+                    }
                     
-                    // 添加带有选项的消息
-                    let botMessage = ChatMessage(
-                        content: recognizedText,
-                        isMe: false,
-                        timestamp: Date(),
-                        nodes: nil,
-                        audioURL: nil,
-                        quizOptions: quizOptions,
-                        question: "Based on the speaking response, which statement is most accurate?" // 添加问题
-                    )
-                    self.messages.append(botMessage)
-                    self.isLoading = true
+                    guard let result = result else {
+                        print("No recognition result")
+                        return
+                    }
                     
-                    // 自动开始朗读响应
-                    self.toggleSpeaking(text: recognizedText)
-                }
-                
-                Task {
-                    do {
-                        let response = try await self.model.chat(content: recognizedText)
+                    if result.isFinal {
+                        let recognizedText = result.bestTranscription.formattedString
+                        print("recognizeSpeech - 3, \(recognizedText)")
                         
-                        DispatchQueue.main.async {
-                            // 创建示例选项（实际应该从 AI 响应中解析）
-                            let quizOptions = [
-                                QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
-                                QuizOption(text: "The response lacked coherence", isCorrect: false),
-                                QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
-                                QuizOption(text: "Vocabulary range was limited", isCorrect: false)
-                            ]
-                            
-                            // 添加带有选项的消息
+                        // 确保在主线程更新 UI
+                        DispatchQueue.main.async { 
                             let botMessage = ChatMessage(
-                                content: response,
-                                isMe: false,
+                                content: recognizedText,
+                                isMe: true,
                                 timestamp: Date(),
                                 nodes: nil,
-                                audioURL: nil,
-                                quizOptions: quizOptions,
-                                question: "Based on the speaking response, which statement is most accurate?" // 添加问题
+                                audioURL: url,
+                                quizOptions: nil,
+                                question: nil
                             )
                             self.messages.append(botMessage)
-                            self.isLoading = false
+                            // self.isLoading = true
                             
-                            // 自动开始朗读响应
-                            self.toggleSpeaking(text: response)
-                        }
-                    } catch {
-                        print("LLM chat error: \(error)")
-                        DispatchQueue.main.async {
-                            self.isLoading = false
+                            Task {
+                                do {
+                                    let response = try await self.model.chat(content: recognizedText)
+                                    DispatchQueue.main.async {
+                                        let quizOptions = [
+                                            QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
+                                            QuizOption(text: "The response lacked coherence", isCorrect: false),
+                                            QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
+                                            QuizOption(text: "Vocabulary range was limited", isCorrect: false)
+                                        ]
+                                        
+                                        let botMessage = ChatMessage(
+                                            content: response,
+                                            isMe: false,
+                                            timestamp: Date(),
+                                            nodes: nil,
+                                            audioURL: nil,
+                                            quizOptions: quizOptions,
+                                            question: "Based on the speaking response, which statement is most accurate?"
+                                        )
+                                        self.messages.append(botMessage)
+                                        self.isLoading = false
+                                        
+                                        // self.toggleSpeaking(text: response)
+                                    }
+                                } catch {
+                                    print("LLM chat error: \(error)")
+                                    DispatchQueue.main.async {
+                                        self.isLoading = false
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+            case .denied:
+                print("Speech recognition permission denied")
+                DispatchQueue.main.async {
+                    self.showingPermissionAlert = true
+                }
+            case .restricted:
+                print("Speech recognition restricted on this device")
+                DispatchQueue.main.async {
+                    self.showingPermissionAlert = true
+                }
+            case .notDetermined:
+                print("Speech recognition not determined")
+                DispatchQueue.main.async {
+                    self.showingPermissionAlert = true
+                }
+            @unknown default:
+                print("Unknown speech recognition authorization status")
             }
+        }
+    }
+    
+    private func playAudioMessage(url: URL) {
+        if self.isPlaying {
+            audioRecorder.stopPlayback()
+            self.isPlaying = false
+        } else {
+            audioRecorder.playAudio(url: url) {
+                self.isPlaying = false
+            }
+            self.isPlaying = true
         }
     }
     
@@ -240,41 +284,9 @@ struct ChatDetailView: View {
         let duration = Int(-startTime.timeIntervalSinceNow)
         return String(format: "%d:%02d", duration / 60, duration % 60)
     }
-    
-    private func sendMessage() {
-        guard !messageText.isEmpty else { return }
-        
-        // 发送用户消息
-        let userMessage = ChatMessage(content: messageText, isMe: true, timestamp: Date())
-        messages.append(userMessage)
-        
-        // 调用 Rust 代码处理消息
-        // let response = ChatCore.sendMessage(messageText)
-        let response = "hello"
-        
-        // 添加响应消息
-        let botMessage = ChatMessage(content: response, isMe: false, timestamp: Date())
-        messages.append(botMessage)
-        
-        messageText = ""
-    }
 
     var body: some View {
         VStack {
-            // 添加自定义返回按钮
-            HStack {
-                Button {
-                    navigationManager.navigateBack()
-                } label: {
-                    HStack {
-                        Image(systemName: "chevron.left")
-                        Text("返回")
-                    }
-                }
-                .padding()
-                Spacer()
-            }
-            
             ScrollView {
                 ScrollViewReader { proxy in
                     LazyVStack(spacing: 12) {
@@ -409,9 +421,14 @@ struct ChatDetailView: View {
             
             // 在 ChatDetailView 中添加警告对话框
             .alert("需要权限", isPresented: $showingPermissionAlert) {
-                Button("确定") {}
+                Button("打开设置") {
+                    if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(settingsURL)
+                    }
+                }
+                Button("取消", role: .cancel) {}
             } message: {
-                Text("请在设置中允许使用麦克风和语音识别功能")
+                Text("请在设置中允许使用麦克风和语音识别功能。\n\n需要开启:\n1. 麦克风权限\n2. 语音识别权限")
             }
         }
         .navigationTitle(chatSession.name)
@@ -422,11 +439,18 @@ struct ChatDetailView: View {
             // 在视图加载时调用 model.chat
             // Task {
             //     do {
-            //         let response = try await model.chat(content: prompt)
-            //         let botMessage = ChatMessage(content: response, 
-            //                                    isMe: false, 
-            //                                    timestamp: Date())
-            //         messages.append(botMessage)
+            //         let response = try await model.chat(content: "Let's begin.")
+            //         let botMessage = ChatMessage(
+            //             content: response,
+            //             isMe: false,
+            //             timestamp: Date(),
+            //             nodes: nil,
+            //             audioURL: nil,
+            //             quizOptions: nil,
+            //             question: nil
+            //         )
+            //         self.messages.append(botMessage)
+            //         self.toggleSpeaking(text: response)
             //     } catch {
             //         print("Initial chat error: \(error)")
             //     }
@@ -435,18 +459,6 @@ struct ChatDetailView: View {
         .onDisappear {
             // 在视图消失时清理音频资源
             audioRecorder.cleanup()
-        }
-    }
-    
-    private func playAudioMessage(url: URL) {
-        if self.isPlaying {
-            audioRecorder.stopPlayback()
-            self.isPlaying = false
-        } else {
-            audioRecorder.playAudio(url: url) {
-                self.isPlaying = false
-            }
-            self.isPlaying = true
         }
     }
 }
