@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 
 struct RoleBiz {
     var id: UUID

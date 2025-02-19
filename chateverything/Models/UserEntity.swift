@@ -1,7 +1,7 @@
 import Foundation
 import CoreData
 
-@objc(User)
+// @objc(UserEntity)
 public class UserEntity: NSManagedObject {
     @NSManaged public var id: UUID?
     @NSManaged public var name: String?

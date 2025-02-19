@@ -127,7 +127,7 @@ class ChatStore: ObservableObject {
     private let sessionsKey = "chat_sessions"
     private let messagesKey = "chat_messages"
     private let questionsKey = "chat_questions"
-    private let context = PersistenceController.shared.container.viewContext
+    private let context = PersistenceController.container.viewContext
     
     init(container: NSPersistentContainer) {
         self.container = container

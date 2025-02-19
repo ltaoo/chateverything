@@ -116,109 +116,58 @@ struct ContentView: View {
     }
     
     var body: some View {
-        Text("test")
-//         TabView(selection: $selectedTab) {
-//             NavigationStack(path: $navigationManager.path) {
-//                 VStack(spacing: 0) {
-//                     // if isLoading {
-//                     //     ProgressView()
-//                     //         .padding()
-//                     // }
-                    
-//                     List {
-//                         ForEach(chatStore.chatSessions) { session in
-//                             NavigationLink {
-//                                 // let role = Config.shared.roles.first(where: { $0.id == session.roleId }) ?? Config.shared.roles[0]
-//                                 // let model = Config.shared.languageProviders.flatMap({ $0.models }).first(where: { $0.id == session.modelId }) ?? Config.shared.languageProviders[1].models[0]
-                                
-//                                 // ChatDetailView(
-//                                 //     chatSession: session,
-//                                 //     model: LLMService(model: model),
-//                                 //     role: role
-//                                 // )
-//                                 Text("test")
-//                             } label: {
-//                                 ChatRowView(chatSession: session)
-//                             }
-//                         }
-//                         .onDelete { indexSet in
-// //                            chatStore.deleteSession(at: indexSet)
-//                         }
-//                     }
-//                 }
-//                 .toolbar {
-//                     ToolbarItem(placement: .navigationBarTrailing) {
-//                        ChatButton()
-//                     }
-//                 }
-//                 .sheet(isPresented: $showingChatConfig) {
-//                     // ChatConfigView(isPresented: $showingChatConfig) { model, prompt, role in
-//                         // let newSession = ChatSession(
-//                         //     name: role.name,
-//                         //     avatar: "person.circle.fill",
-//                         //     lastMessage: "开始新对话",
-//                         //     lastMessageTime: Date(),
-//                         //     unreadCount: 0,
-//                         //     messages: [],
-//                         //     roleId: role.id,
-//                         //     modelId: model.id
-//                         // )
-//                         // chatStore.addSession(newSession)
-                        
-//                         // let chatDetailView = ChatDetailView(
-//                         //     chatSession: newSession,
-//                         //     model: LLMService(model: model),
-//                         //     role: role
-//                         // )
-//                         // navigationManager.navigate(to: chatDetailView)
-//                     // }
-//                 }
-//                 // .navigationDestination(for: ChatDetailView.self) { view in
-//                 //     view
-//                 // }
-//             }
-//             .environmentObject(navigationManager)
-//             .tabItem {
-//                 Image(systemName: "message.fill")
-//                 Text("聊天")
-//             }
-//             .tag(0)
+        TabView(selection: $selectedTab) {
+            NavigationStack(path: $navigationManager.path) {
+                VStack(spacing: 0) {
+                  
+                }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                       ChatButton()
+                    }
+                }
+            }
+            .environmentObject(navigationManager)
+            .tabItem {
+                Image(systemName: "message.fill")
+                Text("聊天")
+            }
+            .tag(0)
+            // 探索标签页
+            // NavigationStack {
+            //     SearchView()
+            // }
+            // .tabItem {
+            //     Image(systemName: "safari.fill")
+            //     Text("探索")
+            // }
+            // .tag(1)
             
-//             // 探索标签页
-//             // NavigationStack {
-//             //     SearchView()
-//             // }
-//             // .tabItem {
-//             //     Image(systemName: "safari.fill")
-//             //     Text("探索")
-//             // }
-//             // .tag(1)
+            // // 发现标签页
+            // NavigationStack {
+            //     DiscoverView()
+            // }
+            // .tabItem {
+            //     Image(systemName: "sparkles")
+            //     Text("发现")
+            // }
+            // .tag(2)
             
-//             // // 发现标签页
-//             // NavigationStack {
-//             //     DiscoverView()
-//             // }
-//             // .tabItem {
-//             //     Image(systemName: "sparkles")
-//             //     Text("发现")
-//             // }
-//             // .tag(2)
-            
-//             // // 我的标签页
-//             // NavigationStack {
-//             //    MineView()
-//             // }
-//             // .tabItem {
-//             //     Image(systemName: "person.fill")
-//             //     Text("我的")
-//             // }
-//             // .tag(3)
-//         }
-//         .onAppear {
-//             // loadChatSessions()
-//         }
-//         .toolbar(.visible, for: .tabBar)
-//         .toolbarBackground(.visible, for: .tabBar)
+            // // 我的标签页
+            // NavigationStack {
+            //    MineView()
+            // }
+            // .tabItem {
+            //     Image(systemName: "person.fill")
+            //     Text("我的")
+            // }
+            // .tag(3)
+        }
+        .onAppear {
+            // loadChatSessions()
+        }
+        .toolbar(.visible, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
     }
     
     private func loadChatSessions() {

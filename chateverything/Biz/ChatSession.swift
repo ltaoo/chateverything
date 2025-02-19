@@ -34,7 +34,7 @@ class ChatSessionBiz {
     
     static func New(id: UUID) -> ChatSessionBiz? {
         // 获取 ViewContext
-        let context = PersistenceController.shared.container.viewContext
+        let context = PersistenceController.container.viewContext
         
         // 创建获取请求
         let fetchRequest: NSFetchRequest<ChatSessionEntity> = ChatSessionEntity.fetchRequest()

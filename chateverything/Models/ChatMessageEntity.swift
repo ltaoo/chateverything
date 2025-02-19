@@ -1,7 +1,7 @@
 import Foundation
 import CoreData
 
-@objc(ChatMessage)
+@objc(ChatMessageEntity)
 public class ChatMessageEntity: NSManagedObject {
     @NSManaged public var id: UUID?
     @NSManaged public var content: String?

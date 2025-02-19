@@ -1,7 +1,7 @@
 import Foundation
 import CoreData
 
-@objc(Role)
+@objc(RoleEntity)
 public class RoleEntity: NSManagedObject {
     @NSManaged public var id: UUID?
     @NSManaged public var name: String?
@@ -151,13 +151,23 @@ extension RoleEntity {
             // 只在没有任何角色时创建默认角色
             if count == 0 {
                 for roleData in defaultRoles {
-                    _ = RoleEntity.create(
-                        in: context,
-                        name: roleData.name,
-                        avatar: roleData.avatar,
-                        prompt: roleData.prompt,
-                        settings: roleData.settings
-                    )
+                guard let entity = NSEntityDescription.entity(forEntityName: "Role", in: context) else {
+                    fatalError("Failed to initialize UserEntity")
+                }
+                let role = RoleEntity(entity: entity, insertInto: context)
+                role.id = UUID()
+                role.name = roleData.name
+                role.avatar = roleData.avatar
+                role.prompt = roleData.prompt
+                role.settings = roleData.settings
+                role.created_at = Date()
+                    // _ = RoleEntity.create(
+                    //     in: context,
+                    //     name: roleData.name,
+                    //     avatar: roleData.avatar,
+                    //     prompt: roleData.prompt,
+                    //     settings: roleData.settings
+                    // )
                 }
                 
                 try context.save()

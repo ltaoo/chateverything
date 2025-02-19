@@ -1,7 +1,7 @@
 import Foundation
 import CoreData
 
-@objc(ChatSession)
+@objc(ChatSessionEntity)
 public class ChatSessionEntity: NSManagedObject {
     @NSManaged public var id: UUID?
     @NSManaged public var user1_id: UUID?

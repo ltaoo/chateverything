@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 
 class ChatBoxBiz {
     var id: UUID

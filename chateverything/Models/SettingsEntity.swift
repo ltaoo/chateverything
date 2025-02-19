@@ -1,7 +1,7 @@
 import Foundation
 import CoreData
 
-@objc(Settings)
+@objc(SettingsEntity)
 public class SettingsEntity: NSManagedObject {
     @NSManaged public var id: UUID?
     @NSManaged public var user_id: String?

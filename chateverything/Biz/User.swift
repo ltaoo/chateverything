@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 
 struct UserBiz {
     var id: UUID
