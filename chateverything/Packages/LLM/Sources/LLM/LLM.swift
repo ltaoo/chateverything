@@ -27,41 +27,79 @@ public struct ChatRequest: Codable {
 // 定义响应处理器类型
 public typealias ResponseHandler = (Data) throws -> String
 
-public struct LanguageModel: Identifiable {
-    public let providerName: String
-    public let id: String
+public struct LanguageProvider: Identifiable {
+    public let id = UUID()
     public let name: String
     public let apiKey: String
     public let apiProxyAddress: String
-    public var extraParams: [String: Any]?
-    public let responseHandler: ResponseHandler
+    public var models: [LanguageModel]
+    
+    public init(name: String, apiKey: String, apiProxyAddress: String, models: [LanguageModel]) {
+        self.name = name
+        self.models = models
+        self.apiKey = apiKey
+        self.apiProxyAddress = apiProxyAddress
+    }
+
+     // 实现 Hashable 协议
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(name)
+    }
+    public static func == (lhs: LanguageProvider, rhs: LanguageProvider) -> Bool {
+        return lhs.id == rhs.id && lhs.name == rhs.name
+    }
+}
+
+public struct LanguageModel: Identifiable, Hashable {
+    public let id: String
+    public let providerName: String
+    public let name: String
+    public let responseHandler: (Data) throws -> String
     
     public init(
         providerName: String,
         id: String,
         name: String,
-        apiKey: String,
-        apiProxyAddress: String,
-        extraParams: [String: Any]? = nil,
-        responseHandler: @escaping ResponseHandler
+        responseHandler: @escaping (Data) throws -> String
     ) {
         self.providerName = providerName
         self.id = id
         self.name = name
-        self.apiKey = apiKey
-        self.apiProxyAddress = apiProxyAddress
-        self.extraParams = extraParams
         self.responseHandler = responseHandler
     }
+    
+    // 实现 Hashable 协议
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(providerName)
+        hasher.combine(name)
+    }
+    
+    // 实现 Equatable 协议（Hashable 需要）
+    public static func == (lhs: LanguageModel, rhs: LanguageModel) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.providerName == rhs.providerName &&
+               lhs.name == rhs.name
+    }
+}
+struct ChatModelSettings {
+    var provider: String
+    var model: String
+    var apiProxyAddress: String
+    var apiKey: String
+    var extra: [String: String]
 }
 
 public class LLMService {
+    private let value: ChatModelSettings
     private let model: LanguageModel
     private let prompt: String
     private var messages: [Message]
     
-    public init(model: LanguageModel, prompt: String = "") {
-        self.model = model
+    init(value: ChatModelSettings, prompt: String = "") {
+        self.value = value
+        self.model = LLMServiceProviders.first(where: { $0.name == value.provider })?.models.first(where: { $0.name == value.model }) ?? LLMServiceProviders.first?.models.first ?? LanguageModel(providerName: "", id: "", name: "", responseHandler: DefaultHandler)
         self.prompt = prompt
         self.messages = [Message(role: "system", content: prompt)]
     }
@@ -72,13 +110,13 @@ public class LLMService {
         messages.append(userMessage)
         
         // 创建URL请求
-        guard let url = URL(string: model.apiProxyAddress) else {
+        guard let url = URL(string: value.apiProxyAddress) else {
             throw NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
         }
         
         // 使用累积的消息历史
         let requestBody = ChatRequest(
-            model: model.name,
+            model: value.model,
             messages: messages,
             format: "json",
             stream: false
@@ -87,7 +125,7 @@ public class LLMService {
         // 创建请求
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(model.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(value.apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         // 编码请求体
@@ -126,6 +164,65 @@ public class LLMService {
     // 添加获取消息历史的方法
     public func getMessages() -> [Message] {
         return messages
+    }
+}
+
+
+public struct DefaultChatResponse: Codable {
+    public let id: String
+    public let object: String
+    public let created: Int
+    public let model: String
+    public let choices: [Choice]
+    public let usage: Usage
+    public let systemFingerprint: String
+    
+    enum CodingKeys: String, CodingKey {
+        case id, object, created, model, choices, usage
+        case systemFingerprint = "system_fingerprint"
+    }
+    
+    public struct Choice: Codable {
+        public let index: Int
+        public let message: Message
+        public let logprobs: String?
+        public let finishReason: String
+        
+        enum CodingKeys: String, CodingKey {
+            case index, message, logprobs
+            case finishReason = "finish_reason"
+        }
+    }
+    
+    public struct Message: Codable {
+        public let role: String
+        public let content: String
+    }
+    
+    public struct Usage: Codable {
+        public let promptTokens: Int
+        public let completionTokens: Int
+        public let totalTokens: Int
+        public let promptTokensDetails: PromptTokensDetails
+        public let promptCacheHitTokens: Int
+        public let promptCacheMissTokens: Int
+        
+        enum CodingKeys: String, CodingKey {
+            case promptTokens = "prompt_tokens"
+            case completionTokens = "completion_tokens"
+            case totalTokens = "total_tokens"
+            case promptTokensDetails = "prompt_tokens_details"
+            case promptCacheHitTokens = "prompt_cache_hit_tokens"
+            case promptCacheMissTokens = "prompt_cache_miss_tokens"
+        }
+    }
+    
+    public struct PromptTokensDetails: Codable {
+        public let cachedTokens: Int
+        
+        enum CodingKeys: String, CodingKey {
+            case cachedTokens = "cached_tokens"
+        }
     }
 }
 
@@ -252,3 +349,45 @@ public struct ChatResponse: Codable {
         self.reply = reply
     }
 }
+
+public let DefaultHandler: ResponseHandler = { data in
+    let decoder = JSONDecoder()
+    let response = try decoder.decode(DefaultChatResponse.self, from: data)
+    return response.choices[0].message.content
+}
+
+public let LLMServiceProviders = [
+    LanguageProvider(
+        name: "deepseek",
+        apiKey: "",
+        apiProxyAddress: "https://api.deepseek.com/chat/completions",
+        models: [
+                    LanguageModel(
+                        providerName: "deepseek",
+                        id: "deepseek-chat",
+                        name: "deepseek-chat",
+                        responseHandler: { data in
+                            let decoder = JSONDecoder()
+                            let response = try decoder.decode(DeepseekChatResponse.self, from: data)
+                            return response.choices[0].message.content
+                        }
+                    )
+                ]
+            ),
+            LanguageProvider(
+                name: "doubao",
+                apiKey: "",
+                apiProxyAddress: "",
+                models: [
+                    LanguageModel(
+                        providerName: "doubao",
+                        id: "ep-20250205141518-nvl9p",
+                        name: "ep-20250205141518-nvl9p",
+                        responseHandler: { data in
+                            let decoder = JSONDecoder()
+                            let response = try decoder.decode(DoubaoChatResponse.self, from: data)
+                            return response.choices[0].message.content
+                        }
+                    )
+                ]
+            )]

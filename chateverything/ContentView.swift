@@ -11,16 +11,6 @@ import Speech
 import Foundation
 import LLM
 
-// 聊天会话模型
-struct ChatSession: Identifiable {
-    let id = UUID()
-    let name: String
-    let avatar: String
-    let lastMessage: String
-    let lastMessageTime: Date
-    var unreadCount: Int
-}
-
 // 在 ChatSession struct 后添加以下模型
 struct Season: Codable, Identifiable {
     let id: String
@@ -33,6 +23,7 @@ struct Season: Codable, Identifiable {
         case cover = "poster_path"
     }
 }
+
 struct ListResponseWithCursor<T: Codable>: Codable {
     let list: [T]
     let marker: String
@@ -65,18 +56,14 @@ struct FetchParams: Codable {
 }
 
 struct ContentView: View {
-    @State private var chatSessions: [ChatSession] = [
-        ChatSession(name: "张三", avatar: "person.circle.fill", lastMessage: "今天天气真不错", lastMessageTime: Date(), unreadCount: 2),
-        ChatSession(name: "李四", avatar: "person.circle.fill", lastMessage: "下班一起吃饭吗？", lastMessageTime: Date(), unreadCount: 0),
-        ChatSession(name: "王五", avatar: "person.circle.fill", lastMessage: "项目进展如何？", lastMessageTime: Date(), unreadCount: 1)
-    ]
-    
-    @State private var seasons: [Season] = []
+    @EnvironmentObject var chatStore: ChatStore
+    // @StateObject private var chatStore = ChatStore()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
     
     @StateObject private var navigationManager = NavigationStateManager()
     
     @State private var showingChatConfig = false
+    @State private var isLoading = false // 添加加载状态
     
     func loadSeasons() {
         let hostname = "https://media.funzm.com"
@@ -119,9 +106,9 @@ struct ContentView: View {
             do {
                 let response = try JSONDecoder().decode(BizResponse<ListResponseWithCursor<Season>>.self, from: data)
                 dump(response)
-                DispatchQueue.main.async {
-                    self.seasons = response.data.list
-                }
+                // DispatchQueue.main.async {
+                //     self.seasons = response.data.list
+                // }
             } catch {
                 print("Error decoding response: \(error)")
             }
@@ -129,53 +116,127 @@ struct ContentView: View {
     }
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // 聊天标签页
-            NavigationStack(path: $navigationManager.path) {
-                VStack(spacing: 0) {
-                    // 原有的 List 视图
-                    List(chatSessions) { session in
-                        NavigationLink {
-let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS speaking test by asking questions one at a time. After receiving each response with pronunciation scores from speech recognition, evaluate the answer and proceed to the next question. Do not ask multiple questions at once. After all sections are completed, provide a comprehensive evaluation and an estimated IELTS speaking band score. Begin with the first question.";
-// let prompt = "You are an speaking examiner.";
-                            ChatDetailView(
-                                chatSession: session,
-                                // model: LLMService(model: LanguageModel(
-                                //     providerName: "deepseek",
-                                //     id: "deepseek-chat",
-                                //     name: "deepseek-chat",
-                                //     apiKey: "sk-292831353cda4d1c9f59984067f24379",
-                                //     apiProxyAddress: "https://api.deepseek.com/chat/completions",
-                                //     responseHandler: { data in
-                                //         let decoder = JSONDecoder()
-                                //         let response = try decoder.decode(DeepseekChatResponse.self, from: data)
-                                //         return response.choices[0].message.content
-                                //     }
-                                // ), 
-                                model: LLMService(model: LanguageModel(
-                                    providerName: "doubao",
-                                    id: "ep-20250205141518-nvl9p",
-                                    name: "ep-20250205141518-nvl9p",
-                                    apiKey: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmstY29uc29sZSIsImV4cCI6MTczOTk5MjgxMCwiaWF0IjoxNzM5OTU2ODEwLCJ0IjoidXNlciIsImt2IjoxLCJhaWQiOiIyMTAyMDM0ODI1IiwidWlkIjoiMCIsImlzX291dGVyX3VzZXIiOnRydWUsInJlc291cmNlX3R5cGUiOiJlbmRwb2ludCIsInJlc291cmNlX2lkcyI6WyJlcC0yMDI1MDIwNTE0MTUxOC1udmw5cCJdfQ.Z1GxZIt9zPUHfTEsHm9FctiECbO0SxGGuCF5ZIMWG7J1FMRyvWvK2qCWCXvR8yEHRpxKCEg-y_uVAuBklv90PchOlalJy_nvRidKrptzNJSjRVPFjZCKFd_cwEoqPv3NV-ltH3fc3HJCq0abuU6UR_gKY__Tl2qwcjUnr0tXjit71w9wQM6CQGB_49NvQdbq087ISZmC3yi0XSPVyN2b2F0WBp6lxZUCxdwbKtxVZc0N_SRcJQPNxrgsgjmFxqCjTADZggVT_2sCzqsax0rtGFR8PypiPhnMJyT1FutscqCo69RptOlfFlGect4ol_S9RBa1uyhSK3B_ixfVya8S1g",
-                                    apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-                                    responseHandler: { data in
-                                        let decoder = JSONDecoder()
-                                        let response = try decoder.decode(DoubaoChatResponse.self, from: data)
-                                        return response.choices[0].message.content
-                                    }
-                                ),
-                                prompt: prompt)
-                            )
-                        } label: {
-                            ChatRowView(chatSession: session)
-                        }
-                    }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        HStack {
+        Text("test")
+//         TabView(selection: $selectedTab) {
+//             NavigationStack(path: $navigationManager.path) {
+//                 VStack(spacing: 0) {
+//                     // if isLoading {
+//                     //     ProgressView()
+//                     //         .padding()
+//                     // }
+                    
+//                     List {
+//                         ForEach(chatStore.chatSessions) { session in
+//                             NavigationLink {
+//                                 // let role = Config.shared.roles.first(where: { $0.id == session.roleId }) ?? Config.shared.roles[0]
+//                                 // let model = Config.shared.languageProviders.flatMap({ $0.models }).first(where: { $0.id == session.modelId }) ?? Config.shared.languageProviders[1].models[0]
+                                
+//                                 // ChatDetailView(
+//                                 //     chatSession: session,
+//                                 //     model: LLMService(model: model),
+//                                 //     role: role
+//                                 // )
+//                                 Text("test")
+//                             } label: {
+//                                 ChatRowView(chatSession: session)
+//                             }
+//                         }
+//                         .onDelete { indexSet in
+// //                            chatStore.deleteSession(at: indexSet)
+//                         }
+//                     }
+//                 }
+//                 .toolbar {
+//                     ToolbarItem(placement: .navigationBarTrailing) {
+//                        ChatButton()
+//                     }
+//                 }
+//                 .sheet(isPresented: $showingChatConfig) {
+//                     // ChatConfigView(isPresented: $showingChatConfig) { model, prompt, role in
+//                         // let newSession = ChatSession(
+//                         //     name: role.name,
+//                         //     avatar: "person.circle.fill",
+//                         //     lastMessage: "开始新对话",
+//                         //     lastMessageTime: Date(),
+//                         //     unreadCount: 0,
+//                         //     messages: [],
+//                         //     roleId: role.id,
+//                         //     modelId: model.id
+//                         // )
+//                         // chatStore.addSession(newSession)
+                        
+//                         // let chatDetailView = ChatDetailView(
+//                         //     chatSession: newSession,
+//                         //     model: LLMService(model: model),
+//                         //     role: role
+//                         // )
+//                         // navigationManager.navigate(to: chatDetailView)
+//                     // }
+//                 }
+//                 // .navigationDestination(for: ChatDetailView.self) { view in
+//                 //     view
+//                 // }
+//             }
+//             .environmentObject(navigationManager)
+//             .tabItem {
+//                 Image(systemName: "message.fill")
+//                 Text("聊天")
+//             }
+//             .tag(0)
+            
+//             // 探索标签页
+//             // NavigationStack {
+//             //     SearchView()
+//             // }
+//             // .tabItem {
+//             //     Image(systemName: "safari.fill")
+//             //     Text("探索")
+//             // }
+//             // .tag(1)
+            
+//             // // 发现标签页
+//             // NavigationStack {
+//             //     DiscoverView()
+//             // }
+//             // .tabItem {
+//             //     Image(systemName: "sparkles")
+//             //     Text("发现")
+//             // }
+//             // .tag(2)
+            
+//             // // 我的标签页
+//             // NavigationStack {
+//             //    MineView()
+//             // }
+//             // .tabItem {
+//             //     Image(systemName: "person.fill")
+//             //     Text("我的")
+//             // }
+//             // .tag(3)
+//         }
+//         .onAppear {
+//             // loadChatSessions()
+//         }
+//         .toolbar(.visible, for: .tabBar)
+//         .toolbarBackground(.visible, for: .tabBar)
+    }
+    
+    private func loadChatSessions() {
+        isLoading = true
+        
+        // 使用异步操作来模拟网络延迟
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            chatStore.loadInitialSessions(limit: 20)
+            isLoading = false
+        }
+    }
+}
+
+struct ChatButton: View {
+    var body: some View {
+ HStack {
                             Button(action: {
-                                showingChatConfig = true
+                                // showingChatConfig = true
                             }) {
                                 HStack {
                                     Text("🤖")
@@ -190,83 +251,13 @@ let prompt = "You are an IELTS speaking examiner. Conduct a simulated IELTS spea
                                 .background(Color.gray.opacity(0.1))
                                 .cornerRadius(20)
                             }
-                            
-                            Button(action: {}) {
-                                Image(systemName: "plus.circle")
-                            }
                         }
-                    }
-                }
-                .sheet(isPresented: $showingChatConfig) {
-                    ChatConfigView(isPresented: $showingChatConfig) { model, prompt in
-                        let newSession = ChatSession(
-                            name: "新对话",
-                            avatar: "person.circle.fill",
-                            lastMessage: "开始新对话",
-                            lastMessageTime: Date(),
-                            unreadCount: 0
-                        )
-                        chatSessions.insert(newSession, at: 0)
-                        
-                        let chatDetailView = ChatDetailView(
-                            chatSession: newSession,
-                            model: LLMService(model: model)
-                        )
-                        navigationManager.navigate(to: chatDetailView)
-                    }
-                }
-                .navigationDestination(for: ChatDetailView.self) { view in
-                    view
-                }
-            }
-            .environmentObject(navigationManager)
-            .tabItem {
-                Image(systemName: "message.fill")
-                Text("聊天")
-            }
-            .tag(0)
-            
-            // 探索标签页
-            NavigationStack {
-                SearchView()
-            }
-            .tabItem {
-                Image(systemName: "safari.fill")
-                Text("探索")
-            }
-            .tag(1)
-            
-            // 发现标签页
-            NavigationStack {
-                DiscoverView()
-            }
-            .tabItem {
-                Image(systemName: "sparkles")
-                Text("发现")
-            }
-            .tag(2)
-            
-            // 我的标签页
-            NavigationStack {
-               MineView()
-            }
-            .tabItem {
-                Image(systemName: "person.fill")
-                Text("我的")
-            }
-            .tag(3)
-        }
-        .onAppear {
-            // loadSeasons()
-        }
-        .toolbar(.visible, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
     }
 }
 
 // 聊天列表行视图
 struct ChatRowView: View {
-    let chatSession: ChatSession
+    let chatSession: ChatSessionBiz
     
     var body: some View {
         HStack {
@@ -286,11 +277,11 @@ struct ChatRowView: View {
                 }
                 
                 HStack {
-                    Text(chatSession.lastMessage)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                        .lineLimit(1)
-                    Spacer()
+                    // Text(chatSession.lastMessage)
+                    //     .font(.subheadline)
+                    //     .foregroundColor(.gray)
+                    //     .lineLimit(1)
+                    // Spacer()
                     if chatSession.unreadCount > 0 {
                         Text("\(chatSession.unreadCount)")
                             .font(.caption)
@@ -341,15 +332,15 @@ extension String {
 }
 
 // 确保 ChatDetailView 符合 Hashable 协议
-extension ChatDetailView: Hashable {
-    static func == (lhs: ChatDetailView, rhs: ChatDetailView) -> Bool {
-        lhs.chatSession.id == rhs.chatSession.id
-    }
+// extension ChatDetailView: Hashable {
+//     static func == (lhs: ChatDetailView, rhs: ChatDetailView) -> Bool {
+//         lhs.chatSession.id == rhs.chatSession.id
+//     }
     
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(chatSession.id)
-    }
-}
+//     func hash(into hasher: inout Hasher) {
+//         hasher.combine(chatSession.id)
+//     }
+// }
 
 #Preview {
     ContentView()

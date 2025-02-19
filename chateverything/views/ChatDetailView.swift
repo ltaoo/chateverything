@@ -3,44 +3,6 @@ import AVFoundation
 import Speech
 import LLM
 
-// 聊天消息模型
-struct ChatMessage: Identifiable, Equatable {
-    let id = UUID()
-    let content: String
-    let isMe: Bool
-    let timestamp: Date
-    var nodes: [MsgTextNode]?
-    var audioURL: URL? // 新增录音 URL
-    var isBlurred: Bool // 移除默认值,在初始化时设置
-    var quizOptions: [QuizOption]? // 新增选项属性
-    var question: String? // 新增问题字段
-    
-    init(content: String, isMe: Bool, timestamp: Date, nodes: [MsgTextNode]? = nil, audioURL: URL? = nil, quizOptions: [QuizOption]? = nil, question: String? = nil) {
-        self.content = content
-        self.isMe = isMe
-        self.timestamp = timestamp
-        self.nodes = nodes
-        self.audioURL = audioURL
-        self.isBlurred = !isMe // 非用户消息默认模糊
-        self.quizOptions = quizOptions
-        self.question = question
-    }
-    
-    // 实现 Equatable 协议
-    static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
-        lhs.id == rhs.id &&
-        lhs.content == rhs.content &&
-        lhs.isMe == rhs.isMe &&
-        lhs.timestamp == rhs.timestamp &&
-        lhs.nodes == rhs.nodes &&
-        lhs.audioURL == rhs.audioURL &&
-        lhs.isBlurred == rhs.isBlurred &&
-        lhs.quizOptions == rhs.quizOptions &&
-        lhs.question == rhs.question
-    }
-}
-
-
 // 聊天详情页面
 struct ChatDetailView: View {
     @EnvironmentObject private var navigationManager: NavigationStateManager
@@ -68,60 +30,49 @@ struct ChatDetailView: View {
     }
     
     private func startRecording() {
-if isSpeaking {
+        if isSpeaking {
             TTSManager.shared.stopSpeaking()
             isSpeaking = false
         }
-
+        
         #if os(iOS)
-        // 检查麦克风权限
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
-            if granted {
-                DispatchQueue.main.async {
-                    self.isRecording = true
-                    self.recordingStartTime = Date()
-                    // 开始录音动画
-                    withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
-                        self.scale = 1.2
-                    }
-                    // 开始录音
-                    self.audioRecorder.startRecording()
-                    
-                    // 使用 Timer 更新录音时间
-                    Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak timer = Timer()] timer in
-                        if !self.isRecording {
-                            timer.invalidate()
-                        } else {
-                            // 更新 recordingStartTime 来触发视图更新
-                            self.recordingStartTime = Date(timeInterval: 0, since: self.recordingStartTime ?? Date())
-                        }
-                    }
-                }
-            } else {
-                DispatchQueue.main.async {
+        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                if granted {
+                    self.beginRecording()
+                } else {
                     self.showingPermissionAlert = true
                 }
             }
         }
         #else
-        // macOS implementation
-        self.isRecording = true
-        self.recordingStartTime = Date()
+        beginRecording()
+        #endif
+    }
+    
+    private func beginRecording() {
+        isRecording = true
+        recordingStartTime = Date()
         withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
-            self.scale = 1.2
+            scale = 1.2
         }
-        self.audioRecorder.startRecording()
+        audioRecorder.startRecording()
         
         // 使用 Timer 更新录音时间
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak timer = Timer()] timer in
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            
             if !self.isRecording {
-                timer?.invalidate()
+                timer.invalidate()
             } else {
-                // 更新 recordingStartTime 来触发视图更新
                 self.recordingStartTime = Date(timeInterval: 0, since: self.recordingStartTime ?? Date())
             }
         }
-        #endif
     }
     
     private func stopRecording() {
@@ -160,110 +111,88 @@ if isSpeaking {
     }
     
     private func recognizeSpeech(url: URL) {
-        print("recognizeSpeech - 1 \(url)")
-        // 使用静态实例并指定语言
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         
-        // 添加音频源类型提示
-        // request.shouldReportPartialResults = true
-        // request.requiresOnDeviceRecognition = false
-        
         guard let recognizer = recognizer, recognizer.isAvailable else {
-            print("Speech recognizer not available")
             DispatchQueue.main.async {
                 self.showingPermissionAlert = true
             }
             return
         }
         
-        // 请求语音识别权限
-        SFSpeechRecognizer.requestAuthorization { status in
-            switch status {
-            case .authorized:
-                print("Speech recognition authorized")
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                switch status {
+                case .authorized:
+                    self.performSpeechRecognition(recognizer: recognizer, url: url)
+                case .denied, .restricted, .notDetermined:
+                    self.showingPermissionAlert = true
+                @unknown default:
+                    print("Unknown speech recognition authorization status")
+                }
+            }
+        }
+    }
+    
+    private func performSpeechRecognition(recognizer: SFSpeechRecognizer, url: URL) {
         let request = SFSpeechURLRecognitionRequest(url: url)
-                // 继续语音识别流程
-                recognizer.recognitionTask(with: request) { result, error in
-                    if let error = error {
-                        print("Recognition failed with error: \(error.localizedDescription)")
-                        return
-                    }
+        request.shouldReportPartialResults = false
+        
+        recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                print("Recognition failed with error: \(error.localizedDescription)")
+                return
+            }
+            
+            guard let result = result, result.isFinal else { return }
+            
+            let recognizedText = result.bestTranscription.formattedString
+            self.handleRecognizedSpeech(recognizedText: recognizedText, audioURL: url)
+        }
+    }
+    
+    private func handleRecognizedSpeech(recognizedText: String, audioURL: URL) {
+        DispatchQueue.main.async {
+            let userMessage = ChatMessage(
+                content: recognizedText,
+                isMe: true,
+                timestamp: Date(),
+                nodes: nil,
+                audioURL: audioURL
+            )
+            self.messages.append(userMessage)
+            
+            Task {
+                do {
+                    let response = try await self.model.chat(content: recognizedText)
                     
-                    guard let result = result else {
-                        print("No recognition result")
-                        return
-                    }
+                    let quizOptions = [
+                        QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
+                        QuizOption(text: "The response lacked coherence", isCorrect: false),
+                        QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
+                        QuizOption(text: "Vocabulary range was limited", isCorrect: false)
+                    ]
                     
-                    if result.isFinal {
-                        let recognizedText = result.bestTranscription.formattedString
-                        print("recognizeSpeech - 3, \(recognizedText)")
-                        
-                        // 确保在主线程更新 UI
-                        DispatchQueue.main.async { 
-                            let botMessage = ChatMessage(
-                                content: recognizedText,
-                                isMe: true,
-                                timestamp: Date(),
-                                nodes: nil,
-                                audioURL: url,
-                                quizOptions: nil,
-                                question: nil
-                            )
-                            self.messages.append(botMessage)
-                            // self.isLoading = true
-                            
-                            Task {
-                                do {
-                                    let response = try await self.model.chat(content: recognizedText)
-                                    DispatchQueue.main.async {
-                                        let quizOptions = [
-                                            QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
-                                            QuizOption(text: "The response lacked coherence", isCorrect: false),
-                                            QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
-                                            QuizOption(text: "Vocabulary range was limited", isCorrect: false)
-                                        ]
-                                        
-                                        let botMessage = ChatMessage(
-                                            content: response,
-                                            isMe: false,
-                                            timestamp: Date(),
-                                            nodes: nil,
-                                            audioURL: nil,
-                                            quizOptions: quizOptions,
-                                            question: "Based on the speaking response, which statement is most accurate?"
-                                        )
-                                        self.messages.append(botMessage)
-                                        self.isLoading = false
-                                        
-                                        // self.toggleSpeaking(text: response)
-                                    }
-                                } catch {
-                                    print("LLM chat error: \(error)")
-                                    DispatchQueue.main.async {
-                                        self.isLoading = false
-                                    }
-                                }
-                            }
-                        }
+                    let botMessage = ChatMessage(
+                        content: response,
+                        isMe: false,
+                        timestamp: Date(),
+                        quizOptions: quizOptions,
+                        question: "Based on the speaking response, which statement is most accurate?"
+                    )
+                    
+                    DispatchQueue.main.async {
+                        self.messages.append(botMessage)
+                        self.isLoading = false
                     }
+                } catch {
+                    print("LLM chat error: \(error)")
+                    self.isLoading = false
                 }
-            case .denied:
-                print("Speech recognition permission denied")
-                DispatchQueue.main.async {
-                    self.showingPermissionAlert = true
-                }
-            case .restricted:
-                print("Speech recognition restricted on this device")
-                DispatchQueue.main.async {
-                    self.showingPermissionAlert = true
-                }
-            case .notDetermined:
-                print("Speech recognition not determined")
-                DispatchQueue.main.async {
-                    self.showingPermissionAlert = true
-                }
-            @unknown default:
-                print("Unknown speech recognition authorization status")
             }
         }
     }
@@ -502,8 +431,10 @@ class AudioRecorder: NSObject, ObservableObject, AVAudioPlayerDelegate {
         #if os(iOS)
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default)
-            try audioSession.setActive(true)
+            try audioSession.setCategory(.playAndRecord, 
+                                       mode: .default,
+                                       options: [.defaultToSpeaker, .allowBluetooth])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("Failed to set up audio session: \(error)")
         }
@@ -776,13 +707,14 @@ struct FlowLayout: Layout {
     
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let maxWidth = proposal.width ?? .infinity
         
         var totalHeight: CGFloat = 0
         var lineWidth: CGFloat = 0
         var lineHeight: CGFloat = 0
         
         for size in sizes {
-            if lineWidth + size.width + spacing > proposal.width! {
+            if lineWidth + size.width + spacing > maxWidth {
                 totalHeight += lineHeight + spacing
                 lineWidth = size.width
                 lineHeight = size.height
@@ -792,7 +724,7 @@ struct FlowLayout: Layout {
             }
         }
         totalHeight += lineHeight
-        return CGSize(width: proposal.width!, height: totalHeight)
+        return CGSize(width: maxWidth, height: totalHeight)
     }
     
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
@@ -842,11 +774,10 @@ struct MessageBubbleView: View {
     }
     
     var nodes: [MsgTextNode] {
-        // 将消息内容按空格分割，并保留空格作为独立节点
         var nodeId = 0
         var result: [MsgTextNode] = []
         
-        let words = message.content.split(includesSeparators: true) { $0.isWhitespace }
+        let words = message.content.split(whereSeparator: { $0.isWhitespace }, omittingEmptySubsequences: false)
         for word in words {
             nodeId += 1
             let node = MsgTextNode(

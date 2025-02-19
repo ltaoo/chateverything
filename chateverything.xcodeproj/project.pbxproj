@@ -12,6 +12,7 @@
 		A63811952D64EE67003EA4C9 /* QCloudTTS.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A63811C02D64F7D8003EA4C9 /* QCloudRealTTS.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */; };
 		A63811C12D64F803003EA4C9 /* QCloudRealTTS.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A6D735852D6637D500ABAAC9 /* Model.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A6D735832D6637D500ABAAC9 /* Model.xcdatamodeld */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,11 +53,26 @@
 		A6778D6D2D5352EC00447C17 /* chateverything.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = chateverything.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6778D7D2D5352ED00447C17 /* chateverythingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chateverythingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6778D872D5352ED00447C17 /* chateverythingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chateverythingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A6D735842D6637D500ABAAC9 /* Model.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Model.xcdatamodel; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A6D735642D66052A00ABAAC9 /* Exceptions for "chateverything" folder in "chateverything" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				HandwritingView.swift,
+				views/ChatDetailView.swift,
+			);
+			target = A6778D6C2D5352EC00447C17 /* chateverything */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A6778D6F2D5352EC00447C17 /* chateverything */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A6D735642D66052A00ABAAC9 /* Exceptions for "chateverything" folder in "chateverything" target */,
+			);
 			path = chateverything;
 			sourceTree = "<group>";
 		};
@@ -103,6 +119,7 @@
 		A6778D642D5352EC00447C17 = {
 			isa = PBXGroup;
 			children = (
+				A6D735832D6637D500ABAAC9 /* Model.xcdatamodeld */,
 				A6778D6F2D5352EC00447C17 /* chateverything */,
 				A6778D802D5352ED00447C17 /* chateverythingTests */,
 				A6778D8A2D5352ED00447C17 /* chateverythingUITests */,
@@ -271,6 +288,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A6D735852D6637D500ABAAC9 /* Model.xcdatamodeld in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -623,6 +641,19 @@
 			productName = LLM;
 		};
 /* End XCSwiftPackageProductDependency section */
+
+/* Begin XCVersionGroup section */
+		A6D735832D6637D500ABAAC9 /* Model.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				A6D735842D6637D500ABAAC9 /* Model.xcdatamodel */,
+			);
+			currentVersion = A6D735842D6637D500ABAAC9 /* Model.xcdatamodel */;
+			path = Model.xcdatamodeld;
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
 	};
 	rootObject = A6778D652D5352EC00447C17 /* Project object */;
 }

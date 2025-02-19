@@ -7,12 +7,21 @@
 
 import SwiftUI
 
-// 导入 NavigationStateManager
 @main
-struct chateverythingApp: App {
+struct ChatEverythingApp: App {
+    let persistenceController = PersistenceController.shared
+    let chatStore: ChatStore
+
+    init() {
+        chatStore = ChatStore(container: persistenceController.container)
+    }
+
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                .environmentObject(chatStore)
         }
     }
 }
