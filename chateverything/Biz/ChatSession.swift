@@ -1,5 +1,6 @@
 import Foundation
 import CoreData
+import LLM
 
 
 struct ChatSessionBiz: Identifiable {
@@ -7,6 +8,7 @@ struct ChatSessionBiz: Identifiable {
     var created_at: Date
     var boxes: [ChatBoxBiz]
     var role: RoleBiz
+    var llm: LLMService
 
     var name: String {
         get { role.name }
@@ -125,14 +127,27 @@ struct ChatSessionBiz: Identifiable {
         // } catch {
         //     print("Error fetching ChatSession: \(error)")
         // }
-        
-        return ChatSessionBiz(id: id, created_at: session.created_at ?? Date(), boxes: boxResult, role: roleResult)
+        let matchedProvider = Config.shared.languageProviders.first
+        guard let matchedProvider = matchedProvider else {
+            return nil
+        }
+        return ChatSessionBiz(
+            id: id,
+            created_at: session.created_at ?? Date(),
+            boxes: boxResult,
+            role: roleResult,
+            llm: LLMService(
+                value: LLMValues(provider: matchedProvider.name, model: matchedProvider.models.first!.name ?? "", apiProxyAddress: matchedProvider.apiProxyAddress, apiKey: matchedProvider.apiKey),
+                prompt: ""
+            )
+        )
     }
 
-    init(id: UUID, created_at: Date, boxes: [ChatBoxBiz], role: RoleBiz) {
+    init(id: UUID, created_at: Date, boxes: [ChatBoxBiz], role: RoleBiz, llm: LLMService) {
         self.id = id
         self.created_at = created_at
         self.boxes = boxes
         self.role = role
+        self.llm = llm
     }
 }

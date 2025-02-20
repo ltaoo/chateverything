@@ -108,7 +108,8 @@ extension RoleEntity {
                     "engine": "云希"
                 },
                 "model": {
-                    "id": "gpt-4"
+                    "provider": "deepseek",
+                    "id": "deepseek-chat"
                 },
                 "temperature": 0.5
             }
@@ -142,6 +143,7 @@ extension RoleEntity {
                     "engine": "晓伊"
                 },
                 "model": {
+                    "provider": "openai",
                     "id": "gpt-4"
                 },
                 "temperature": 0.8

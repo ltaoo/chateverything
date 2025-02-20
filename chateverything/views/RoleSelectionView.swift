@@ -55,7 +55,8 @@ struct RoleSelectionView: View {
             }
         }
         .onAppear {
-            viewModel.fetchRoles(from: viewContext)
+            // viewModel.fetchRoles(from: viewContext)
+            viewModel.roles = DefaultRoles
         }
     }
 }

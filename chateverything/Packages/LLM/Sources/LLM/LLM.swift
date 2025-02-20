@@ -28,14 +28,16 @@ public struct ChatRequest: Codable {
 public typealias ResponseHandler = (Data) throws -> String
 
 public struct LanguageProvider: Identifiable {
-    public let id = UUID()
+    public var id: String { name }
     public let name: String
+    public let logo_uri: String
     public let apiKey: String
     public let apiProxyAddress: String
     public var models: [LanguageModel]
     
-    public init(name: String, apiKey: String, apiProxyAddress: String, models: [LanguageModel]) {
+    public init(name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LanguageModel]) {
         self.name = name
+        self.logo_uri = logo_uri
         self.models = models
         self.apiKey = apiKey
         self.apiProxyAddress = apiProxyAddress
@@ -61,7 +63,7 @@ public struct LanguageModel: Identifiable, Hashable {
         providerName: String,
         id: String,
         name: String,
-        responseHandler: @escaping (Data) throws -> String
+        responseHandler: @escaping (Data) throws -> String = DefaultHandler
     ) {
         self.providerName = providerName
         self.id = id
@@ -83,15 +85,16 @@ public struct LanguageModel: Identifiable, Hashable {
                lhs.name == rhs.name
     }
 }
-public struct ChatModelSettings {
+
+public struct LLMValues {
     public var provider: String
     public var model: String
-    public var apiProxyAddress: String
-    public var apiKey: String
+    public var apiProxyAddress: String?
+    public var apiKey: String?
     public var extra: [String: Any]
     
     // 添加公共初始化器
-    public init(provider: String, model: String, apiProxyAddress: String, apiKey: String, extra: [String: Any] = [:]) {
+    public init(provider: String, model: String, apiProxyAddress: String?, apiKey: String?, extra: [String: Any] = [:]) {
         self.provider = provider
         self.model = model
         self.apiProxyAddress = apiProxyAddress
@@ -100,19 +103,27 @@ public struct ChatModelSettings {
     }
 }
 
-public class LLMService {
-    private let value: ChatModelSettings
-    private let model: LanguageModel
-    private let prompt: String
+public class LLMService: ObservableObject {
+    @Published public var value: LLMValues
+    private var provider: LanguageProvider
+    private var model: LanguageModel
+    private var prompt: String
     private var messages: [Message]
     
-    public init(value: ChatModelSettings, prompt: String = "") {
+    public init(value: LLMValues, prompt: String = "") {
         self.value = value
-        self.model = LLMServiceProviders.first(where: { $0.name == value.provider })?.models.first(where: { $0.name == value.model }) ?? LLMServiceProviders.first?.models.first ?? LanguageModel(providerName: "", id: "", name: "", responseHandler: DefaultHandler)
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [])
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(providerName: "", id: "", name: "", responseHandler: DefaultHandler)
         self.prompt = prompt
         self.messages = [Message(role: "system", content: prompt)]
 
-        print("[Package]LLM init: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey) \(prompt)")
+        print("[Package]LLM init: \(value.provider) \(value.model) \(prompt)")
+    }
+
+    public func update(value: LLMValues) {
+        self.value = value
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [])
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(providerName: "", id: "", name: "", responseHandler: DefaultHandler)
     }
     
     public func chat(content: String) async throws -> String {
@@ -120,14 +131,18 @@ public class LLMService {
         let userMessage = Message(role: "user", content: content)
         messages.append(userMessage)
         
+        let apiProxyAddress = value.apiProxyAddress ?? provider.apiProxyAddress
+        let apiKey = value.apiKey ?? provider.apiKey
+        print("[Package]LLM chat: \(model.name) \(apiProxyAddress) \(apiKey)")
+
         // 创建URL请求
-        guard let url = URL(string: value.apiProxyAddress) else {
+        guard let url = URL(string: apiProxyAddress) else {
             throw NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
         }
         
         // 使用累积的消息历史
         let requestBody = ChatRequest(
-            model: value.model,
+            model: model.name,
             messages: messages,
             format: "json",
             stream: false
@@ -136,7 +151,7 @@ public class LLMService {
         // 创建请求
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(value.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         // 编码请求体
@@ -369,26 +384,38 @@ public let DefaultHandler: ResponseHandler = { data in
 
 public let LLMServiceProviders = [
     LanguageProvider(
-        name: "deepseek",
+        name: "openai",
+        logo_uri: "provider_dark_openai",
         apiKey: "",
-        apiProxyAddress: "https://api.deepseek.com/chat/completions",
+        apiProxyAddress: "https://api.openai.com/v1",
         models: [
-                    LanguageModel(
-                        providerName: "deepseek",
-                        id: "deepseek-chat",
-                        name: "deepseek-chat",
-                        responseHandler: { data in
-                            let decoder = JSONDecoder()
-                            let response = try decoder.decode(DeepseekChatResponse.self, from: data)
-                            return response.choices[0].message.content
-                        }
-                    )
+            LanguageModel(
+                providerName: "openai",
+                id: "gpt-4o-mini",
+                name: "gpt-4o-mini",
+                responseHandler: DefaultHandler
+            )
+        ]
+    ),
+    LanguageProvider(
+        name: "deepseek",
+        logo_uri: "provider_dark_deepseek",
+        apiKey: "",
+        apiProxyAddress: "https://api.deepseek.com/v1",
+        models: [
+            LanguageModel(
+                providerName: "deepseek",
+                id: "deepseek-chat",
+                name: "deepseek-chat",
+                responseHandler: DefaultHandler
+            )
                 ]
             ),
             LanguageProvider(
                 name: "doubao",
+                logo_uri: "provider_dark_doubao",
                 apiKey: "",
-                apiProxyAddress: "",
+                apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
                 models: [
                     LanguageModel(
                         providerName: "doubao",

@@ -28,9 +28,9 @@ struct ChatDetailView: View {
 
     @Environment(\.managedObjectContext) private var viewContext
     // @EnvironmentObject var store: ChatStore
-    @State private var session: ChatSessionBiz
-    @State private var role: RoleBiz
-    @State private var model: LLMService?
+    private var session: ChatSessionBiz
+    private var role: RoleBiz
+    private var model: LLMService?
 
     @State private var isPlaying = false
     @State private var messageText: String = ""
@@ -188,9 +188,9 @@ struct ChatDetailView: View {
     }
     
     private func handleRecognizedSpeech(recognizedText: String, audioURL: URL) {
-        guard let model = self.model else {
-            return
-        }
+        // guard let model = self.model else {
+        //     return
+        // }
         DispatchQueue.main.async {
             let userMessage = LocalChatBox(
                 id: UUID(),
@@ -201,10 +201,20 @@ struct ChatDetailView: View {
             )
             self.messages.append(userMessage)
 
+//   let settings = role.settings;
+
+        // let model = LLMService(value: ChatModelSettings(
+        //     provider: settings.model.name,
+        //     model: settings.model.name,
+        //     apiProxyAddress: settings.model.apiProxyAddress,
+        //     apiKey: settings.model.apiKey,
+        //     extra: settings.extra), prompt: self.role.prompt)
+        // self.model = model
+        // print("model initial")
             
            Task {
                do {
-                   let response = try await model.chat(content: recognizedText)
+                   let response = try await session.llm.chat(content: recognizedText)
                    
                 //    let quizOptions = [
                 //        QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
@@ -413,19 +423,10 @@ struct ChatDetailView: View {
             }
         }
         .sheet(isPresented: $showRoleDetail) {
-            RoleDetailView(role: self.session.role)
+            RoleDetailView(role: self.session.role, session: self.session)
         }
         .onAppear {
-        let settings = role.settings;
-
-        let model = LLMService(value: ChatModelSettings(
-            provider: settings.model.name,
-            model: settings.model.name,
-            apiProxyAddress: settings.model.apiProxyAddress,
-            apiKey: settings.model.apiKey,
-            extra: settings.extra), prompt: self.role.prompt)
-        self.model = model
-        print("model initial")
+      
             // 在视图加载时调用 model.chat
             // Task {
             //     do {

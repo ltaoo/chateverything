@@ -1,111 +1,25 @@
 import Foundation
 import CoreData
+import LLM
 
-struct RoleSpeakerV1 {
-    var id: String
-    var engine: String
-}
-struct RoleModelV1 {
-    var name: String
-}
-
-struct RoleSettingsV1 {
-    var model: RoleModelV1
-    var speaker: RoleSpeakerV1
-    var temperature: Double
-}
-struct RoleSettingsV2: Codable {
-    var model: RoleModelV2
-    var speaker: RoleSpeakerV2
-    var extra: [String: AnyCodable]
+public struct RoleBiz: Identifiable {
+    public var id: UUID
+    public var name: String
+    public var description: String
+    public var avatar: String
+    public var prompt: String
+    public var language: String
+    public var voice: RoleVoice
+    public var created_at: Date
     
-    enum CodingKeys: String, CodingKey {
-        case model, speaker, extra
-    }
-    
-    // 提供访问 extra 的公共接口
-    func getExtra() -> [String: Any] {
-        return extra.mapValues { $0.value }
-    }
-    
-    // 设置 extra 的方法
-    mutating func setExtra(_ newExtra: [String: Any]) {
-        self.extra = newExtra.mapValues { AnyCodable($0) }
-    }
-    
-    // 初始化器
-    init(model: RoleModelV2, speaker: RoleSpeakerV2, extra: [String: Any]) {
-        self.model = model
-        self.speaker = speaker
-        self.extra = extra.mapValues { AnyCodable($0) }
-    }
-}
-struct RoleSpeakerV2 {
-    var id: String
-    var engine: String
-}
-struct RoleModelV2 {
-    var name: String
-    var apiProxyAddress: String
-    var apiKey: String
-}
-
-
-func parseSettings(settings: String) -> RoleSettingsV2 {
-    let defaultSettings = RoleSettingsV2(
-                model: RoleModelV2(
-                    name: DefaultLanguageValue.selectedModels[0],
-                    apiProxyAddress: DefaultLanguageValue.apiProxyAddress,
-                    apiKey: DefaultLanguageValue.apiKey
-                ),
-                speaker: RoleSpeakerV2(id: "", engine: "system"),
-                extra: [:]
-            );
-
-            guard let data = settings.data(using: .utf8) else { return defaultSettings }
-            // 先尝试解析 V2 版本
-            if let v2Settings = try? JSONDecoder().decode(RoleSettingsV2.self, from: data) {
-                return v2Settings
-            }
-            
-            // 如果解析 V2 失败，尝试解析 V1 并升级到 V2
-            if let v1Settings = try? JSONDecoder().decode(RoleSettingsV1.self, from: data) {
-                // 将 V1 转换为 V2
-                return RoleSettingsV2(
-                    model: RoleModelV2(
-                        name: v1Settings.model.name,
-                        apiProxyAddress: "", // 设置默认值
-                        apiKey: ""  // 设置默认值
-                    ),
-                    speaker: RoleSpeakerV2(
-                        id: v1Settings.speaker.id,
-                        engine: v1Settings.speaker.engine
-                    ),
-                    extra: [:]
-                )
-            }
-            return defaultSettings
-}
-
-struct RoleBiz: Identifiable {
-    var id: UUID
-    var name: String
-    var avatar: String
-    var prompt: String
-    var settings: RoleSettingsV2
-    var created_at: Date
-    
-    // var settings: RoleSettingsV2? {
-    //     get {
-            
-    //     }
-    // }
-    init(id: UUID, name: String, avatar: String, prompt: String, settings: RoleSettingsV2, created_at: Date) {
+    init(id: UUID, name: String, description: String, avatar: String, prompt: String, language: String, voice: RoleVoice, created_at: Date) {
         self.id = id
         self.name = name
+        self.description = description
         self.avatar = avatar
         self.prompt = prompt
-        self.settings = settings
+        self.language = language
+        self.voice = voice
         self.created_at = created_at
     }
     
@@ -122,26 +36,39 @@ struct RoleBiz: Identifiable {
         let name = entity.name ?? ""
         let avatar = entity.avatar ?? ""
         let prompt = entity.prompt ?? ""
-        let settings = entity.settings ?? ""
+        // let settings = entity.settings ?? ""
         let created_at = entity.created_at ?? Date()
         
         return RoleBiz(
             id: id,
             name: name,
+            description: "",
             avatar: avatar,
             prompt: prompt,
-            settings: parseSettings(settings: settings),
+            language: "en-US",
+            voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
             created_at: created_at
         )
     }
+
+    mutating func updateSettings(provider: LanguageProvider, modelId: String) {
+        // print("updateSettings \(provider.name) \(modelId)")
+        // self.settings.update(model: RoleModelV2(
+        //     name: modelId,
+        //     apiProxyAddress: provider.apiProxyAddress,
+        //     apiKey: provider.apiKey
+        // ),
+        // speaker: RoleSpeakerV2(id: "", engine: "system"),
+        // extra: [:])
+    }
 }
 
-extension RoleSettingsV1: Codable {}
-extension RoleModelV1: Codable {}
-extension RoleSpeakerV1: Codable {}
+// extension RoleSettingsV1: Codable {}
+// extension RoleModelV1: Codable {}
+// extension RoleSpeakerV1: Codable {}
 
-extension RoleModelV2: Codable {}
-extension RoleSpeakerV2: Codable {}
+// extension RoleModelV2: Codable {}
+// extension RoleSpeakerV2: Codable {}
 
 // AnyCodable 包装器
 struct AnyCodable: Codable {
@@ -194,3 +121,47 @@ struct AnyCodable: Codable {
         }
     }
 } 
+
+public struct RoleVoice {
+    // 引擎，目前支持 QCloud、System
+    var engine: String
+    // 语速
+    var rate: Double
+    // 音量
+    var volume: Double
+    // 情感表现
+    var style: String
+    // 角色 id
+    var role: String
+
+    init(engine: String, rate: Double, volume: Double, style: String, role: String) {
+        self.engine = engine
+        self.rate = rate
+        self.volume = volume
+        self.style = style
+        self.role = role
+    }
+}
+
+public let DefaultRoles = [
+    RoleBiz(
+        id: UUID(),
+        name: "雅思助教",
+        description: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。",
+        avatar: "",
+        prompt: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。",
+        language: "",
+        voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
+        created_at: Date()
+    ),
+    RoleBiz(
+        id: UUID(),
+        name: "AI助手",
+        description: "你是一个AI助手，请回答用户的问题。",
+        avatar: "",
+        prompt: "你是一个AI助手，请回答用户的问题。",
+        language: "",
+        voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
+        created_at: Date()
+    )
+]

@@ -1,9 +1,10 @@
 import Foundation
 import LLM
 
-public struct LanguageValue {
-    var provider: String
+public struct LanguageValue: Identifiable {
+    public var id: String { provider }
     var isEnabled: Bool
+    let provider: String
     var apiProxyAddress: String
     var apiKey: String
     var selectedModels: [String]
@@ -13,14 +14,16 @@ public enum Route: Hashable {
     case ChatDetailView(sessionId: UUID)
 }
 public let DefaultLanguageValue = LanguageValue(
-    provider: "deepseek",
     isEnabled: true,
-    apiProxyAddress: "https://api.deepseek.com/chat/completions", apiKey: "sk-292831353cda4d1c9f59984067f24379",
+    provider: "deepseek",
+    apiProxyAddress: "https://api.deepseek.com/chat/completions",
+    apiKey: "sk-292831353cda4d1c9f59984067f24379",
     selectedModels: ["deepseek-chat"]
 )
 
 class Config {
     static let shared = Config()
+
     var userId: UUID
     private var _languageProviders: [LanguageProvider]
     private var _languageValues: [LanguageValue]
@@ -50,9 +53,10 @@ class Config {
         self._languageValues = [
             DefaultLanguageValue,
             LanguageValue(
-                provider: "doubao",
                 isEnabled: true,
-                apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions", apiKey: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmstY29uc29sZSIsImV4cCI6MTczOTk5MjgxMCwiaWF0IjoxNzM5OTU2ODEwLCJ0IjoidXNlciIsImt2IjoxLCJhaWQiOiIyMTAyMDM0ODI1IiwidWlkIjoiMCIsImlzX291dGVyX3VzZXIiOnRydWUsInJlc291cmNlX3R5cGUiOiJlbmRwb2ludCIsInJlc291cmNlX2lkcyI6WyJlcC0yMDI1MDIwNTE0MTUxOC1udmw5cCJdfQ.Z1GxZIt9zPUHfTEsHm9FctiECbO0SxGGuCF5ZIMWG7J1FMRyvWvK2qCWCXvR8yEHRpxKCEg-y_uVAuBklv90PchOlalJy_nvRidKrptzNJSjRVPFjZCKFd_cwEoqPv3NV-ltH3fc3HJCq0abuU6UR_gKY__Tl2qwcjUnr0tXjit71w9wQM6CQGB_49NvQdbq087ISZmC3yi0XSPVyN2b2F0WBp6lxZUCxdwbKtxVZc0N_SRcJQPNxrgsgjmFxqCjTADZggVT_2sCzqsax0rtGFR8PypiPhnMJyT1FutscqCo69RptOlfFlGect4ol_S9RBa1uyhSK3B_ixfVya8S1g",
+                provider: "doubao",
+                apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+                apiKey: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmstY29uc29sZSIsImV4cCI6MTc0MDEwODUxMywiaWF0IjoxNzQwMDcyNTEzLCJ0IjoidXNlciIsImt2IjoxLCJhaWQiOiIyMTAyMDM0ODI1IiwidWlkIjoiMCIsImlzX291dGVyX3VzZXIiOnRydWUsInJlc291cmNlX3R5cGUiOiJlbmRwb2ludCIsInJlc291cmNlX2lkcyI6WyJlcC0yMDI1MDIwNTE0MTUxOC1udmw5cCJdfQ.ao9qOXNn7Wzjd1v98DunW4UXIVBZx4L5T3KRx6IbBRD5oFo6hWxdYaIG6jdk0wRIeP09Vb5PYlhEuhUrTmzUZMCWCvVI7o3uRyNR_Hgzlx4u8AoG9pze_Ybw6Ojw_QtURK6L6RXnbcpnE7jdA6Lrf8GnLYxVFA53FVs9x4JycpRWtUypwviJ3TEzmv-k-6XKuyQMKNzIGuKgBxVpgdW6Ny9k1S732wqOegEFU1nqJlZfgaEiFVBC6xWnYXxmZFtfDaghF2vY_TNxDFCF_pkWkwhTtPodGc6fW8OCXHgagcBbFuXjlH250uqF0QB9Np1lNR-86PqD1aSy9nNkg5BFpA",
                 selectedModels: ["ep-20250205141518-nvl9p"]
             )
         ]
