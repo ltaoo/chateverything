@@ -147,7 +147,7 @@ public let DefaultRoles = [
     RoleBiz(
         id: UUID(),
         name: "雅思助教",
-        description: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。",
+        description: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。回复内容限制在100字以内。",
         avatar: "",
         prompt: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。",
         language: "",
@@ -157,7 +157,7 @@ public let DefaultRoles = [
     RoleBiz(
         id: UUID(),
         name: "AI助手",
-        description: "你是一个AI助手，请回答用户的问题。",
+        description: "你是一个AI助手，请回答用户的问题。回复内容限制在100字以内。",
         avatar: "",
         prompt: "你是一个AI助手，请回答用户的问题。",
         language: "",

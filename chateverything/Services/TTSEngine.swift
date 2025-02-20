@@ -55,7 +55,13 @@ class PCMStreamPlayer {
     
     init() {
         do {
-            try AVAudioSession().setCategory(.playback)
+            // 修改音频会话配置，支持播放和录音
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playAndRecord, 
+                                      mode: .default,
+                                      options: [.defaultToSpeaker, .allowBluetooth])
+            try audioSession.setActive(true)
+            
             self.engine = AVAudioEngine()
             player_node = AVAudioPlayerNode()
             in_format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: false)!
@@ -65,7 +71,8 @@ class PCMStreamPlayer {
             engine.connect(player_node, to: engine.outputNode, format: out_format)
             try engine.start()
             player_node.play()
-        }catch {
+        } catch {
+            print("PCMStreamPlayer initialization error: \(error)")
             exit(-1)
         }
     }
@@ -102,6 +109,11 @@ class PCMStreamPlayer {
         player_node.scheduleBuffer(out_buffer)
     }
     
+    deinit {
+        // 清理音频引擎
+        engine.stop()
+        player_node.stop()
+    }
 }
 
 // QCloud TTS 引擎
@@ -113,8 +125,9 @@ class QCloudTTSEngine: NSObject, TTSEngine {
     private var player: PCMStreamPlayer?
 
     override init() {
-        player = PCMStreamPlayer()
         super.init()
+
+        player = PCMStreamPlayer()
         setupEngine()
     }
     
@@ -151,6 +164,13 @@ class QCloudTTSEngine: NSObject, TTSEngine {
     
     func stopSpeaking() {
         ttsController?.cancel()
+        // 停止播放时重置音频会话
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, 
+                                                        options: .notifyOthersOnDeactivation)
+        } catch {
+            print("Failed to deactivate audio session: \(error)")
+        }
         completionHandler?()
         completionHandler = nil
     }
@@ -160,6 +180,14 @@ class QCloudTTSEngine: NSObject, TTSEngine {
     }
     
     fileprivate func handleCompletion() {
+        print("[TTSEngine]QCloudTTSEngine handleCompletion")
+        // 完成播放时重置音频会话
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, 
+                                                        options: .notifyOthersOnDeactivation)
+        } catch {
+            print("Failed to deactivate audio session: \(error)")
+        }
         completionHandler?()
         completionHandler = nil
     }
@@ -180,8 +208,9 @@ private class QCloudTTSListener: NSObject, QCloudRealTTSListener {
     private weak var engine: QCloudTTSEngine?
     
     init(engine: QCloudTTSEngine) {
-        self.engine = engine
         super.init()
+
+        self.engine = engine
     }
     
     func onFinish() {

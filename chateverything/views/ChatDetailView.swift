@@ -4,16 +4,36 @@ import AVFoundation
 import Speech
 import LLM
 
-struct LocalChatBox: Identifiable, Equatable {
-    var id: UUID
-    var content: String
-    // var createdAt: Date
-    var timestamp: Date
-    var isMe: Bool
+class LocalChatBox: ObservableObject, Identifiable, Equatable {
+    let id: UUID
+    @Published var content: String
+    let timestamp: Date
+    let isMe: Bool
     var nodes: [MsgTextNode]
-    var audioURL: URL?
+    let audioURL: URL?
     var question: String?
     var quizOptions: [QuizOption]?
+    @Published var isLoading: Bool
+    
+    init(id: UUID = UUID(),
+         content: String,
+         timestamp: Date = Date(),
+         isMe: Bool,
+         nodes: [MsgTextNode] = [],
+         audioURL: URL? = nil,
+         question: String? = nil,
+         quizOptions: [QuizOption]? = nil,
+         isLoading: Bool = false) {
+        self.id = id
+        self.content = content
+        self.timestamp = timestamp
+        self.isMe = isMe
+        self.nodes = nodes
+        self.audioURL = audioURL
+        self.question = question
+        self.quizOptions = quizOptions
+        self.isLoading = isLoading
+    }
 
     static func ==(first: LocalChatBox, second: LocalChatBox) -> Bool {
         return first.id == second.id
@@ -188,60 +208,45 @@ struct ChatDetailView: View {
     }
     
     private func handleRecognizedSpeech(recognizedText: String, audioURL: URL) {
-        // guard let model = self.model else {
-        //     return
-        // }
         DispatchQueue.main.async {
+            // Add user message
             let userMessage = LocalChatBox(
-                id: UUID(),
                 content: recognizedText,
-                timestamp: Date(), isMe: true,
-                nodes: [],
+                isMe: true,
                 audioURL: audioURL
             )
             self.messages.append(userMessage)
 
-//   let settings = role.settings;
+            // Add loading message for bot response
+            let loadingMessage = LocalChatBox(
+                content: "...",
+                isMe: false,
+                isLoading: true
+            )
+            self.messages.append(loadingMessage)
 
-        // let model = LLMService(value: ChatModelSettings(
-        //     provider: settings.model.name,
-        //     model: settings.model.name,
-        //     apiProxyAddress: settings.model.apiProxyAddress,
-        //     apiKey: settings.model.apiKey,
-        //     extra: settings.extra), prompt: self.role.prompt)
-        // self.model = model
-        // print("model initial")
-            
-           Task {
-               do {
-                   let response = try await session.llm.chat(content: recognizedText)
-                   
-                //    let quizOptions = [
-                //        QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
-                //        QuizOption(text: "The response lacked coherence", isCorrect: false),
-                //        QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
-                //        QuizOption(text: "Vocabulary range was limited", isCorrect: false)
-                //    ]
-                   
-                   let botMessage = LocalChatBox(
-                       id: UUID(),
-                       content: response,
-                       timestamp: Date(), isMe: false,
-                       nodes: [],
-                       audioURL: nil,
-                       question: nil,
-                       quizOptions: nil
-                   )
-                   
-                   DispatchQueue.main.async {
-                       self.messages.append(botMessage)
-                       self.isLoading = false
-                   }
-               } catch {
-                   print("LLM chat error: \(error)")
-                   self.isLoading = false
-               }
-           }
+            Task {
+                do {
+                    let response = try await session.llm.chat(content: recognizedText)
+                    
+                    // Update loading message with actual response
+                    DispatchQueue.main.async {
+                        if let loadingMessage = self.messages.last {
+                            loadingMessage.content = response
+                            loadingMessage.isLoading = false
+                            toggleSpeaking(text: response)
+                        }
+                    }
+                } catch {
+                    print("LLM chat error: \(error)")
+                    // Remove loading message on error
+                    DispatchQueue.main.async {
+                        if self.messages.last?.isLoading == true {
+                            self.messages.removeLast()
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -811,7 +816,7 @@ struct FlowLayout: Layout {
 }
 
 struct MessageBubbleView: View {
-    let message: LocalChatBox
+    @ObservedObject var message: LocalChatBox
     @State private var isShowingActions = false
     @State private var isShowingTranslation = false
     @State private var translatedText: String = ""
@@ -859,17 +864,30 @@ struct MessageBubbleView: View {
                 if message.isMe { Spacer() }
                 
                 VStack(alignment: message.isMe ? .trailing : .leading) {
-                    MessageContentView(
-                        nodes: nodes,
-                        isMe: message.isMe,
-                        translatedText: translatedText,
-                        isShowingTranslation: isShowingTranslation
-                    )
-                    .padding(12)
-                    .background(message.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
-                    .cornerRadius(16)
-                     .if(isBlurred && !message.isMe) { view in
-                        view.blur(radius: 5)
+                    if message.isLoading {
+                        // Show loading indicator
+                        HStack {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                            Text("思考中...")
+                                .foregroundColor(.gray)
+                        }
+                        .padding(12)
+                        .background(Color(uiColor: .systemGray5))
+                        .cornerRadius(16)
+                    } else {
+                        MessageContentView(
+                            nodes: nodes,
+                            isMe: message.isMe,
+                            translatedText: translatedText,
+                            isShowingTranslation: isShowingTranslation
+                        )
+                        .padding(12)
+                        .background(message.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
+                        .cornerRadius(16)
+                        .if(isBlurred && !message.isMe) { view in
+                            view.blur(radius: 5)
+                        }
                     }
                     
                     // 操作按钮区域
