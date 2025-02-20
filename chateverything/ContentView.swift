@@ -64,6 +64,7 @@ struct ContentView: View {
     @EnvironmentObject var chatStore: ChatStore
     // @StateObject private var chatStore = ChatStore()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
+    @State private var path = NavigationPath()
     
     @State private var showingChatConfig = false
     @State private var isLoading = false // 添加加载状态
@@ -119,61 +120,60 @@ struct ContentView: View {
     }
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // 聊天标签页
-            NavigationView {
-                ChatListView()
-                    .toolbar {
+        NavigationStack(path: $path) {
+            TabView(selection: $selectedTab) {
+                // 聊天标签页
+                ChatListView(path: $path, showingChatConfig: $showingChatConfig)
+                   
+                    .tabItem {
+                        Image(systemName: "message.fill")
+                        Text("聊天")
+                    }
+                    .tag(0)
+                
+                // 探索标签页
+                    Text("探索功能开发中...")
+                .tabItem {
+                    Image(systemName: "safari.fill")
+                    Text("探索")
+                }
+                .tag(1)
+                
+                // 发现标签页
+                    Text("发现功能开发中...")
+                .tabItem {
+                    Image(systemName: "sparkles")
+                    Text("发现")
+                }
+                .tag(2)
+                
+                // 我的标签页
+                    Text("我的功能开发中...")
+                .tabItem {
+                    Image(systemName: "person.fill")
+                    Text("我的")
+                }
+                .tag(3)
+            }
+            .sheet(isPresented: $showingChatConfig) {
+                RoleSelectionView(path: $path, onCancel: {
+                    showingChatConfig = false
+                })
+            }
+            .toolbar {
                         ToolbarItem(placement: .navigationBarTrailing) {
                             ChatButton(onTap: {
                                 showingChatConfig = true
+                                // path.append(Route.ChatDetailView)
                             })
                         }
                     }
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .ChatDetailView(let role):
+                    ChatDetailView(role: role)
+                }
             }
-            .tabItem {
-                Image(systemName: "message.fill")
-                Text("聊天")
-            }
-            .tag(0)
-            
-            // 探索标签页
-            NavigationView {
-                Text("探索功能开发中...")
-            }
-            .tabItem {
-                Image(systemName: "safari.fill")
-                Text("探索")
-            }
-            .tag(1)
-            
-            // 发现标签页
-            NavigationView {
-                Text("发现功能开发中...")
-            }
-            .tabItem {
-                Image(systemName: "sparkles")
-                Text("发现")
-            }
-            .tag(2)
-            
-            // 我的标签页
-            NavigationView {
-                Text("我的功能开发中...")
-            }
-            .tabItem {
-                Image(systemName: "person.fill")
-                Text("我的")
-            }
-            .tag(3)
-        }
-        .onAppear {
-            loadChatSessions()
-        }
-        .toolbar(.visible, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
-        .sheet(isPresented: $showingChatConfig) {
-            RoleSelectionView()
         }
     }
     
@@ -189,31 +189,32 @@ struct ContentView: View {
 }
 
 struct ChatButton: View {
-    var onTap: () -> Void  // 添加点击回调属性
+    var onTap: () -> Void
     
     var body: some View {
-        HStack {
-            Button(action: onTap) {  // 使用传入的 onTap 回调
-                HStack {
-                    Text("🤖")
-                        .font(.title2)
-                    Text("新对话")
-                        .foregroundColor(.primary)
-                    Image(systemName: "chevron.down")
-                        .foregroundColor(.gray)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(20)
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                Text("🤖")
+                    .font(.system(size: 16))
+                Text("新对话")
+                    .font(.system(size: 14))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12))
             }
+            .foregroundColor(.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(.systemGray6))
+            .cornerRadius(16)
         }
     }
 }
 
+
 // 聊天列表行视图
 struct ChatRowView: View {
     let chatSession: ChatSessionBiz
+    var onTap: () -> Void
     
     var body: some View {
         HStack {
@@ -301,10 +302,12 @@ extension String {
 // 新增 ChatListView 组件
 struct ChatListView: View {
     @EnvironmentObject var chatStore: ChatStore
+    @Binding var path: NavigationPath
     @State private var isLoading = false
+    @Binding var showingChatConfig: Bool
     
     var body: some View {
-        VStack {  // 将 Group 改为 VStack
+        VStack {
             if isLoading {
                 ProgressView()
             } else if chatStore.sessions.isEmpty {
@@ -317,11 +320,20 @@ struct ChatListView: View {
                 }
             } else {
                 List(chatStore.sessions) { session in
-                    ChatRowView(chatSession: session)
+                    ChatRowView(chatSession: session, onTap: {
+                        path.append(Route.ChatDetailView)
+                    })
                 }
             }
         }
         .navigationTitle("聊天")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                ChatButton(onTap: {
+                    showingChatConfig = true
+                })
+            }
+        }
     }
 }
 

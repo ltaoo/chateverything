@@ -9,6 +9,10 @@ struct LanguageValue {
     var selectedModels: [String]
 }
 
+public enum Route {
+    case ChatDetailView(roleId: UUID)
+}
+
 class Config {
     static let shared = Config()
     

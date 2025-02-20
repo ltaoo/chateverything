@@ -24,9 +24,12 @@ struct ChatDetailView: View {
     @State private var isSpeaking = false
     @State private var showPromptPopover = false
     
-    init(chatSession: ChatSession, model: LLMService) {
+    let roleId: UUID  // 添加参数
+    
+    init(chatSession: ChatSession, model: LLMService, roleId: UUID) {
         self.chatSession = chatSession
         self.model = model
+        self.roleId = roleId
     }
     
     private func startRecording() {
@@ -216,6 +219,7 @@ struct ChatDetailView: View {
 
     var body: some View {
         VStack {
+            Text("当前角色: \(roleId)")
             ScrollView {
                 ScrollViewReader { proxy in
                     LazyVStack(spacing: 12) {
