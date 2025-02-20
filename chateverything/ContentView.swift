@@ -9,7 +9,6 @@ import SwiftUI
 import AVFoundation
 import Speech
 import Foundation
-import LLM
 
 // 在 ChatSession struct 后添加以下模型
 struct Season: Codable, Identifiable {
@@ -124,7 +123,6 @@ struct ContentView: View {
             TabView(selection: $selectedTab) {
                 // 聊天标签页
                 ChatListView(path: $path, showingChatConfig: $showingChatConfig)
-                   
                     .tabItem {
                         Image(systemName: "message.fill")
                         Text("聊天")
@@ -155,18 +153,23 @@ struct ContentView: View {
                 }
                 .tag(3)
             }
+            .onAppear {
+                // 设置 UITabBar 的背景色
+                let appearance = UITabBarAppearance()
+                appearance.configureWithOpaqueBackground()
+                appearance.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.95)
+                
+                // 使用这个外观配置
+                UITabBar.appearance().standardAppearance = appearance
+                if #available(iOS 15.0, *) {
+                    UITabBar.appearance().scrollEdgeAppearance = appearance
+                }
+            }
             .sheet(isPresented: $showingChatConfig) {
                 RoleSelectionView(path: $path, onCancel: {
                     showingChatConfig = false
                 })
             }
-            .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            ChatButton(onTap: {
-                                showingChatConfig = true
-                            })
-                        }
-                    }
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .ChatDetailView(let sessionId):
@@ -213,50 +216,74 @@ struct ChatButton: View {
     }
 }
 
+let avatars = ["avatar1", "avatar2", "avatar3", "avatar4", "avatar5", "avatar6"]
 
 // 聊天列表行视图
 struct ChatRowView: View {
     let chatSession: ChatSessionBiz
     var onTap: () -> Void
     
+    private var avatarIndex: Int {
+        abs(chatSession.id.hashValue) % avatars.count
+    }
+    
+    // 决定是否显示 badge
+    private var shouldShowBadge: Bool {
+        // 使用 id 的哈希值来确定是否显示 badge，这样大约 1/3 的会话会显示
+        abs(chatSession.id.hashValue) % 3 == 0
+    }
+    
     var body: some View {
-        HStack {
-            Image(systemName: chatSession.avatar)
-                .resizable()
-                .frame(width: 50, height: 50)
-                .clipShape(Circle())
-            
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text(chatSession.name)
-                        .font(.headline)
-                    Spacer()
-                    Text(formatDate(chatSession.lastMessageTime))
-                        .font(.caption)
-                        .foregroundColor(.gray)
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack(alignment: .topTrailing) {
+                    Image(avatars[avatarIndex])
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 46, height: 46)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                    
+                    // Badge
+                    if shouldShowBadge {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 12, height: 12)
+                            .offset(x: 3, y: -3)
+                    }
                 }
                 
-                HStack {
-                    // Text(chatSession.lastMessage)
-                    //     .font(.subheadline)
-                    //     .foregroundColor(.gray)
-                    //     .lineLimit(1)
-                    // Spacer()
-                    if chatSession.unreadCount > 0 {
-                        Text("\(chatSession.unreadCount)")
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(chatSession.name)
+                            .font(.headline)
+                        Spacer()
+                        Text(formatDate(chatSession.lastMessageTime))
                             .font(.caption)
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Color.red)
-                            .clipShape(Circle())
+                            .foregroundColor(.gray)
+                    }
+                    
+                    HStack {
+                        if chatSession.unreadCount > 0 {
+                            Text("\(chatSession.unreadCount)")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                                .padding(6)
+                                .background(Color.red)
+                                .clipShape(Circle())
+                        }
                     }
                 }
             }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .foregroundColor(.primary)
         }
-        .padding(.vertical, 8)
-        .onTapGesture {
-            onTap()
-        }
+        .buttonStyle(PlainButtonStyle())
+        .listRowBackground(Color(UIColor.systemGray6))
     }
     
     private func formatDate(_ date: Date) -> String {
@@ -287,7 +314,18 @@ struct ChatListView: View {
     @Binding var showingChatConfig: Bool
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
+            // 顶部栏
+            HStack {
+                Spacer()
+                Spacer()
+                ChatButton(onTap: {
+                    showingChatConfig = true
+                })
+            }
+            .padding(.vertical, 10)
+            
+            // 主要内容
             if isLoading {
                 ProgressView()
             } else if store.sessions.isEmpty {
@@ -299,11 +337,22 @@ struct ChatListView: View {
                         .foregroundColor(.gray)
                 }
             } else {
-                List(store.sessions) { session in
-                    ChatRowView(chatSession: session, onTap: {
-                        path.append(Route.ChatDetailView(sessionId: session.id))
-                    })
+                List {
+                    ForEach(store.sessions) { session in
+                        ChatRowView(chatSession: session, onTap: {
+                            path.append(Route.ChatDetailView(sessionId: session.id))
+                        })
+                        .listRowSeparator(session.id == store.sessions.last?.id ? .hidden : .visible)
+                    }
+                    .onDelete { indexSet in
+                        // 删除选中的会话
+                        for index in indexSet {
+                            let sessionId = store.sessions[index].id
+                            // $store.deleteSession(sessionId: sessionId)
+                        }
+                    }
                 }
+                .listStyle(.plain)
             }
         }
     }

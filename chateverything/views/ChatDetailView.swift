@@ -72,6 +72,8 @@ struct ChatDetailView: View {
     @State private var isSpeaking = false
     @State private var showPromptPopover = false
     
+    @Environment(\.dismiss) private var dismiss
+    
     // let roleId: UUID  // 添加参数
     
     init(sessionId: UUID, store: ChatStore) {
@@ -431,6 +433,7 @@ struct ChatDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(session.role.name)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: {

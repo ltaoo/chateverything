@@ -50,10 +50,10 @@ class SystemTTSEngine: NSObject, TTSEngine, AVSpeechSynthesizerDelegate {
 
 
 class PCMStreamPlayer {
-    private var engine: AVAudioEngine
+    var engine: AVAudioEngine
     private var in_format: AVAudioFormat
     private var out_format: AVAudioFormat
-    private var player_node: AVAudioPlayerNode
+    var player_node: AVAudioPlayerNode
     private var converter: AVAudioConverter
     private var tail = Data()
     
@@ -82,9 +82,28 @@ class PCMStreamPlayer {
     }
     
     func put(data: Data) {
+        print("[PCMStreamPlayer] Received data chunk: \(data.count) bytes")
+        // 忽略空数据
+        if data.count == 0 {
+            print("[PCMStreamPlayer] Ignoring empty data chunk")
+            return
+        }
+        
         var local_data = data
         tail.append(local_data)
         local_data = tail
+        
+        // 确保引擎和节点处于活动状态
+        if !engine.isRunning {
+            do {
+                try engine.start()
+                player_node.play()
+                print("[PCMStreamPlayer] Restarted audio engine")
+            } catch {
+                print("[PCMStreamPlayer] Failed to restart audio engine: \(error)")
+            }
+        }
+        
         if (tail.count % 2 == 1) {
             tail = local_data.subdata(in: tail.count-1..<tail.count)
             local_data.count = local_data.count - 1
@@ -92,6 +111,7 @@ class PCMStreamPlayer {
             tail = Data()
         }
         if (local_data.count == 0) {
+            print("[PCMStreamPlayer] Warning: Empty data chunk")
             return
         }
         let in_buffer = AVAudioPCMBuffer(pcmFormat: in_format, frameCapacity: AVAudioFrameCount(local_data.count) / in_format.streamDescription.pointee.mBytesPerFrame)!
@@ -105,18 +125,20 @@ class PCMStreamPlayer {
             }
         }
         let out_buffer = AVAudioPCMBuffer(pcmFormat: out_format, frameCapacity: in_buffer.frameCapacity)!
-        do{
+        do {
             try converter.convert(to: out_buffer, from: in_buffer)
-        }catch {
+            print("[PCMStreamPlayer] Successfully converted and scheduled buffer")
+        } catch {
+            print("[PCMStreamPlayer] Conversion error: \(error)")
             exit(-1)
         }
         player_node.scheduleBuffer(out_buffer)
     }
     
     deinit {
-        // 清理音频引擎
-        engine.stop()
+        print("[PCMStreamPlayer] Cleaning up resources")
         player_node.stop()
+        engine.stop()
     }
 }
 
@@ -145,7 +167,7 @@ class QCloudTTSEngine: NSObject, TTSEngine {
         ttsConfig?.secretID = "AKIDcDdqrtmTM9kXAbx7C5mGYgdQ1RfgU9j8" // 需要设置实际的 SecretID
         ttsConfig?.secretKey = "GNOEsJddS5WlndGiy2tzxnUT7zjHgttk" // 需要设置实际的 SecretKey
         ttsConfig?.token = "" // 需要设置实际的 Token
-        ttsConfig?.connectTimeout = 5000 // 5秒超时
+        ttsConfig?.connectTimeout = 20000 // 20秒超时
         
         // 设置基本参数
         // https://cloud.tencent.com/document/product/1073/92668
@@ -162,6 +184,13 @@ class QCloudTTSEngine: NSObject, TTSEngine {
         // 重新初始化 player
         player = PCMStreamPlayer()
         
+        // 根据文本长度计算超时时间
+        let baseTimeout = 5000 // 基础超时时间 5 秒
+        let timePerChar = 100  // 每个字符额外增加 100 毫秒
+        let timeout = baseTimeout + (text.count * timePerChar)
+        let maxTimeout = 60000 // 最大超时时间 60 秒
+        
+        ttsConfig?.connectTimeout = Int32(min(timeout, maxTimeout))
         ttsConfig?.setApiParam("Text", value: text)
         
         // 创建新的监听器
@@ -174,40 +203,71 @@ class QCloudTTSEngine: NSObject, TTSEngine {
     }
     
     func stopSpeaking() {
+        print("[TTSEngine] Stopping speech")
         ttsController?.cancel()
-        // 停止并清理 player
+        
+        // 先停止播放器
+        if let player = player {
+            player.player_node.stop()
+            player.engine.stop()
+        }
         player = nil
         
-        // 停止播放时重置音频会话
+        // 重置音频会话
         do {
             try AVAudioSession.sharedInstance().setActive(false, 
                                                         options: .notifyOthersOnDeactivation)
         } catch {
-            print("Failed to deactivate audio session: \(error)")
+            print("[TTSEngine] Failed to deactivate audio session: \(error)")
         }
+        
         completionHandler?()
         completionHandler = nil
     }
     
     fileprivate func handleAudioData(_ data: Data) {
+        print("[TTSEngine] Received audio data chunk: \(data.count) bytes")
         player?.put(data: data)
     }
     
     fileprivate func handleCompletion() {
-        print("[TTSEngine]QCloudTTSEngine handleCompletion")
-        // 完成播放时重置音频会话
-        do {
-            try AVAudioSession.sharedInstance().setActive(false, 
-                                                        options: .notifyOthersOnDeactivation)
-        } catch {
-            print("Failed to deactivate audio session: \(error)")
+        print("[TTSEngine] TTS synthesis completed")
+        // 延长等待时间，确保音频完全播放
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self else { return }
+            
+            // 先停止播放器
+            if let player = self.player {
+                player.player_node.stop()
+                player.engine.stop()
+            }
+            
+            print("[TTSEngine] Attempting to reset audio session")
+            do {
+                // 先设置为非活动
+                try AVAudioSession.sharedInstance().setActive(false, 
+                                                            options: .notifyOthersOnDeactivation)
+                // 短暂延迟后重新激活
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    do {
+                        try AVAudioSession.sharedInstance().setActive(true)
+                        print("[TTSEngine] Successfully reset audio session")
+                    } catch {
+                        print("[TTSEngine] Failed to reactivate audio session: \(error)")
+                    }
+                }
+            } catch {
+                print("[TTSEngine] Failed to deactivate audio session: \(error)")
+            }
+            
+            self.completionHandler?()
+            self.completionHandler = nil
+            self.player = nil
         }
-        completionHandler?()
-        completionHandler = nil
     }
     
     fileprivate func handleError(_ error: Error) {
-        print("TTS Error: \(error.localizedDescription)")
+        print("[TTSEngine] Error occurred: \(error.localizedDescription)")
         completionHandler?()
         completionHandler = nil
     }
