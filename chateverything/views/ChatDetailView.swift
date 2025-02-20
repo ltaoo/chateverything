@@ -14,6 +14,8 @@ class LocalChatBox: ObservableObject, Identifiable, Equatable {
     var question: String?
     var quizOptions: [QuizOption]?
     @Published var isLoading: Bool
+    @Published var isPlaying: Bool
+    @Published var isSpeaking: Bool
     
     init(id: UUID = UUID(),
          content: String,
@@ -23,7 +25,9 @@ class LocalChatBox: ObservableObject, Identifiable, Equatable {
          audioURL: URL? = nil,
          question: String? = nil,
          quizOptions: [QuizOption]? = nil,
-         isLoading: Bool = false) {
+         isLoading: Bool = false,
+         isPlaying: Bool = false,
+         isSpeaking: Bool = false) {
         self.id = id
         self.content = content
         self.timestamp = timestamp
@@ -33,6 +37,8 @@ class LocalChatBox: ObservableObject, Identifiable, Equatable {
         self.question = question
         self.quizOptions = quizOptions
         self.isLoading = isLoading
+        self.isPlaying = isPlaying
+        self.isSpeaking = isSpeaking
     }
 
     static func ==(first: LocalChatBox, second: LocalChatBox) -> Bool {
@@ -86,6 +92,8 @@ struct ChatDetailView: View {
             TTSManager.shared.stopSpeaking()
             isSpeaking = false
         }
+
+//        $audioRecorder.prepareForRecording()
         
         #if os(iOS)
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
@@ -148,17 +156,26 @@ struct ChatDetailView: View {
         audioRecorder.cancelRecording()
     }
     
-    private func toggleSpeaking(text: String) {
-        if isSpeaking {
+    private func toggleSpeaking(message: LocalChatBox) {
+        if message.isSpeaking {
             TTSManager.shared.stopSpeaking()
-            isSpeaking = false
+            message.isSpeaking = false
+            // Find and update the speaking message
+            // if let index = messages.firstIndex(where: { $0.isSpeaking }) {
+            //     messages[index].isSpeaking = false
+            // }
         } else {
-            TTSManager.shared.speak(text, completion: {
-                DispatchQueue.main.async { [self] in
-                    isSpeaking = false
+            TTSManager.shared.speak(message.content) {
+                // Find and update the speaking message when done
+                DispatchQueue.main.async {
+                    message.isSpeaking = false
                 }
-            })
-            isSpeaking = true
+            }
+            message.isSpeaking = true
+            // Find and update the message that should be speaking
+            // if let index = messages.firstIndex(where: { $0.content == text }) {
+            //     messages[index].isSpeaking = true
+            // }
         }
     }
     
@@ -234,7 +251,8 @@ struct ChatDetailView: View {
                         if let loadingMessage = self.messages.last {
                             loadingMessage.content = response
                             loadingMessage.isLoading = false
-                            toggleSpeaking(text: response)
+                            loadingMessage.isSpeaking = false
+                            toggleSpeaking(message: loadingMessage)
                         }
                     }
                 } catch {
@@ -274,9 +292,8 @@ struct ChatDetailView: View {
                     LazyVStack(spacing: 12) {
                         ForEach(messages) { message in
                             MessageBubbleView(message: message,
-                                             isSpeaking: $isSpeaking,
-                                             onSpeakToggle: { text in
-                                toggleSpeaking(text: text)
+                                             onSpeakToggle: { message in
+                                toggleSpeaking(message: message)
                             },
                             audioRecorder: audioRecorder)
                             .id(message.id)
@@ -820,23 +837,18 @@ struct MessageBubbleView: View {
     @State private var isShowingActions = false
     @State private var isShowingTranslation = false
     @State private var translatedText: String = ""
-    @State private var isPlaying = false
     @State private var isBlurred: Bool
-    @Binding var isSpeaking: Bool
-    let onSpeakToggle: (String) -> Void
+    let onSpeakToggle: (LocalChatBox) -> Void
     let audioRecorder: AudioRecorder
     @State private var localQuizOptions: [QuizOption]?
     
-    init(message: LocalChatBox, 
-         isSpeaking: Binding<Bool>, 
-         onSpeakToggle: @escaping (String) -> Void,
+    init(message: LocalChatBox,
+         onSpeakToggle: @escaping (LocalChatBox) -> Void,
          audioRecorder: AudioRecorder) {
         self.message = message
         _isBlurred = State(initialValue: !message.isMe)
-        _isSpeaking = isSpeaking
         self.onSpeakToggle = onSpeakToggle
         self.audioRecorder = audioRecorder
-        // _localQuizOptions = State(initialValue: message.quizOptions)
     }
     
     var nodes: [MsgTextNode] {
@@ -917,20 +929,20 @@ struct MessageBubbleView: View {
                             if message.isMe, let _ = message.audioURL {
                                 Button(action: {
                                     if let url = message.audioURL {
-                                        if isPlaying {
+                                        if message.isPlaying {
                                             audioRecorder.stopPlayback()
-                                            isPlaying = false
+                                            message.isPlaying = false
                                         } else {
                                             audioRecorder.playAudio(url: url) {
-                                                isPlaying = false
+                                                message.isPlaying = false
                                             }
-                                            isPlaying = true
+                                            message.isPlaying = true
                                         }
                                     }
                                 }) {
                                     HStack(spacing: 4) {
-                                        Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                                        Text(isPlaying ? "停止" : "回放")
+                                        Image(systemName: message.isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                                        Text(message.isPlaying ? "停止" : "回放")
                                             .font(.caption)
                                     }
                                     .foregroundColor(.gray)
@@ -944,11 +956,12 @@ struct MessageBubbleView: View {
                             // 文本朗读按钮（仅对非用户消息显示）
                             if !message.isMe {
                                 Button(action: {
-                                    onSpeakToggle(message.content)
+                                    onSpeakToggle(message)
+                                    // message.isSpeaking.toggle()
                                 }) {
                                     HStack(spacing: 4) {
-                                        Image(systemName: isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
-                                        Text(isSpeaking ? "停止" : "朗读")
+                                        Image(systemName: message.isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                        Text(message.isSpeaking ? "停止" : "朗读")
                                             .font(.caption)
                                     }
                                     .foregroundColor(.gray)

@@ -11,19 +11,23 @@ protocol TTSEngine {
 
 // 系统内置 TTS 引擎
 class SystemTTSEngine: NSObject, TTSEngine, AVSpeechSynthesizerDelegate {
+//    private var language: String
     private let synthesizer: AVSpeechSynthesizer
     private var completionHandler: (() -> Void)?
     
     override init() {
         synthesizer = AVSpeechSynthesizer()
+        
         super.init()
+//        language = lang
         synthesizer.delegate = self
     }
     
     func speak(_ text: String, completion: @escaping () -> Void) {
+        let language = "en-US"
         completionHandler = completion
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.voice = AVSpeechSynthesisVoice(language: language)
         utterance.rate = 0.5
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
@@ -118,6 +122,8 @@ class PCMStreamPlayer {
 
 // QCloud TTS 引擎
 class QCloudTTSEngine: NSObject, TTSEngine {
+//    private var language: String
+    
     private var ttsConfig: QCloudRealTTSConfig?
     private var ttsController: QCloudRealTTSController?
     private var ttsListener: QCloudTTSListener?
@@ -126,12 +132,13 @@ class QCloudTTSEngine: NSObject, TTSEngine {
 
     override init() {
         super.init()
-
         player = PCMStreamPlayer()
         setupEngine()
     }
     
     private func setupEngine() {
+        let language = "en-US"
+        
         ttsConfig = QCloudRealTTSConfig()
         // 配置必要的参数
         ttsConfig?.appID = "1309267389" // 需要设置实际的 AppID
@@ -149,7 +156,11 @@ class QCloudTTSEngine: NSObject, TTSEngine {
     }
     
     func speak(_ text: String, completion: @escaping () -> Void) {
+        print("[TTSEngine]QCloudTTSEngine speak: \(text)")
         completionHandler = completion
+        
+        // 重新初始化 player
+        player = PCMStreamPlayer()
         
         ttsConfig?.setApiParam("Text", value: text)
         
@@ -164,6 +175,9 @@ class QCloudTTSEngine: NSObject, TTSEngine {
     
     func stopSpeaking() {
         ttsController?.cancel()
+        // 停止并清理 player
+        player = nil
+        
         // 停止播放时重置音频会话
         do {
             try AVAudioSession.sharedInstance().setActive(false, 
