@@ -127,7 +127,7 @@ class ChatStore: ObservableObject {
     private let sessionsKey = "chat_sessions"
     private let messagesKey = "chat_messages"
     private let questionsKey = "chat_questions"
-    private let context = PersistenceController.container.viewContext
+    // private let context = PersistenceController.container.viewContext
     
     init(container: NSPersistentContainer) {
         self.container = container
@@ -192,20 +192,51 @@ class ChatStore: ObservableObject {
             }
         }
     }
+
+    func fetchSessions() {
+        let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
+        let sessions = try? container.viewContext.fetch(request)
+
+        if sessions == nil {
+            return
+        }
+
+        var result: [ChatSessionBiz] = []
+
+        for session in sessions! {
+            if let biz = ChatSessionBiz.from(id: session.id!, in: container.viewContext) {
+                result.append(biz)
+            }
+        }
+
+        self.sessions = result
+    }
+
+    func fetchSession(id: UUID) -> ChatSessionBiz? {
+        let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        let session = try? container.viewContext.fetch(request).first
+        return ChatSessionBiz.from(id: session!.id!, in: container.viewContext)
+    }
     
-//     func addSession(_ session: ChatSession) {
-//         // Save to Core Data
-//         let newSession = ChatSessionEntity(context: container.viewContext)
-//         newSession.id = session.id
-//         newSession.user1 = session.name
-//         newSession.user2 = ""  // Set this based on your needs
-//         newSession.createdAt = Date()
+    func addSession(id: UUID, user1_id: UUID, user2_id: UUID) {
+        print("addSession: \(id), \(user1_id), \(user2_id)")
+
+        //  guard let entity = NSEntityDescription.entity(forEntityName: "ChatSession", in: container.viewContext) else {
+        //     fatalError("Failed to initialize ChatSessionEntity")
+        // }
+
+        // let newSession = ChatSession(entity: entity, insertInto: container.viewContext)
+        // newSession.id = id
+        // newSession.user1_id = user1_id
+        // newSession.user2_id = user2_id
+        // newSession.created_at = Date()
         
-//         saveContext()
+        // saveContext()
         
-//         // Update the published array
-//         chatSessions.insert(session, at: 0)
-//     }
+        // Update the published array
+        // sessions.insert(session, at: 0)
+    }
     
 //     func deleteSession(at indexSet: IndexSet) {
 //         // Delete from Core Data

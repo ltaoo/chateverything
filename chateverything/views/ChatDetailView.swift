@@ -1,18 +1,40 @@
 import SwiftUI
+import Foundation
 import AVFoundation
 import Speech
 import LLM
 
+struct LocalChatBox: Identifiable, Equatable {
+    var id: UUID
+    var content: String
+    // var createdAt: Date
+    var timestamp: Date
+    var isMe: Bool
+    var nodes: [MsgTextNode]
+    var audioURL: URL?
+    var question: String?
+    var quizOptions: [QuizOption]?
+
+    static func ==(first: LocalChatBox, second: LocalChatBox) -> Bool {
+        return first.id == second.id
+    }
+}
+
 // 聊天详情页面
 struct ChatDetailView: View {
-    @EnvironmentObject private var navigationManager: NavigationStateManager
-    let chatSession: ChatSession
-    let model: LLMService
+    var sessionId: UUID
+    var store: ChatStore
+    @State private var showRoleDetail = false
+
+    @Environment(\.managedObjectContext) private var viewContext
+    // @EnvironmentObject var store: ChatStore
+    @State private var session: ChatSessionBiz
+    @State private var role: RoleBiz
+    @State private var model: LLMService?
+
     @State private var isPlaying = false
-    
     @State private var messageText: String = ""
-    @State private var messages: [ChatMessage] = [
-    ]
+    @State private var messages: [LocalChatBox] = []
     @State private var isRecording = false
     @State private var recordingStartTime: Date?
     @State private var scale: CGFloat = 1.0
@@ -24,12 +46,19 @@ struct ChatDetailView: View {
     @State private var isSpeaking = false
     @State private var showPromptPopover = false
     
-    let roleId: UUID  // 添加参数
+    // let roleId: UUID  // 添加参数
     
-    init(chatSession: ChatSession, model: LLMService, roleId: UUID) {
-        self.chatSession = chatSession
-        self.model = model
-        self.roleId = roleId
+    init(sessionId: UUID, store: ChatStore) {
+        self.sessionId = sessionId
+        self.store = store
+
+        let session = store.fetchSession(id: sessionId)
+        self.session = session!
+        self.role = session!.role
+     
+        // ChatSessionBiz.from(id: sessionId, in: viewContext)
+        // 初始化 messages State
+        // _messages = State(initialValue: initialMessages)
     }
     
     private func startRecording() {
@@ -39,8 +68,8 @@ struct ChatDetailView: View {
         }
         
         #if os(iOS)
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
-            guard let self = self else { return }
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+//            guard let self = self else { return }
             
             DispatchQueue.main.async {
                 if granted {
@@ -64,11 +93,11 @@ struct ChatDetailView: View {
         audioRecorder.startRecording()
         
         // 使用 Timer 更新录音时间
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+//            guard let self = self else {
+//                timer.invalidate()
+//                return
+//            }
             
             if !self.isRecording {
                 timer.invalidate()
@@ -123,8 +152,8 @@ struct ChatDetailView: View {
             return
         }
         
-        SFSpeechRecognizer.requestAuthorization { [weak self] status in
-            guard let self = self else { return }
+        SFSpeechRecognizer.requestAuthorization {  status in
+//            guard let self = self else { return }
             
             DispatchQueue.main.async {
                 switch status {
@@ -143,8 +172,8 @@ struct ChatDetailView: View {
         let request = SFSpeechURLRecognitionRequest(url: url)
         request.shouldReportPartialResults = false
         
-        recognizer.recognitionTask(with: request) { [weak self] result, error in
-            guard let self = self else { return }
+        recognizer.recognitionTask(with: request) {  result, error in
+//            guard let self = self else { return }
             
             if let error = error {
                 print("Recognition failed with error: \(error.localizedDescription)")
@@ -159,44 +188,50 @@ struct ChatDetailView: View {
     }
     
     private func handleRecognizedSpeech(recognizedText: String, audioURL: URL) {
+        guard let model = self.model else {
+            return
+        }
         DispatchQueue.main.async {
-            let userMessage = ChatMessage(
+            let userMessage = LocalChatBox(
+                id: UUID(),
                 content: recognizedText,
-                isMe: true,
-                timestamp: Date(),
-                nodes: nil,
+                timestamp: Date(), isMe: true,
+                nodes: [],
                 audioURL: audioURL
             )
             self.messages.append(userMessage)
+
             
-            Task {
-                do {
-                    let response = try await self.model.chat(content: recognizedText)
-                    
-                    let quizOptions = [
-                        QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
-                        QuizOption(text: "The response lacked coherence", isCorrect: false),
-                        QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
-                        QuizOption(text: "Vocabulary range was limited", isCorrect: false)
-                    ]
-                    
-                    let botMessage = ChatMessage(
-                        content: response,
-                        isMe: false,
-                        timestamp: Date(),
-                        quizOptions: quizOptions,
-                        question: "Based on the speaking response, which statement is most accurate?"
-                    )
-                    
-                    DispatchQueue.main.async {
-                        self.messages.append(botMessage)
-                        self.isLoading = false
-                    }
-                } catch {
-                    print("LLM chat error: \(error)")
-                    self.isLoading = false
-                }
-            }
+           Task {
+               do {
+                   let response = try await model.chat(content: recognizedText)
+                   
+                //    let quizOptions = [
+                //        QuizOption(text: "The speaker effectively conveyed their ideas", isCorrect: true),
+                //        QuizOption(text: "The response lacked coherence", isCorrect: false),
+                //        QuizOption(text: "Grammar usage was inconsistent", isCorrect: false),
+                //        QuizOption(text: "Vocabulary range was limited", isCorrect: false)
+                //    ]
+                   
+                   let botMessage = LocalChatBox(
+                       id: UUID(),
+                       content: response,
+                       timestamp: Date(), isMe: false,
+                       nodes: [],
+                       audioURL: nil,
+                       question: nil,
+                       quizOptions: nil
+                   )
+                   
+                   DispatchQueue.main.async {
+                       self.messages.append(botMessage)
+                       self.isLoading = false
+                   }
+               } catch {
+                   print("LLM chat error: \(error)")
+                   self.isLoading = false
+               }
+           }
         }
     }
     
@@ -219,7 +254,6 @@ struct ChatDetailView: View {
 
     var body: some View {
         VStack {
-            Text("当前角色: \(roleId)")
             ScrollView {
                 ScrollViewReader { proxy in
                     LazyVStack(spacing: 12) {
@@ -364,11 +398,34 @@ struct ChatDetailView: View {
                 Text("请在设置中允许使用麦克风和语音识别功能。\n\n需要开启:\n1. 麦克风权限\n2. 语音识别权限")
             }
         }
-        .navigationTitle(chatSession.name)
-        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        #endif
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showRoleDetail = true
+                }) {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 20))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .sheet(isPresented: $showRoleDetail) {
+            RoleDetailView(role: self.session.role)
+        }
         .onAppear {
+        let settings = role.settings;
+
+        let model = LLMService(value: ChatModelSettings(
+            provider: settings.model.name,
+            model: settings.model.name,
+            apiProxyAddress: settings.model.apiProxyAddress,
+            apiKey: settings.model.apiKey,
+            extra: settings.extra), prompt: self.role.prompt)
+        self.model = model
+        print("model initial")
             // 在视图加载时调用 model.chat
             // Task {
             //     do {
@@ -545,7 +602,6 @@ class AudioRecorder: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 }
 
-// 由于 ChatMessage 包含了 MsgTextNode，我们也需要让 MsgTextNode 遵循 Equatable
 struct MsgTextNode: Codable, Identifiable, Equatable {
     let id: Int
     let text: String
@@ -754,7 +810,7 @@ struct FlowLayout: Layout {
 }
 
 struct MessageBubbleView: View {
-    let message: ChatMessage
+    let message: LocalChatBox
     @State private var isShowingActions = false
     @State private var isShowingTranslation = false
     @State private var translatedText: String = ""
@@ -765,7 +821,7 @@ struct MessageBubbleView: View {
     let audioRecorder: AudioRecorder
     @State private var localQuizOptions: [QuizOption]?
     
-    init(message: ChatMessage, 
+    init(message: LocalChatBox, 
          isSpeaking: Binding<Bool>, 
          onSpeakToggle: @escaping (String) -> Void,
          audioRecorder: AudioRecorder) {
@@ -774,14 +830,14 @@ struct MessageBubbleView: View {
         _isSpeaking = isSpeaking
         self.onSpeakToggle = onSpeakToggle
         self.audioRecorder = audioRecorder
-        _localQuizOptions = State(initialValue: message.quizOptions)
+        // _localQuizOptions = State(initialValue: message.quizOptions)
     }
     
     var nodes: [MsgTextNode] {
         var nodeId = 0
         var result: [MsgTextNode] = []
         
-        let words = message.content.split(whereSeparator: { $0.isWhitespace }, omittingEmptySubsequences: false)
+        let words = message.content.split(omittingEmptySubsequences: false, whereSeparator: { $0.isWhitespace })
         for word in words {
             nodeId += 1
             let node = MsgTextNode(
@@ -913,7 +969,7 @@ struct MessageBubbleView: View {
             isPresented: $isShowingActions,
             actions: {
                 Button("保存") { saveMessage() }
-                Button("朗读") { onSpeakToggle(message.content) }
+                // Button("朗读") { onSpeakToggle(message.content) }
                 Button("翻译") { translateMessage() }
                 Button("优化") { optimizeMessage() }
                 Button("查错") { checkErrors() }
@@ -1102,3 +1158,29 @@ struct QuizCardView: View {
     }
 }
 
+// 添加 String 扩展来支持保留分隔符的分割
+extension String {
+    func split(includesSeparators: Bool, 
+              whereSeparator isSeparator: (Character) -> Bool) -> [Substring] {
+        var result: [Substring] = []
+        var start = self.startIndex
+        
+        for i in self.indices {
+            if isSeparator(self[i]) {
+                if i > start {
+                    result.append(self[start..<i])
+                }
+                if includesSeparators {
+                    result.append(self[i...i])
+                }
+                start = self.index(after: i)
+            }
+        }
+        
+        if start < self.endIndex {
+            result.append(self[start..<self.endIndex])
+        }
+        
+        return result
+    }
+}

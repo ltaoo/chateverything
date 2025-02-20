@@ -11,12 +11,15 @@ import CoreData
 @main
 struct ChatEverythingApp: App {
 //    let persistenceController = PersistenceController.shared
-    let chatStore: ChatStore
+    // let store: ChatStore
+    let container = PersistenceController.container
+    // @StateObject var store: ChatStore
+    var store: ChatStore
 
     init() {
-        chatStore = ChatStore(container: PersistenceController.container)
-
-        let context = PersistenceController.container.viewContext
+        // store = ChatStore(container: PersistenceController.container)
+        store = ChatStore(container: container)
+        // _store = StateObject(wrappedValue: ChatStore(container: container))
         
         // let fetchRequest: NSFetchRequest<UserEntity> = UserEntity.fetchRequest()
         
@@ -39,15 +42,45 @@ struct ChatEverythingApp: App {
                 // user.created_at = Date()
                 
                 // try context.save()
-        RoleEntity.createDefaultRoles(in: context)
+        // RoleEntity.createDefaultRoles(in: context)
+
+                // guard let entity = NSEntityDescription.entity(forEntityName: "Role", in: context) else {
+                //     fatalError("Failed to initialize UserEntity")
+                // }
+                // let role = Role(entity: entity, insertInto: context)
+                // role.id = UUID()
+                // role.name = "AI助手2"
+                // role.avatar = "https://example.com/avatar.png"
+                // role.prompt = "你是一个AI助手，请回答用户的问题。"
+                // role.settings = """
+                // {
+                // "speaker": {
+                //     "id": "zh-CN-XiaoyiNeural",
+                //     "engine": "晓伊"
+                // },
+                // "model": {
+                //     "id": "gpt-4"
+                // },
+                // "temperature": 0.8
+                // }
+                // """
+                // role.created_at = Date()
+                // do {
+                // try context.save()
+                // } catch {
+                //     print("Error saving role: \(error)")
+                // }
+
+        
     }
 
     
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.managedObjectContext, PersistenceController.container.viewContext)
-                .environmentObject(chatStore)
+                .environment(\.managedObjectContext, container.viewContext)
+                .environmentObject(store)
         }
     }
 }
+

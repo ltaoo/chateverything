@@ -61,8 +61,8 @@ struct FetchParams: Codable {
 // }
 
 struct ContentView: View {
-    @EnvironmentObject var chatStore: ChatStore
-    // @StateObject private var chatStore = ChatStore()
+    @EnvironmentObject var store: ChatStore
+    // @StateObject private var store = ChatStore()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
     @State private var path = NavigationPath()
     
@@ -164,17 +164,20 @@ struct ContentView: View {
                         ToolbarItem(placement: .navigationBarTrailing) {
                             ChatButton(onTap: {
                                 showingChatConfig = true
-                                // path.append(Route.ChatDetailView)
                             })
                         }
                     }
             .navigationDestination(for: Route.self) { route in
                 switch route {
-                case .ChatDetailView(let role):
-                    ChatDetailView(role: role)
+                case .ChatDetailView(let sessionId):
+                    ChatDetailView(sessionId: sessionId, store: self.store).environmentObject(self.store)
                 }
             }
-        }
+            .onAppear {
+                store.fetchSessions()
+            }
+            .environmentObject(self.store)
+        }.environmentObject(self.store)
     }
     
     private func loadChatSessions() {
@@ -182,7 +185,7 @@ struct ContentView: View {
         
         // 使用异步操作来模拟网络延迟
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            chatStore.loadInitialSessions(limit: 20)
+            store.loadInitialSessions(limit: 20)
             isLoading = false
         }
     }
@@ -251,6 +254,9 @@ struct ChatRowView: View {
             }
         }
         .padding(.vertical, 8)
+        .onTapGesture {
+            onTap()
+        }
     }
     
     private func formatDate(_ date: Date) -> String {
@@ -261,32 +267,6 @@ struct ChatRowView: View {
 }
 
 
-// 添加 String 扩展来支持保留分隔符的分割
-extension String {
-    func split(includesSeparators: Bool, 
-              whereSeparator isSeparator: (Character) -> Bool) -> [Substring] {
-        var result: [Substring] = []
-        var start = self.startIndex
-        
-        for i in self.indices {
-            if isSeparator(self[i]) {
-                if i > start {
-                    result.append(self[start..<i])
-                }
-                if includesSeparators {
-                    result.append(self[i...i])
-                }
-                start = self.index(after: i)
-            }
-        }
-        
-        if start < self.endIndex {
-            result.append(self[start..<self.endIndex])
-        }
-        
-        return result
-    }
-}
 
 // 确保 ChatDetailView 符合 Hashable 协议
 // extension ChatDetailView: Hashable {
@@ -301,7 +281,7 @@ extension String {
 
 // 新增 ChatListView 组件
 struct ChatListView: View {
-    @EnvironmentObject var chatStore: ChatStore
+    @EnvironmentObject var store: ChatStore
     @Binding var path: NavigationPath
     @State private var isLoading = false
     @Binding var showingChatConfig: Bool
@@ -310,7 +290,7 @@ struct ChatListView: View {
         VStack {
             if isLoading {
                 ProgressView()
-            } else if chatStore.sessions.isEmpty {
+            } else if store.sessions.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "message")
                         .font(.system(size: 50))
@@ -319,19 +299,11 @@ struct ChatListView: View {
                         .foregroundColor(.gray)
                 }
             } else {
-                List(chatStore.sessions) { session in
+                List(store.sessions) { session in
                     ChatRowView(chatSession: session, onTap: {
-                        path.append(Route.ChatDetailView)
+                        path.append(Route.ChatDetailView(sessionId: session.id))
                     })
                 }
-            }
-        }
-        .navigationTitle("聊天")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                ChatButton(onTap: {
-                    showingChatConfig = true
-                })
             }
         }
     }

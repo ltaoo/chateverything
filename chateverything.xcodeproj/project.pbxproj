@@ -61,7 +61,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				HandwritingView.swift,
-				views/ChatDetailView.swift,
 			);
 			target = A6778D6C2D5352EC00447C17 /* chateverything */;
 		};

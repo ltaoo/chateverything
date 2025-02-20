@@ -83,12 +83,21 @@ public struct LanguageModel: Identifiable, Hashable {
                lhs.name == rhs.name
     }
 }
-struct ChatModelSettings {
-    var provider: String
-    var model: String
-    var apiProxyAddress: String
-    var apiKey: String
-    var extra: [String: String]
+public struct ChatModelSettings {
+    public var provider: String
+    public var model: String
+    public var apiProxyAddress: String
+    public var apiKey: String
+    public var extra: [String: Any]
+    
+    // 添加公共初始化器
+    public init(provider: String, model: String, apiProxyAddress: String, apiKey: String, extra: [String: Any] = [:]) {
+        self.provider = provider
+        self.model = model
+        self.apiProxyAddress = apiProxyAddress
+        self.apiKey = apiKey
+        self.extra = extra
+    }
 }
 
 public class LLMService {
@@ -97,11 +106,13 @@ public class LLMService {
     private let prompt: String
     private var messages: [Message]
     
-    init(value: ChatModelSettings, prompt: String = "") {
+    public init(value: ChatModelSettings, prompt: String = "") {
         self.value = value
         self.model = LLMServiceProviders.first(where: { $0.name == value.provider })?.models.first(where: { $0.name == value.model }) ?? LLMServiceProviders.first?.models.first ?? LanguageModel(providerName: "", id: "", name: "", responseHandler: DefaultHandler)
         self.prompt = prompt
         self.messages = [Message(role: "system", content: prompt)]
+
+        print("[Package]LLM init: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey) \(prompt)")
     }
     
     public func chat(content: String) async throws -> String {

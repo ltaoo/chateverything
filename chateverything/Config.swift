@@ -1,7 +1,7 @@
 import Foundation
 import LLM
 
-struct LanguageValue {
+public struct LanguageValue {
     var provider: String
     var isEnabled: Bool
     var apiProxyAddress: String
@@ -9,13 +9,19 @@ struct LanguageValue {
     var selectedModels: [String]
 }
 
-public enum Route {
-    case ChatDetailView(roleId: UUID)
+public enum Route: Hashable {
+    case ChatDetailView(sessionId: UUID)
 }
+public let DefaultLanguageValue = LanguageValue(
+    provider: "deepseek",
+    isEnabled: true,
+    apiProxyAddress: "https://api.deepseek.com/chat/completions", apiKey: "sk-292831353cda4d1c9f59984067f24379",
+    selectedModels: ["deepseek-chat"]
+)
 
 class Config {
     static let shared = Config()
-    
+    var userId: UUID
     private var _languageProviders: [LanguageProvider]
     private var _languageValues: [LanguageValue]
     
@@ -34,15 +40,15 @@ class Config {
     ]
     
     private init() {
+        if let userIdString = UserDefaults.standard.string(forKey: "userId") {
+            self.userId = UUID(uuidString: userIdString) ?? UUID()
+        } else {
+            self.userId = UUID()
+            UserDefaults.standard.set(self.userId.uuidString, forKey: "userId")
+        }
         self._languageProviders = LLMServiceProviders
-        
         self._languageValues = [
-            LanguageValue(
-                provider: "deepseek",
-                isEnabled: true,
-                apiProxyAddress: "https://api.deepseek.com/chat/completions", apiKey: "sk-292831353cda4d1c9f59984067f24379",
-                selectedModels: ["deepseek-chat"]
-            ),
+            DefaultLanguageValue,
             LanguageValue(
                 provider: "doubao",
                 isEnabled: true,
