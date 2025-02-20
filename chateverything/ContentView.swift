@@ -55,12 +55,15 @@ struct FetchParams: Codable {
     }
 }
 
+// 添加 NavigationStateManager 类
+// class NavigationStateManager: ObservableObject {
+//     @Published var path = NavigationPath()
+// }
+
 struct ContentView: View {
     @EnvironmentObject var chatStore: ChatStore
     // @StateObject private var chatStore = ChatStore()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
-    
-    @StateObject private var navigationManager = NavigationStateManager()
     
     @State private var showingChatConfig = false
     @State private var isLoading = false // 添加加载状态
@@ -117,57 +120,61 @@ struct ContentView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            NavigationStack(path: $navigationManager.path) {
-                VStack(spacing: 0) {
-                  
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                       ChatButton()
+            // 聊天标签页
+            NavigationView {
+                ChatListView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            ChatButton(onTap: {
+                                showingChatConfig = true
+                            })
+                        }
                     }
-                }
             }
-            .environmentObject(navigationManager)
             .tabItem {
                 Image(systemName: "message.fill")
                 Text("聊天")
             }
             .tag(0)
+            
             // 探索标签页
-            // NavigationStack {
-            //     SearchView()
-            // }
-            // .tabItem {
-            //     Image(systemName: "safari.fill")
-            //     Text("探索")
-            // }
-            // .tag(1)
+            NavigationView {
+                Text("探索功能开发中...")
+            }
+            .tabItem {
+                Image(systemName: "safari.fill")
+                Text("探索")
+            }
+            .tag(1)
             
-            // // 发现标签页
-            // NavigationStack {
-            //     DiscoverView()
-            // }
-            // .tabItem {
-            //     Image(systemName: "sparkles")
-            //     Text("发现")
-            // }
-            // .tag(2)
+            // 发现标签页
+            NavigationView {
+                Text("发现功能开发中...")
+            }
+            .tabItem {
+                Image(systemName: "sparkles")
+                Text("发现")
+            }
+            .tag(2)
             
-            // // 我的标签页
-            // NavigationStack {
-            //    MineView()
-            // }
-            // .tabItem {
-            //     Image(systemName: "person.fill")
-            //     Text("我的")
-            // }
-            // .tag(3)
+            // 我的标签页
+            NavigationView {
+                Text("我的功能开发中...")
+            }
+            .tabItem {
+                Image(systemName: "person.fill")
+                Text("我的")
+            }
+            .tag(3)
         }
         .onAppear {
-            // loadChatSessions()
+            loadChatSessions()
         }
         .toolbar(.visible, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .sheet(isPresented: $showingChatConfig) {
+            RoleSelectionView()
+        }
     }
     
     private func loadChatSessions() {
@@ -182,25 +189,25 @@ struct ContentView: View {
 }
 
 struct ChatButton: View {
+    var onTap: () -> Void  // 添加点击回调属性
+    
     var body: some View {
- HStack {
-                            Button(action: {
-                                // showingChatConfig = true
-                            }) {
-                                HStack {
-                                    Text("🤖")
-                                        .font(.title2)
-                                    Text("新对话")
-                                        .foregroundColor(.primary)
-                                    Image(systemName: "chevron.down")
-                                        .foregroundColor(.gray)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(20)
-                            }
-                        }
+        HStack {
+            Button(action: onTap) {  // 使用传入的 onTap 回调
+                HStack {
+                    Text("🤖")
+                        .font(.title2)
+                    Text("新对话")
+                        .foregroundColor(.primary)
+                    Image(systemName: "chevron.down")
+                        .foregroundColor(.gray)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(20)
+            }
+        }
     }
 }
 
@@ -290,6 +297,33 @@ extension String {
 //         hasher.combine(chatSession.id)
 //     }
 // }
+
+// 新增 ChatListView 组件
+struct ChatListView: View {
+    @EnvironmentObject var chatStore: ChatStore
+    @State private var isLoading = false
+    
+    var body: some View {
+        VStack {  // 将 Group 改为 VStack
+            if isLoading {
+                ProgressView()
+            } else if chatStore.sessions.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "message")
+                        .font(.system(size: 50))
+                        .foregroundColor(.gray)
+                    Text("暂无聊天记录")
+                        .foregroundColor(.gray)
+                }
+            } else {
+                List(chatStore.sessions) { session in
+                    ChatRowView(chatSession: session)
+                }
+            }
+        }
+        .navigationTitle("聊天")
+    }
+}
 
 #Preview {
     ContentView()

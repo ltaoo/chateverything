@@ -1,14 +1,8 @@
 import Foundation
 import CoreData
 
-// 首先需要导入相关类型
-// import ChatMessage
-// import ChatBox
-// import Role
-// import PersistenceController
 
-
-class ChatSessionBiz {
+struct ChatSessionBiz: Identifiable {
     var id: UUID
     var created_at: Date
     var boxes: [ChatBoxBiz]
@@ -34,38 +28,38 @@ class ChatSessionBiz {
     
     static func New(id: UUID) -> ChatSessionBiz? {
         // 获取 ViewContext
-        let context = PersistenceController.container.viewContext
+        // let context = PersistenceController.container.viewContext
         
-        // 创建获取请求
-        let fetchRequest: NSFetchRequest<ChatSessionEntity> = ChatSessionEntity.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        // // 创建获取请求
+        // let fetchRequest = ChatSessionEntity.fetchRequest()
+        // fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         
-        do {
-            // 尝试获取匹配的会话
-            if let entity = try context.fetch(fetchRequest).first {
-                // 获取关联的 Role
-                let roleFetch: NSFetchRequest<RoleEntity> = RoleEntity.fetchRequest()
-                // Fix ambiguous type by explicitly creating UUID instance
-                let userId = entity.user1_id ?? UUID()
-                roleFetch.predicate = NSPredicate(format: "id == %@", userId as CVarArg)
-                if let role_entity = try? context.fetch(roleFetch).first,
-                   let role = RoleBiz.from(role_entity) {
+        // do {
+        //     // 尝试获取匹配的会话
+        //     if let entity = try context.fetch(fetchRequest).first {
+        //         // 获取关联的 Role
+        //         let roleFetch = RoleEntity.fetchRequest()
+        //         // Fix ambiguous type by explicitly creating UUID instance
+        //         let userId = entity.user1_id ?? UUID()
+        //         roleFetch.predicate = NSPredicate(format: "id == %@", userId as CVarArg)
+        //         if let role_entity = try? context.fetch(roleFetch).first,
+        //            let role = RoleBiz.from(role_entity) {
                     
-                    // 转换消息和聊天框
-                    let messages = entity.messagesArray.compactMap { ChatMessageBiz.from($0) }
-                    let boxes = entity.chatBoxesArray.compactMap { ChatBoxBiz.from($0) }
+        //             // 转换消息和聊天框
+        //             let messages = entity.messagesArray.compactMap { ChatMessageBiz.from($0) }
+        //             let boxes = entity.chatBoxesArray.compactMap { ChatBoxBiz.from($0) }
                     
-                    return ChatSessionBiz(
-                        id: id,
-                        created_at: entity.created_at ?? Date(),
-                        boxes: boxes,
-                        role: role
-                    )
-                }
-            }
-        } catch {
-            print("Error fetching ChatSession: \(error)")
-        }
+        //             return ChatSessionBiz(
+        //                 id: id,
+        //                 created_at: entity.created_at ?? Date(),
+        //                 boxes: boxes,
+        //                 role: role
+        //             )
+        //         }
+        //     }
+        // } catch {
+        //     print("Error fetching ChatSession: \(error)")
+        // }
         
 	return nil
     }

@@ -3,16 +3,21 @@ import CoreData
 
 @objc(RoleEntity)
 public class RoleEntity: NSManagedObject {
+   
+}
+
+extension RoleEntity: Identifiable {
+}
+
+// MARK: - 属性扩展
+extension RoleEntity {
     @NSManaged public var id: UUID?
     @NSManaged public var name: String?
     @NSManaged public var avatar: String?
     @NSManaged public var prompt: String?
     @NSManaged public var settings: String?
     @NSManaged public var created_at: Date?
-}
 
-// MARK: - 属性扩展
-extension RoleEntity {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<RoleEntity> {
         return NSFetchRequest<RoleEntity>(entityName: "Role")
     }
@@ -20,6 +25,10 @@ extension RoleEntity {
 
 // MARK: - 便利方法
 extension RoleEntity {
+    // func to() -> Role {
+    //     return RoleEntity(id: id, name: name, avatar: avatar, prompt: prompt, settings: settings)
+    // }
+
     static func create(in context: NSManagedObjectContext,
                       name: String,
                       avatar: String,
@@ -147,6 +156,7 @@ extension RoleEntity {
         
         do {
             let count = try context.count(for: fetchRequest)
+            print("count: \(count)")
             
             // 只在没有任何角色时创建默认角色
             if count == 0 {

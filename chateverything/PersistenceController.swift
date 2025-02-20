@@ -33,6 +33,5 @@ class PersistenceController {
         // user.avatar = "https://example.com/avatar.png"
         // user.created_at = Date()
         // 创建默认角色
-        // RoleEntity.createDefaultRoles(in: container.viewContext)
     }
 } 

@@ -119,9 +119,9 @@ import CoreData
 // } 
 
 class ChatStore: ObservableObject {
-    @Published var chatSessions: [ChatSessionEntity] = []
-    @Published var messages: [UUID: ChatMessageEntity] = [:]
-    @Published var questions: [UUID: ChatQuestionEntity] = [:]
+    @Published var sessions: [ChatSessionBiz] = []
+//    @Published var messages: [UUID: ChatMessageBiz] = [:]
+//    @Published var questions: [UUID: ChatQuestionBiz] = [:]
     
     private let container: NSPersistentContainer
     private let sessionsKey = "chat_sessions"

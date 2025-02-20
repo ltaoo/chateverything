@@ -39,6 +39,7 @@ struct ChatEverythingApp: App {
                 // user.created_at = Date()
                 
                 // try context.save()
+        RoleEntity.createDefaultRoles(in: context)
     }
 
     
