@@ -123,10 +123,11 @@ struct ProfileCard: View {
             
             // 能力雷达图
             AbilityRadarChart(abilities: [
-                .init(name: "听力", value: 85, angle: .pi / 2),
-                .init(name: "口语", value: 75, angle: .pi * 7 / 6),
-                .init(name: "写作", value: 65, angle: .pi * 11 / 6),
-                .init(name: "阅读", value: 90, angle: 0)
+                .init(name: "听力", value: 85, angle: -.pi/2),                    // 90° (正上方)
+                .init(name: "口语", value: 75, angle: -.pi/2 + .pi * 2/5),        // 162°
+                .init(name: "写作", value: 65, angle: -.pi/2 + .pi * 4/5),        // 234°
+                .init(name: "词汇", value: 80, angle: -.pi/2 + .pi * 6/5),        // 306°
+                .init(name: "阅读", value: 90, angle: -.pi/2 + .pi * 8/5),        // 18°
             ])
             .frame(height: 200)
             .padding(.horizontal)
@@ -235,13 +236,34 @@ private struct RadarGridView: View {
     let center: CGPoint
     
     var body: some View {
-        ForEach(0..<5) { level in
-            RadarGridLevel(
-                level: level,
-                abilities: abilities,
-                size: size,
-                center: center
-            )
+        ZStack {
+            // 100%位置的五边形连线
+            Path { path in
+                for i in 0..<5 {
+                    let angle = -.pi/2 + .pi * 2/5 * Double(i)
+                    let point = CGPoint(
+                        x: center.x + cos(angle) * size/2,
+                        y: center.y + sin(angle) * size/2
+                    )
+                    
+                    if i == 0 {
+                        path.move(to: point)
+                    } else {
+                        path.addLine(to: point)
+                    }
+                }
+                path.closeSubpath()
+            }
+            .stroke(.white.opacity(0.2), lineWidth: 1)
+            
+            ForEach(0..<5) { level in
+                RadarGridLevel(
+                    level: level,
+                    abilities: abilities,
+                    size: size,
+                    center: center
+                )
+            }
         }
     }
 }

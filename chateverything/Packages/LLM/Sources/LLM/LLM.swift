@@ -408,6 +408,12 @@ public let LLMServiceProviders = [
                 id: "deepseek-chat",
                 name: "deepseek-chat",
                 responseHandler: DefaultHandler
+            ),
+             LanguageModel(
+                providerName: "deepseek",
+                id: "deepseek-r1",
+                name: "deepseek-r1",
+                responseHandler: DefaultHandler
             )
                 ]
             ),

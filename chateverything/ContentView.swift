@@ -9,6 +9,7 @@ import SwiftUI
 import AVFoundation
 import Speech
 import Foundation
+import UIKit
 
 // 在 ChatSession struct 后添加以下模型
 struct Season: Codable, Identifiable {
@@ -129,24 +130,21 @@ struct ContentView: View {
                     }
                     .tag(0)
                 
-                // 探索标签页
-                    Text("探索功能开发中...")
+                SearchView()
                 .tabItem {
                     Image(systemName: "safari.fill")
                     Text("探索")
                 }
                 .tag(1)
                 
-                // 发现标签页
-                    Text("发现功能开发中...")
+                DiscoverView()
                 .tabItem {
                     Image(systemName: "sparkles")
                     Text("发现")
                 }
                 .tag(2)
                 
-                // 我的标签页
-                    Text("我的功能开发中...")
+                MineView()
                 .tabItem {
                     Image(systemName: "person.fill")
                     Text("我的")
@@ -154,10 +152,9 @@ struct ContentView: View {
                 .tag(3)
             }
             .onAppear {
-                // 设置 UITabBar 的背景色
+                // 设置 UITabBar 的背景样式
                 let appearance = UITabBarAppearance()
-                appearance.configureWithOpaqueBackground()
-                appearance.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.95)
+                appearance.configureWithDefaultBackground() // 使用默认的毛玻璃效果
                 
                 // 使用这个外观配置
                 UITabBar.appearance().standardAppearance = appearance
@@ -199,20 +196,33 @@ struct ChatButton: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 Text("🤖")
-                    .font(.system(size: 16))
+                    .font(.system(size: 20))  // 增大表情符号
                 Text("新对话")
-                    .font(.system(size: 14))
+                    .font(.system(size: 16, weight: .medium))  // 增大字体并加粗
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12))
+                    .font(.system(size: 14))  // 增大箭头
             }
             .foregroundColor(.primary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(.systemGray6))
-            .cornerRadius(16)
+            .padding(.horizontal, 16)  // 增加水平内边距
+            .padding(.vertical, 10)    // 增加垂直内边距
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.systemGray6))
+                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)  // 添加轻微阴影
+            )
         }
+        .buttonStyle(ScaleButtonStyle())  // 添加按压效果
+    }
+}
+
+// 添加自定义按钮样式
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.easeInOut(duration: 0.2), value: configuration.isPressed)
     }
 }
 
