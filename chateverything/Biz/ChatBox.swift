@@ -293,18 +293,21 @@ extension String {
 }
 
 
-class ChatAudioBiz: Encodable {
+class ChatAudioBiz: ObservableObject, Encodable {
     static func from(data: ChatAudioStruct) -> ChatAudioBiz {
-        return ChatAudioBiz(text: data.text, url: data.url, duration: data.duration)
+        return ChatAudioBiz(text: data.text, nodes: [], url: data.url, duration: data.duration)
     }
 
     let contentType = "audio"
-    let text: String
-    let url: URL
-    let duration: TimeInterval
+    @Published var text: String
+    @Published var nodes: [MsgTextNode]
+    @Published var url: URL
+    @Published var duration: TimeInterval
+    @Published var ok = false
 
-    init(text: String, url: URL, duration: TimeInterval) {
+    init(text: String, nodes: [MsgTextNode], url: URL, duration: TimeInterval) {
         self.text = text
+        self.nodes = nodes
         self.url = url
         self.duration = duration
     }

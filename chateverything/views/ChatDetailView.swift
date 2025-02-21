@@ -35,6 +35,14 @@ class LocalChatBox: ObservableObject, Identifiable, Equatable {
     static func ==(first: LocalChatBox, second: LocalChatBox) -> Bool {
         return first.id == second.id
     }
+
+    func blur() {
+        self.isBlurred = true
+    }
+
+    func unblur() {
+        self.isBlurred = false
+    }
 }
 
 class ChatDetailViewModel: ObservableObject {
@@ -63,7 +71,23 @@ class ChatDetailViewModel: ObservableObject {
                 session_id: UUID(),
                 payload: ChatPayload.tip(ChatTipBiz(title: "提示", content: "长按录音按钮，开始录音", type: "tip"))
             )
-        )   
+        ),
+         LocalChatBox(
+            id: UUID(),
+            timestamp: Date(),
+            isMe: false,
+            isLoading: false,
+            type: "message",
+            audioURL: nil,
+            box: ChatBoxBiz(
+                id: UUID(),
+                type: "message",
+                payload_id: UUID(),
+                created_at: Date(),
+                session_id: UUID(),
+                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: []))
+            )
+        ),
     ]
 
         
@@ -240,15 +264,15 @@ struct ChatDetailView: View {
                 timestamp: Date(),
                 isMe: true,
                 isLoading: false,
-                type: "message",
+                type: "audio",
                 audioURL: audioURL,
                 box: ChatBoxBiz(
                     id: UUID(),
-                    type: "message",
+                    type: "audio",
                     payload_id: UUID(),
                     created_at: Date(),
                     session_id: viewModel.session.id,
-                    payload: ChatPayload.message(ChatMessageBiz2(text: recognizedText, nodes: []))
+                    payload: ChatPayload.audio(ChatAudioBiz(text: recognizedText, nodes: [], url: audioURL, duration: 0))
                 )
             )
             viewModel.appendMessage(message: userMessage)
@@ -280,6 +304,7 @@ struct ChatDetailView: View {
                             )
                             print("before update box isLoading !!")
                             loadingMessage.isLoading = false
+                            loadingMessage.isBlurred = true
                             // toggleSpeaking(message: loadingMessage)
                     }
                 } catch {
@@ -548,64 +573,114 @@ struct TextNodeView: View {
 
 // 消息内容视图
 private struct MessageContentView: View {
-    let box: LocalChatBox
-    let data: ChatMessageBiz2
-
-    var body: some View {
-        HStack {
-            if box.isMe { Spacer() }
-            
-            if box.isLoading {
-                HStack {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                    Text("思考中...")
-                        .foregroundColor(.gray)
-                }
-                .padding(12)
-                .background(Color(uiColor: .systemGray5))
-                .cornerRadius(16)
-            } else {
-                VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
-                    if !data.ok {
-                        Text(data.text)
-                    } else {
-                        FlowLayout(spacing: 0) { 
-                            ForEach(data.nodes) { node in
-                                TextNodeView(node: node, color: box.isMe ? .white : .black, onTap: { node in
-                                    print("node: \(node)")
-                                })
-                            }
-                        }
-                    }
-                }
-                .padding(12)
-                .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
-                .cornerRadius(16)
-            }
-            
-            if !box.isMe { Spacer() }
-        }
-    }
-}
-private struct AudioContentView: View {
-    let box: LocalChatBox
-    let data: ChatAudioBiz
+    @ObservedObject var box: LocalChatBox
+    @ObservedObject var data: ChatMessageBiz2
     let recorder: AudioRecorder
     var onSpeakToggle: (LocalChatBox) -> Void
 
     var body: some View {
-        Text("Audio Content")
-        if data.url != nil || !box.isMe {
-            if box.isMe {
-                UserMessageActions(
-                    recorder: self.recorder,
-                    box: self.box
-                )
-            } else {
+        VStack(alignment: box.isMe ? .trailing : .leading, spacing: 8) {
+            HStack {
+                if box.isMe { Spacer() }
+                
+                if box.isLoading {
+                    HStack {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                        Text("思考中...")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(12)
+                    .background(Color(uiColor: .systemGray5))
+                    .cornerRadius(16)
+                } else {
+                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
+                        if !data.ok {
+                            Text(data.text)
+                        } else {
+                            FlowLayout(spacing: 0) { 
+                                ForEach(data.nodes) { node in
+                                    TextNodeView(node: node, color: box.isMe ? .white : .black, onTap: { node in
+                                        print("node: \(node)")
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
+                    .cornerRadius(16)
+                }
+                
+                if !box.isMe { Spacer() }
+            }
+            .blur(radius: box.isBlurred ? 4 : 0)
+            .animation(.easeInOut(duration: 0.2), value: box.isBlurred)
+
+            if !box.isMe {
                 BotMessageActions(
                     box: box,
-                    // isBlurred: box.isBlurred,
+                    onSpeakToggle: { box in
+                        onSpeakToggle(box)
+                    }
+                )
+            }
+        }
+    }
+}
+private struct AudioContentView: View {
+    @ObservedObject var box: LocalChatBox
+    @ObservedObject var data: ChatAudioBiz
+    let recorder: AudioRecorder
+    var onSpeakToggle: (LocalChatBox) -> Void
+
+    var body: some View {
+        VStack(alignment: box.isMe ? .trailing : .leading, spacing: 8) {
+            HStack {
+                if box.isMe { Spacer() }
+                
+                if box.isLoading {
+                    HStack {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                        Text("思考中...")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(12)
+                    .background(Color(uiColor: .systemGray5))
+                    .cornerRadius(16)
+                } else {
+                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
+                        if !data.ok {
+                            Text(data.text)
+                        } else {
+                            FlowLayout(spacing: 0) { 
+                                ForEach(data.nodes) { node in
+                                    TextNodeView(node: node, color: box.isMe ? .white : .black, onTap: { node in
+                                        print("node: \(node)")
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
+                    .cornerRadius(16)
+                }
+                
+                if !box.isMe { Spacer() }
+            }
+            .blur(radius: box.isBlurred ? 4 : 0)
+            .animation(.easeInOut(duration: 0.2), value: box.isBlurred)
+
+            if box.isMe && data.url != nil {
+                UserMessageActions(
+                    recorder: recorder,
+                    box: box
+                )
+            } else if !box.isMe {
+                BotMessageActions(
+                    box: box,
                     onSpeakToggle: { box in
                         onSpeakToggle(box)
                     }
@@ -687,7 +762,7 @@ struct ChatBoxView: View {
                 }
             } else if box.type == "message" {
                 if case let .message(data) = box.controller?.payload {
-                    MessageContentView(box: box, data: data)
+                    MessageContentView(box: box, data: data, recorder: recorder, onSpeakToggle: onSpeakToggle)
                 }
             } else if box.type == "quiz" {
                 if case let .puzzle(data) = box.controller?.payload {
@@ -973,15 +1048,13 @@ struct InputBarView: View {
     }
 }
 
+// 优化 UserMessageActions 样式
 private struct UserMessageActions: View {
     let recorder: AudioRecorder
-
     @ObservedObject var box: LocalChatBox
     
     var body: some View {
         HStack(spacing: 8) {
-            Spacer()
-            
             if let _ = box.audioURL {
                 Button(action: {
                     if let url = box.audioURL {
@@ -998,21 +1071,22 @@ private struct UserMessageActions: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: box.isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                            .frame(width: 16, height: 16)
+                            .imageScale(.medium)
+                            .foregroundColor(.blue)
                         Text(box.isPlaying ? "停止" : "回放")
                             .font(.caption)
+                            .foregroundColor(.blue)
                     }
-                    .foregroundColor(.gray)
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)
-                    .background(Color.gray.opacity(0.1))
+                    .background(Color.blue.opacity(0.1))
                     .cornerRadius(12)
                 }
             }
-            
-            Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.horizontal, 4)
-        .padding(.top, 4)
     }
 }
 
@@ -1023,13 +1097,13 @@ private struct BotMessageActions: View {
     
     var body: some View {
         HStack(spacing: 8) {
-            Spacer()
-            
             Button(action: {
                 box.isBlurred.toggle()
             }) {
                 HStack(spacing: 4) {
                     Image(systemName: box.isBlurred ? "eye.slash.fill" : "eye.fill")
+                        .frame(width: 16, height: 16)
+                        .imageScale(.medium)
                     Text(box.isBlurred ? "显示" : "隐藏")
                         .font(.caption)
                 }
@@ -1045,6 +1119,8 @@ private struct BotMessageActions: View {
             }) {
                 HStack(spacing: 4) {
                     Image(systemName: box.isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                        .frame(width: 16, height: 16)
+                        .imageScale(.medium)
                     Text(box.isSpeaking ? "停止" : "朗读")
                         .font(.caption)
                 }
