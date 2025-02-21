@@ -3,7 +3,9 @@ import CoreData
 import LLM
 
 
-struct ChatSessionBiz: Identifiable {
+class ChatSessionBiz: ObservableObject, Identifiable {
+    let store: ChatStore
+
     var id: UUID
     var created_at: Date
     var boxes: [ChatBoxBiz]
@@ -28,8 +30,8 @@ struct ChatSessionBiz: Identifiable {
 	return 0
     }
     
-    static func from(id: UUID, in context: NSManagedObjectContext) -> ChatSessionBiz? {
-        let viewContext = context
+    static func from(id: UUID, in store: ChatStore) -> ChatSessionBiz? {
+        let viewContext = store.container.viewContext
         
         // 获取 ChatSession
         let sessionRequest = NSFetchRequest<ChatSession>(entityName: "ChatSession")
@@ -58,39 +60,7 @@ struct ChatSessionBiz: Identifiable {
         
         // 遍历 boxes 并加载对应的消息或问题
         for box in boxes {
-            if box.type == "message" {
-                // 获取 ChatMessage
-                let messageRequest = NSFetchRequest<ChatMessage>(entityName: "ChatMessage")
-                messageRequest.predicate = NSPredicate(format: "id == %@", box.payload_id as! any CVarArg as CVarArg)
-                if let message = try! viewContext.fetch(messageRequest).first {
-                    // initialMessages.append(message)
-                }
-            }
-            if box.type == "question" {
-                // 获取 ChatQuestion
-                // let questionRequest = NSFetchRequest<ChatQuestion>(entityName: "ChatQuestion")
-                // questionRequest.predicate = NSPredicate(format: "id == %@", box.content_id as CVarArg)
-                // if let question = try! viewContext.fetch(questionRequest).first {
-                //     // 将问题转换为消息格式
-                //     let questionMessage = ChatMessage(
-                //         content: question.content,
-                //         isMe: false,
-                //         timestamp: question.created_at,
-                //         nodes: nil,
-                //         audioURL: nil,
-                //         quizOptions: question.options?.map { option in
-                //             QuizOption(
-                //                 text: option.text,
-                //                 isCorrect: option.is_correct,
-                //                 isSelected: false,
-                //                 hasBeenSelected: false
-                //             )
-                //         },
-                //         question: question.question
-                //     )
-                //     initialMessages.append(questionMessage)
-                // }
-            }
+            
         }
         
 
@@ -139,15 +109,17 @@ struct ChatSessionBiz: Identifiable {
             llm: LLMService(
                 value: LLMValues(provider: matchedProvider.name, model: matchedProvider.models.first!.name ?? "", apiProxyAddress: matchedProvider.apiProxyAddress, apiKey: matchedProvider.apiKey),
                 prompt: ""
-            )
+            ),
+            store: store
         )
     }
 
-    init(id: UUID, created_at: Date, boxes: [ChatBoxBiz], role: RoleBiz, llm: LLMService) {
+    init(id: UUID, created_at: Date, boxes: [ChatBoxBiz], role: RoleBiz, llm: LLMService, store: ChatStore) {
         self.id = id
         self.created_at = created_at
         self.boxes = boxes
         self.role = role
         self.llm = llm
+        self.store = store
     }
 }

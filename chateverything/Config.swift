@@ -56,7 +56,7 @@ class Config {
                 isEnabled: true,
                 provider: "doubao",
                 apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-                apiKey: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmstY29uc29sZSIsImV4cCI6MTc0MDEwODUxMywiaWF0IjoxNzQwMDcyNTEzLCJ0IjoidXNlciIsImt2IjoxLCJhaWQiOiIyMTAyMDM0ODI1IiwidWlkIjoiMCIsImlzX291dGVyX3VzZXIiOnRydWUsInJlc291cmNlX3R5cGUiOiJlbmRwb2ludCIsInJlc291cmNlX2lkcyI6WyJlcC0yMDI1MDIwNTE0MTUxOC1udmw5cCJdfQ.ao9qOXNn7Wzjd1v98DunW4UXIVBZx4L5T3KRx6IbBRD5oFo6hWxdYaIG6jdk0wRIeP09Vb5PYlhEuhUrTmzUZMCWCvVI7o3uRyNR_Hgzlx4u8AoG9pze_Ybw6Ojw_QtURK6L6RXnbcpnE7jdA6Lrf8GnLYxVFA53FVs9x4JycpRWtUypwviJ3TEzmv-k-6XKuyQMKNzIGuKgBxVpgdW6Ny9k1S732wqOegEFU1nqJlZfgaEiFVBC6xWnYXxmZFtfDaghF2vY_TNxDFCF_pkWkwhTtPodGc6fW8OCXHgagcBbFuXjlH250uqF0QB9Np1lNR-86PqD1aSy9nNkg5BFpA",
+                apiKey: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmstY29uc29sZSIsImV4cCI6MTc0MDE4NTY3OSwiaWF0IjoxNzQwMTQ5Njc5LCJ0IjoidXNlciIsImt2IjoxLCJhaWQiOiIyMTAyMDM0ODI1IiwidWlkIjoiMCIsImlzX291dGVyX3VzZXIiOnRydWUsInJlc291cmNlX3R5cGUiOiJlbmRwb2ludCIsInJlc291cmNlX2lkcyI6WyJlcC0yMDI1MDIwNTE0MTUxOC1udmw5cCJdfQ.MWhl-lY9UourHzus9-qB6CtsoQ1VKWUAyd9dubsxx5aEt_l9VOoW6br_VEAgwDeAFoynwOhWU7xXBp9RDkrJ0DymbbaVk-ozzR4hEDtGGDkfhDnb4reQqqwm4clzMwFfMmDZz6mS1pfotVrQ3dZbOCpCezfxQJtTXT1N2kgnsr2f3-9ekVINd9MzB9iF6Raumu8S-olOLZQSCxPfttFGd4_dp2I56FyMqi7lujf2IyNg2nd6YQmi2sbQq9WEo_bts6y4WKrUlkLuDaQozNuyA7FMJSiC1rtWQShEHEAYwg2uL9nPdPFqH2EWtpC6DRsxw83IrDIqv3LSuNQEr7sAuw",
                 selectedModels: ["ep-20250205141518-nvl9p"]
             )
         ]

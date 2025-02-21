@@ -123,7 +123,7 @@ class ChatStore: ObservableObject {
 //    @Published var messages: [UUID: ChatMessageBiz] = [:]
 //    @Published var questions: [UUID: ChatQuestionBiz] = [:]
     
-    private let container: NSPersistentContainer
+    public let container: NSPersistentContainer
     private let sessionsKey = "chat_sessions"
     private let messagesKey = "chat_messages"
     private let questionsKey = "chat_questions"
@@ -198,13 +198,13 @@ class ChatStore: ObservableObject {
         let sessions = try? container.viewContext.fetch(request)
 
         if sessions == nil {
-            return
+            return;
         }
 
         var result: [ChatSessionBiz] = []
 
         for session in sessions! {
-            if let biz = ChatSessionBiz.from(id: session.id!, in: container.viewContext) {
+            if let biz = ChatSessionBiz.from(id: session.id!, in: self) {
                 result.append(biz)
             }
         }
@@ -216,7 +216,7 @@ class ChatStore: ObservableObject {
         let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         let session = try? container.viewContext.fetch(request).first
-        return ChatSessionBiz.from(id: session!.id!, in: container.viewContext)
+        return ChatSessionBiz.from(id: session!.id!, in: self)
     }
     
     func addSession(id: UUID, user1_id: UUID, user2_id: UUID) {

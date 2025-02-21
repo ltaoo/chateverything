@@ -41,8 +41,8 @@ struct ModelListView: View {
 struct EnabledLanguageModelsView: View {
     @State var providers = Config.shared.languageProviders
     @State var values = Config.shared.languageValues
-    @State var role: RoleBiz
-    @State var session: ChatSessionBiz
+    @ObservedObject var role: RoleBiz
+    @ObservedObject var session: ChatSessionBiz
 
     // 添加派生字段，过滤掉 isEnabled 为 false 的值
     private var enabledValues: [LanguageProvider] {
@@ -72,6 +72,7 @@ struct EnabledLanguageModelsView: View {
 }
 
 struct RoleDetailView: View {
+//    let model: ChatDetailViewModel
     let role: RoleBiz
     let session: ChatSessionBiz
 
@@ -92,7 +93,7 @@ struct RoleDetailView: View {
                 .padding(.vertical)
             }
 
-            EnabledLanguageModelsView(role: role, session: session)
+            EnabledLanguageModelsView(role: self.role, session: self.session)
         }
         .listStyle(InsetGroupedListStyle())
         .navigationTitle("角色详情")

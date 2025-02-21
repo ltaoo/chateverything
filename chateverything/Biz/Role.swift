@@ -2,7 +2,7 @@ import Foundation
 import CoreData
 import LLM
 
-public struct RoleBiz: Identifiable {
+public class RoleBiz: ObservableObject, Identifiable {
     public var id: UUID
     public var name: String
     public var description: String
@@ -51,7 +51,7 @@ public struct RoleBiz: Identifiable {
         )
     }
 
-    mutating func updateSettings(provider: LanguageProvider, modelId: String) {
+    func updateSettings(provider: LanguageProvider, modelId: String) {
         // print("updateSettings \(provider.name) \(modelId)")
         // self.settings.update(model: RoleModelV2(
         //     name: modelId,
