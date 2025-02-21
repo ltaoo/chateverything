@@ -34,13 +34,15 @@ public struct LanguageProvider: Identifiable {
     public let apiKey: String
     public let apiProxyAddress: String
     public var models: [LanguageModel]
+    public let responseHandler: (Data) throws -> String
     
-    public init(name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LanguageModel]) {
+    public init(name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LanguageModel], responseHandler: @escaping (Data) throws -> String = DefaultHandler) {
         self.name = name
         self.logo_uri = logo_uri
         self.models = models
         self.apiKey = apiKey
         self.apiProxyAddress = apiProxyAddress
+        self.responseHandler = responseHandler
     }
 
      // 实现 Hashable 协议
@@ -55,34 +57,22 @@ public struct LanguageProvider: Identifiable {
 
 public struct LanguageModel: Identifiable, Hashable {
     public let id: String
-    public let providerName: String
     public let name: String
-    public let responseHandler: (Data) throws -> String
     
-    public init(
-        providerName: String,
-        id: String,
-        name: String,
-        responseHandler: @escaping (Data) throws -> String = DefaultHandler
-    ) {
-        self.providerName = providerName
+    public init(id: String, name: String) {
         self.id = id
         self.name = name
-        self.responseHandler = responseHandler
     }
     
     // 实现 Hashable 协议
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
-        hasher.combine(providerName)
         hasher.combine(name)
     }
     
     // 实现 Equatable 协议（Hashable 需要）
     public static func == (lhs: LanguageModel, rhs: LanguageModel) -> Bool {
-        return lhs.id == rhs.id &&
-               lhs.providerName == rhs.providerName &&
-               lhs.name == rhs.name
+        return lhs.id == rhs.id && lhs.name == rhs.name
     }
 }
 
@@ -112,8 +102,8 @@ public class LLMService: ObservableObject {
     
     public init(value: LLMValues, prompt: String = "") {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [])
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(providerName: "", id: "", name: "", responseHandler: DefaultHandler)
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(id: "", name: "")
         self.prompt = prompt
         self.messages = [Message(role: "system", content: prompt)]
 
@@ -122,8 +112,8 @@ public class LLMService: ObservableObject {
 
     public func update(value: LLMValues) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [])
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(providerName: "", id: "", name: "", responseHandler: DefaultHandler)
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(id: "", name: "")
     }
     
     public func chat(content: String) async throws -> String {
@@ -174,7 +164,7 @@ public class LLMService: ObservableObject {
             print("Original response: \(String(data: data, encoding: .utf8) ?? "")")
             
             // 使用模型的响应处理器处理响应
-            let result = try model.responseHandler(data)
+            let result = try self.provider.responseHandler(data)
             
             // 添加助手响应到消息历史
             let assistantMessage = Message(role: "assistant", content: result)
@@ -390,12 +380,16 @@ public let LLMServiceProviders = [
         apiProxyAddress: "https://api.openai.com/v1",
         models: [
             LanguageModel(
-                providerName: "openai",
                 id: "gpt-4o-mini",
-                name: "gpt-4o-mini",
-                responseHandler: DefaultHandler
+                name: "gpt-4o-mini"
+            ),
+            LanguageModel(
+                id: "gpt-4o",
+                name: "gpt-4o"
             )
-        ]
+        ],
+        responseHandler: DefaultHandler
+
     ),
     LanguageProvider(
         name: "deepseek",
@@ -404,34 +398,31 @@ public let LLMServiceProviders = [
         apiProxyAddress: "https://api.deepseek.com/v1",
         models: [
             LanguageModel(
-                providerName: "deepseek",
                 id: "deepseek-chat",
-                name: "deepseek-chat",
-                responseHandler: DefaultHandler
+                name: "deepseek-chat"
             ),
-             LanguageModel(
-                providerName: "deepseek",
+            LanguageModel(
                 id: "deepseek-r1",
-                name: "deepseek-r1",
-                responseHandler: DefaultHandler
+                name: "deepseek-r1"
             )
-                ]
-            ),
-            LanguageProvider(
-                name: "doubao",
-                logo_uri: "provider_dark_doubao",
-                apiKey: "",
-                apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-                models: [
-                    LanguageModel(
-                        providerName: "doubao",
-                        id: "ep-20250205141518-nvl9p",
-                        name: "ep-20250205141518-nvl9p",
-                        responseHandler: { data in
-                            let decoder = JSONDecoder()
-                            let response = try decoder.decode(DoubaoChatResponse.self, from: data)
-                            return response.choices[0].message.content
-                        }
-                    )
-                ]
-            )]
+        ],
+        responseHandler: DefaultHandler
+    ),
+    LanguageProvider(
+        name: "doubao",
+        logo_uri: "provider_dark_doubao",
+        apiKey: "",
+        apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+        models: [
+            LanguageModel(
+                id: "ep-20250205141518-nvl9p",
+                name: "ep-20250205141518-nvl9p"
+            )
+        ],
+        responseHandler: { data in
+            let decoder = JSONDecoder()
+            let response = try decoder.decode(DoubaoChatResponse.self, from: data)
+            return response.choices[0].message.content
+        }
+    )
+]

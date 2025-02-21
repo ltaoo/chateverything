@@ -159,22 +159,27 @@ class QCloudTTSEngine: NSObject, TTSEngine {
     }
     
     private func setupEngine() {
-        let language = "en-US"
-        
         ttsConfig = QCloudRealTTSConfig()
         // 配置必要的参数
-        ttsConfig?.appID = "1309267389" // 需要设置实际的 AppID
-        ttsConfig?.secretID = "AKIDcDdqrtmTM9kXAbx7C5mGYgdQ1RfgU9j8" // 需要设置实际的 SecretID
-        ttsConfig?.secretKey = "GNOEsJddS5WlndGiy2tzxnUT7zjHgttk" // 需要设置实际的 SecretKey
-        ttsConfig?.token = "" // 需要设置实际的 Token
-        ttsConfig?.connectTimeout = 20000 // 20秒超时
+        ttsConfig?.appID = "1309267389"
+        ttsConfig?.secretID = "AKIDcDdqrtmTM9kXAbx7C5mGYgdQ1RfgU9j8"
+        ttsConfig?.secretKey = "GNOEsJddS5WlndGiy2tzxnUT7zjHgttk"
+        ttsConfig?.token = ""
+        ttsConfig?.connectTimeout = 20000
         
         // 设置基本参数
-        // https://cloud.tencent.com/document/product/1073/92668
-        ttsConfig?.setApiParam("VoiceType", ivalue: 601005) // 默认音色
         ttsConfig?.setApiParam("Volume", fvalue: 1.0)
         ttsConfig?.setApiParam("Speed", fvalue: 1.0)
         ttsConfig?.setApiParam("Codec", value: "pcm")
+        
+        // 默认使用 WeJames 音色
+        ttsConfig?.setApiParam("VoiceType", ivalue: 501008)
+    }
+    
+    func setVoice(_ voiceId: String) {
+        if let voiceIdInt = Int(voiceId) {
+            ttsConfig?.setApiParam("VoiceType", ivalue: voiceIdInt)
+        }
     }
     
     func speak(_ text: String, completion: @escaping () -> Void) {
@@ -300,6 +305,55 @@ private class QCloudTTSListener: NSObject, QCloudRealTTSListener {
     }
 }
 
+struct TTSEngineRole: Identifiable, Hashable {
+    var id: String { name }
+    let name: String
+    let voice: String    // 音色ID
+    let language: String
+    let description: String // 音色描述
+
+    static func == (lhs: TTSEngineRole, rhs: TTSEngineRole) -> Bool {
+        return lhs.name == rhs.name
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+    }
+}
+
+struct TTSEngineOption: Identifiable, Hashable {
+    var id: String { name }
+    let name: String
+    let roles: [TTSEngineRole]
+    
+    static func == (lhs: TTSEngineOption, rhs: TTSEngineOption) -> Bool {
+        return lhs.name == rhs.name
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+    }
+}
+
+let TTSEngineOptions = [
+    TTSEngineOption(name: "系统", roles: [
+        TTSEngineRole(name: "系统", voice: "系统", language: "en-US", description: "系统默认语音"),
+    ]),
+    TTSEngineOption(name: "腾讯云", roles: [
+        TTSEngineRole(name: "WeJames", voice: "501008", language: "en-US", description: "英文男声"),
+        TTSEngineRole(name: "WeWinny", voice: "501009", language: "en-US", description: "英文女声"),
+        TTSEngineRole(name: "WeJack", voice: "101050", language: "en-US", description: "英文男声"),
+        TTSEngineRole(name: "WeRose", voice: "101051", language: "en-US", description: "英文女声"),
+        TTSEngineRole(name: "智小柔", voice: "502001", language: "zh-CN", description: "对话女声"),
+        TTSEngineRole(name: "智斌", voice: "501000", language: "zh-CN", description: "阅读男声"),
+        TTSEngineRole(name: "智兰", voice: "501001", language: "zh-CN", description: "资讯女声"),
+        TTSEngineRole(name: "智菊", voice: "501002", language: "zh-CN", description: "阅读女声"),
+        TTSEngineRole(name: "智宇", voice: "501003", language: "zh-CN", description: "阅读男声"),
+        TTSEngineRole(name: "月华", voice: "501004", language: "zh-CN", description: "对话女声"),
+        TTSEngineRole(name: "飞镜", voice: "501005", language: "zh-CN", description: "对话男声"),
+    ]),
+]
+
 // 扩展 RealListener 以处理完成回调
 // extension RealListener {
 //     func setCompletionHandler(_ handler: @escaping () -> Void) {
@@ -311,7 +365,7 @@ private class QCloudTTSListener: NSObject, QCloudRealTTSListener {
 class TTSManager {
     static let shared = TTSManager()
     
-    enum EngineType {
+    enum EngineType: String, CaseIterable {
         case system
         case qcloud
         // 可以继续添加其他引擎类型
@@ -363,4 +417,5 @@ class TTSManager {
             }
         }
     }
-} 
+}
+

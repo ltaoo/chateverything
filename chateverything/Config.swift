@@ -1,46 +1,77 @@
 import Foundation
 import LLM
 
-public struct LanguageValue: Identifiable {
+
+
+public class ProviderModelValue: Identifiable {
+    public var id: String { name }
+    var name: String
+    var enabled: Bool = true
+
+    public init(name: String, enabled: Bool) {
+        self.name = name
+        self.enabled = enabled
+    }
+
+    public func toggle(value: Bool) {
+        enabled = value
+    }
+}
+
+public class ProviderValue: ObservableObject, Identifiable {
     public var id: String { provider }
-    var isEnabled: Bool
-    let provider: String
-    var apiProxyAddress: String
-    var apiKey: String
-    var selectedModels: [String]
+    public var provider: String
+    @Published public var enabled: Bool
+    @Published public var apiProxyAddress: String?
+    @Published public var apiKey: String
+    // 用户添加的模型
+    @Published public var models1: [ProviderModelValue]
+    // 选中的默认模型
+    @Published public var models2: [String]
+
+    public init(provider: String, enabled: Bool, apiProxyAddress: String?, apiKey: String, models1: [ProviderModelValue], models2: [String]) {
+        self.provider = provider
+        self.enabled = enabled
+        self.apiProxyAddress = apiProxyAddress
+        self.apiKey = apiKey
+        self.models1 = models1
+        self.models2 = models2
+    }
+
+    public func update(enabled: Bool) {
+        self.enabled = enabled
+    }
 }
 
 public enum Route: Hashable {
     case ChatDetailView(sessionId: UUID)
 }
-public let DefaultLanguageValue = LanguageValue(
-    isEnabled: true,
+public let DefaultProviderValue = ProviderValue(
     provider: "deepseek",
-    apiProxyAddress: "https://api.deepseek.com/chat/completions",
+    enabled: true,
+    apiProxyAddress: nil,
     apiKey: "sk-292831353cda4d1c9f59984067f24379",
-    selectedModels: ["deepseek-chat"]
+    models1: [],
+    models2: []
 )
 
-class Config {
+class Config: ObservableObject {
     static let shared = Config()
 
+    // 系统固定角色
+    var roles: [RoleEntity] = []
+
     var userId: UUID
-    private var _languageProviders: [LanguageProvider]
-    private var _languageValues: [LanguageValue]
-    
-    var languageProviders: [LanguageProvider] {
-        get { _languageProviders }
-        set { _languageProviders = newValue }
+    var languageProviders: [LanguageProvider]
+    var languageProviderValues: [String:ProviderValue] = [:]
+    var languageProviderControllers: [LLMProviderController]
+
+    public var enabledProviders: [LLMProviderController] {
+        return languageProviderControllers.filter { $0.value.enabled }
     }
     
-    var languageValues: [LanguageValue] {
-        get { _languageValues }
-        set { _languageValues = newValue }
-    }
-    
-    let roles: [RoleEntity] = [
-        // 可以添加更多角色
-    ]
+    @Published var apiProxyAddress: String?
+    @Published var apiKey: String?
     
     private init() {
         if let userIdString = UserDefaults.standard.string(forKey: "userId") {
@@ -49,26 +80,84 @@ class Config {
             self.userId = UUID()
             UserDefaults.standard.set(self.userId.uuidString, forKey: "userId")
         }
-        self._languageProviders = LLMServiceProviders
-        self._languageValues = [
-            DefaultLanguageValue,
-            LanguageValue(
-                isEnabled: true,
-                provider: "doubao",
-                apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-                apiKey: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmstY29uc29sZSIsImV4cCI6MTc0MDE4NTY3OSwiaWF0IjoxNzQwMTQ5Njc5LCJ0IjoidXNlciIsImt2IjoxLCJhaWQiOiIyMTAyMDM0ODI1IiwidWlkIjoiMCIsImlzX291dGVyX3VzZXIiOnRydWUsInJlc291cmNlX3R5cGUiOiJlbmRwb2ludCIsInJlc291cmNlX2lkcyI6WyJlcC0yMDI1MDIwNTE0MTUxOC1udmw5cCJdfQ.MWhl-lY9UourHzus9-qB6CtsoQ1VKWUAyd9dubsxx5aEt_l9VOoW6br_VEAgwDeAFoynwOhWU7xXBp9RDkrJ0DymbbaVk-ozzR4hEDtGGDkfhDnb4reQqqwm4clzMwFfMmDZz6mS1pfotVrQ3dZbOCpCezfxQJtTXT1N2kgnsr2f3-9ekVINd9MzB9iF6Raumu8S-olOLZQSCxPfttFGd4_dp2I56FyMqi7lujf2IyNg2nd6YQmi2sbQq9WEo_bts6y4WKrUlkLuDaQozNuyA7FMJSiC1rtWQShEHEAYwg2uL9nPdPFqH2EWtpC6DRsxw83IrDIqv3LSuNQEr7sAuw",
-                selectedModels: ["ep-20250205141518-nvl9p"]
-            )
-        ]
+
+        if let languageProviderValues: [String:ProviderValue] = UserDefaults.standard.object(forKey: "provider_values") as? [String:ProviderValue] {
+            var values: [String: ProviderValue] = [:]
+            for (name, data) in languageProviderValues {
+                if let v = data as? [String: Any] {
+                    values[name] = ProviderValue(
+                        provider: name,
+                        enabled: v["enabled"] as? Bool ?? false,
+                        apiProxyAddress: v["apiProxyAddress"] as? String ?? nil,
+                        apiKey: v["apiKey"] as? String ?? "",
+                        models1: v["models1"] as? [ProviderModelValue] ?? [],
+                        models2: v["models2"] as? [String] ?? []
+                    )
+                }
+            }
+            self.languageProviderValues = values
+        }
+        self.languageProviders = LLMServiceProviders
+        var controllers: [LLMProviderController] = []
+        for provider in self.languageProviders {
+            let value = self.languageProviderValues[provider.name]
+            if value != nil {
+                controllers.append(LLMProviderController(provider: provider, value: value!))
+            } else {
+                controllers.append(LLMProviderController(
+                    provider: provider,
+                    value: ProviderValue(
+                        provider: provider.name,
+                        enabled: provider.name == "openai" ? true : false,
+                        apiProxyAddress: nil,
+                        apiKey: "",
+                        models1: [],
+                        models2: provider.name == "openai" ? provider.models.map { $0.id } : []
+                    )
+                ))
+            }
+        }
+        self.languageProviderControllers = controllers
+        
+        // self.languageProviderControllers = self.languageProviders.map { LLMProviderController(provider: $0, value: self.languageProviderValues[$0.name] ?? DefaultProviderValue) }
+        // self.languageProviderValues = [
+        //     DefaultProviderValue.provider: DefaultProviderValue,
+        //     "doubao": ProviderValue(
+        //         provider: "doubao",
+        //         enabled: true,
+        //         apiProxyAddress: nil,
+        //         apiKey: "",
+        //         models: [
+        //             ProviderModelValue(
+        //                 name: "ep-20250205141518-nvl9p",
+        //                 enabled: true
+        //             )
+        //         ]
+        //     )
+        // ]
     }
     
     func updateProviders(_ providers: [LanguageProvider]) {
-        self._languageProviders = providers
+        self.languageProviders = providers
         // 这里可以添加持久化存储逻辑，比如保存到 UserDefaults 或文件中
     }
     
-    func updateLanguageValues(_ values: [LanguageValue]) {
-        self._languageValues = values
+    func updateProviderValues(_ values: [ProviderValue]) {
+//        self.languageProviderValues = values
         // 这里可以添加持久化存储逻辑
+    }
+    
+    func updateSettings(values: [String:ProviderValue]) {
+        var data: [String: Any] = [:]
+        for (name, value) in values {
+            data[name] = [
+                "enabled": value.enabled,
+                "apiProxyAddress": value.apiProxyAddress,
+                "apiKey": value.apiKey,
+                "models1": value.models1,
+                "models2": value.models2
+            ]
+        }
+        UserDefaults.standard.set(data, forKey: "provider_values")
     }
 } 
