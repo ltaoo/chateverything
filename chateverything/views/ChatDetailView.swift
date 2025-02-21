@@ -54,17 +54,16 @@ class ChatDetailViewModel: ObservableObject {
             timestamp: Date(),
             isMe: true,
             isLoading: false,
-            type: "message",
-            audioURL: nil,
+            type: "tip",
             box: ChatBoxBiz(
                 id: UUID(),
-                type: "message",
+                type: "tip",
                 payload_id: UUID(),
                 created_at: Date(),
                 session_id: UUID(),
-                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: []))
+                payload: ChatPayload.tip(ChatTipBiz(title: "提示", content: "长按录音按钮，开始录音", type: "tip"))
             )
-        )
+        )   
     ]
 
         
@@ -343,17 +342,28 @@ private struct ChatDetailContentView: View {
     let onSpeakToggle: (LocalChatBox) -> Void
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
+            // Main content
             VStack {
                 ChatMessageList(
-                    messages: model.messages,
+                    model: model,
                     recorder: recorder,
                     onSpeakToggle: onSpeakToggle
                 )
-                
-                InputBarView(recorder: recorder)
             }
             
+            // Input bar overlay
+            VStack {
+                Spacer()
+                InputBarView(recorder: recorder)
+                    .background(
+                        Rectangle()
+                            .fill(Color.white.opacity(0))
+                            .edgesIgnoringSafeArea(.bottom)
+                    )
+            }
+            
+            // Error overlay if needed
             if let error = model.error {
                 ErrorOverlayView(error: error, onDismiss: onDismiss)
             }
@@ -363,7 +373,7 @@ private struct ChatDetailContentView: View {
 
 // 拆分出消息列表视图
 private struct ChatMessageList: View {
-    let messages: [LocalChatBox]
+    @ObservedObject var model: ChatDetailViewModel
     let recorder: AudioRecorder
     let onSpeakToggle: (LocalChatBox) -> Void
     
@@ -371,7 +381,7 @@ private struct ChatMessageList: View {
         ScrollView {
             ScrollViewReader { proxy in
                 LazyVStack(spacing: 12) {
-                    ForEach(messages) { box in
+                    ForEach(model.messages) { box in
                         ChatBoxView(
                             box: box,
                             recorder: recorder,
@@ -381,8 +391,9 @@ private struct ChatMessageList: View {
                     }
                 }
                 .padding()
-                .onChange(of: messages) { _ in
-                    if let lastMessage = messages.last {
+                .padding(.bottom, 180) // Add padding for InputBarView
+                .onChange(of: model.messages) { _ in
+                    if let lastMessage = model.messages.last {
                         withAnimation {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
@@ -541,18 +552,39 @@ private struct MessageContentView: View {
     let data: ChatMessageBiz2
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if !data.ok {
-                Text(data.text)
+        HStack {
+            if box.isMe { Spacer() }
+            
+            if box.isLoading {
+                HStack {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                    Text("思考中...")
+                        .foregroundColor(.gray)
+                }
+                .padding(12)
+                .background(Color(uiColor: .systemGray5))
+                .cornerRadius(16)
             } else {
-                FlowLayout(spacing: 0) { 
-                    ForEach(data.nodes) { node in
-                        TextNodeView(node: node, color: box.isMe ? .white : .black, onTap: { node in
-                            print("node: \(node)")
-                        })
+                VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
+                    if !data.ok {
+                        Text(data.text)
+                    } else {
+                        FlowLayout(spacing: 0) { 
+                            ForEach(data.nodes) { node in
+                                TextNodeView(node: node, color: box.isMe ? .white : .black, onTap: { node in
+                                    print("node: \(node)")
+                                })
+                            }
+                        }
                     }
                 }
+                .padding(12)
+                .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
+                .cornerRadius(16)
             }
+            
+            if !box.isMe { Spacer() }
         }
     }
 }
@@ -583,6 +615,33 @@ private struct AudioContentView: View {
     }
 }
 
+// 更新 TipContentView 组件
+private struct TipContentView: View {
+    let data: ChatTipBiz
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lightbulb.fill")
+                .foregroundColor(.yellow)
+                .font(.system(size: 16))
+            Text(data.content)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(
+            Capsule()
+                .fill(Color.yellow.opacity(0.1))
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+// 在 ChatBoxView 的 body 中更新条件分支
 struct ChatBoxView: View {
     @ObservedObject var box: LocalChatBox
     var recorder: AudioRecorder
@@ -613,48 +672,32 @@ struct ChatBoxView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                if box.isMe { Spacer() }
-                
-                VStack(alignment: box.isMe ? .trailing : .leading) {
-                    if box.isLoading {
-                        HStack {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                            Text("思考中...")
-                                .foregroundColor(.gray)
-                        }
-                        .padding(12)
-                        .background(Color(uiColor: .systemGray5))
-                        .cornerRadius(16)
-                    } else if box.type == "error" {
-                        if case let .error(data) = box.controller?.payload {
-                            ErrorContentView(data: data)
-                        }
-                    } else if box.type == "audio" {
-                        if case let .audio(data) = box.controller?.payload {
-                            AudioContentView(
-                                box: box,
-                                data: data,
-                                recorder: recorder,
-                                onSpeakToggle: onSpeakToggle
-                            )
-                        }
-                    } else if box.type == "message" {
-                        if case let .message(data) = box.controller?.payload {
-                            MessageContentView(box: box, data: data)
-                            .padding(12)
-                            .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
-                            .cornerRadius(16)
-                        }
-                    } else if box.type == "quiz" {
-                        if case let .puzzle(data) = box.controller?.payload {
-                            QuizContentView(data: data)
-                            .frame(maxWidth: .infinity)
-                        }
-                    }
+            if box.type == "error" {
+                if case let .error(data) = box.controller?.payload {
+                    ErrorContentView(data: data)
                 }
-                if !box.isMe { Spacer() }
+            } else if box.type == "audio" {
+                if case let .audio(data) = box.controller?.payload {
+                    AudioContentView(
+                        box: box,
+                        data: data,
+                        recorder: recorder,
+                        onSpeakToggle: onSpeakToggle
+                    )
+                }
+            } else if box.type == "message" {
+                if case let .message(data) = box.controller?.payload {
+                    MessageContentView(box: box, data: data)
+                }
+            } else if box.type == "quiz" {
+                if case let .puzzle(data) = box.controller?.payload {
+                    QuizContentView(data: data)
+                        .frame(maxWidth: .infinity)
+                }
+            } else if box.type == "tip" {
+                if case let .tip(data) = box.controller?.payload {
+                    TipContentView(data: data)
+                }
             }
         }
     }
@@ -677,7 +720,32 @@ private struct ErrorContentView: View {
     let data: ChatErrorBiz
 
     var body: some View {
-        Text(data.error)
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.red)
+                .font(.system(size: 24))
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("出错了")
+                    .font(.headline)
+                    .foregroundColor(.red)
+                
+                Text(data.error)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.red.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
@@ -778,42 +846,43 @@ struct RecordButton: View {
     var isLoading: Bool = false
     
     var body: some View {
-        VStack {
+        ZStack(alignment: .center) {
             // 录音状态显示
             if recorder.isRecording {
                 VStack(spacing: 8) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 28))
+                        .font(.system(size: 32))
                         .foregroundColor(cancelHighlighted ? .red : .gray)
                         .animation(.easeInOut, value: cancelHighlighted)
                     
                     Text("松开发送，上滑取消")
+                        .font(.system(size: 14))
                         .foregroundColor(cancelHighlighted ? .red : .gray)
                 }
-                .padding(.bottom, 8)
+                .offset(y: -140)
             }
             
             // 录音按钮
             ZStack {
-                // 外圈动画 - 修改这里的颜色逻辑
+                // 外圈动画
                 Circle()
-                    .stroke(recorder.isRecording ? (cancelHighlighted ? Color.red : Color.green) : Color.clear, lineWidth: 3)
-                    .frame(width: 80, height: 80)
+                    .stroke(recorder.isRecording ? (cancelHighlighted ? Color.red : Color.green) : Color.clear, lineWidth: 4)
+                    .frame(width: 128, height: 128)
                     .scaleEffect(scale)
                 
-                // 主按钮 - 同样更新颜色逻辑
+                // 主按钮
                 Circle()
                     .fill(recorder.isRecording ? (cancelHighlighted ? Color.red.opacity(0.2) : Color.green.opacity(0.2)) : Color.blue.opacity(0.1))
-                    .frame(width: 72, height: 72)
+                    .frame(width: 108, height: 108)
                     .overlay(
                         Group {
                             if isLoading {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-                                    .scaleEffect(1.5)
+                                    .scaleEffect(1.8)
                             } else {
                                 Image(systemName: recorder.isRecording ? "waveform" : "mic.circle.fill")
-                                    .font(.system(size: 32))
+                                    .font(.system(size: 68))
                                     .foregroundColor(recorder.isRecording ? (cancelHighlighted ? .red : .green) : .blue)
                             }
                         }
@@ -858,33 +927,49 @@ struct InputBarView: View {
     @ObservedObject var recorder: AudioRecorder
     
     var body: some View {
-        HStack {
-            Button(action: {}) {
-                Image(systemName: "lightbulb.fill")
-                    .foregroundColor(.yellow)
+        ZStack {
+            // Left buttons
+            HStack(spacing: 16) {
+                Button(action: {}) {
+                    Image(systemName: "lightbulb.fill")
+                        .foregroundColor(.yellow)
+                        .font(.system(size: 24))
+                }
+                .frame(width: 50, height: 50) // 固定尺寸确保圆形
+                .background(Color.purple)
+                .clipShape(Circle())
+                
+                Button(action: {}) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 50, height: 50)
+                .background(Color.purple)
+                .clipShape(Circle())
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading)
             
-            Button(action: {}) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.gray)
-            }
-            
-            Spacer()
-            
+            // Centered RecordButton
             RecordButton(recorder: recorder)
+                .frame(maxWidth: .infinity)
             
-            Spacer()
-            
-            Button(action: {}) {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 24))
-                    .foregroundColor(.gray)
+            // Right button
+            HStack {
+                Button(action: {}) {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 50, height: 50)
+                .background(Color.purple)
+                .clipShape(Circle())
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(Color.gray.opacity(0.05))
+        .frame(height: 180)
     }
 }
 

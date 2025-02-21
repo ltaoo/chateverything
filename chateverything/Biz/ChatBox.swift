@@ -116,6 +116,12 @@ struct ChatErrorStruct: Codable {
     let error: String
 }
 
+struct ChatTipStruct: Codable {
+    let title: String
+    let content: String
+    let type: String
+}
+
 // MARK: - 消息载荷类型
 enum ChatPayload: Encodable {
     case message(ChatMessageBiz2)
@@ -125,6 +131,7 @@ enum ChatPayload: Encodable {
     case audio(ChatAudioBiz)
     case estimate(ChatStatsBiz)
     case error(ChatErrorBiz)
+    case tip(ChatTipBiz)
     case unknown(type: String)
     
     // 自定义解码逻辑（关键部分）
@@ -154,6 +161,9 @@ enum ChatPayload: Encodable {
         case "error":
             let error = try ChatErrorStruct(from: decoder)
             self = .error(ChatErrorBiz.from(data: error))
+        case "tip":
+            let tip = try ChatTipStruct(from: decoder)
+            self = .tip(ChatTipBiz.from(data: tip))
         default:
             self = .unknown(type: type)
         }
@@ -184,6 +194,9 @@ enum ChatPayload: Encodable {
         case .error(let error):
             try container.encode("error", forKey: .type)
             try error.encode(to: encoder)
+        case .tip(let tip):
+            try container.encode("tip", forKey: .type)
+            try tip.encode(to: encoder)
         case .unknown(let type):
             try container.encode(type, forKey: .type)
         }
@@ -205,6 +218,8 @@ enum ChatPayload: Encodable {
             return (text: estimate.title, type: "estimate")
         case .error(let error):
             return (text: error.error, type: "error")
+        case .tip(let tip):
+            return (text: tip.title, type: "tip")
         case .unknown(let type):
             return (text: "Unknown content", type: type)
         }
@@ -534,5 +549,37 @@ class ChatErrorBiz: Encodable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(contentType, forKey: .contentType)
         try container.encode(error, forKey: .error)
+    }
+}
+
+class ChatTipBiz: Encodable {
+    static func from(data: ChatTipStruct) -> ChatTipBiz {
+        return ChatTipBiz(title: data.title, content: data.content, type: data.type)
+    }
+
+    let contentType = "tip"
+    let title: String
+    let content: String
+    let type: String
+    
+    init(title: String, content: String, type: String) {
+        self.title = title
+        self.content = content
+        self.type = type
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case contentType
+        case title
+        case content
+        case type
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(contentType, forKey: .contentType)
+        try container.encode(title, forKey: .title)
+        try container.encode(content, forKey: .content)
+        try container.encode(type, forKey: .type)
     }
 }
