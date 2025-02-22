@@ -102,6 +102,27 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                 self.payload = .puzzle(ChatPuzzleBiz(title: "请选出正确的选项", options: options, answer: options[0].id, selected: nil, corrected: false))
             }
         }
+        if self.type == "image" {
+            let req = NSFetchRequest<ChatMsgImage>(entityName: "ChatMsgImage")
+            req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
+            if let image = try! store.container.viewContext.fetch(req).first {
+                self.payload = .image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
+            }
+        }
+        if self.type == "video" {
+            let req = NSFetchRequest<ChatMsgVideo>(entityName: "ChatMsgVideo")
+            req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
+            if let video = try! store.container.viewContext.fetch(req).first {
+                self.payload = .video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
+            }
+        }
+        if self.type == "error" {
+            let req = NSFetchRequest<ChatMsgError>(entityName: "ChatMsgError")
+            req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
+            if let error = try! store.container.viewContext.fetch(req).first {
+                self.payload = .error(ChatErrorBiz(error: error.error!))
+            }
+        }
     }
     func entity(store: ChatStore) -> ChatBox {
         let context = store.container.viewContext
@@ -115,11 +136,11 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
 
         do {
             // First update the ChatBox entity's payload_id
-//            let boxCheck = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-//            boxCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.id])
-//            if let box = try context.fetch(boxCheck).first {
-//                box.payload_id = payload.id
-//            }
+           let boxCheck = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+           boxCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.id])
+           if let box = try context.fetch(boxCheck).first {
+               box.type = self.type
+           }
 
             // Delete old payload
             switch self.type {

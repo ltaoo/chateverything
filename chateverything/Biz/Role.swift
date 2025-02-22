@@ -48,10 +48,12 @@ public class RoleBiz: ObservableObject, Identifiable {
 
     }
     func updateLLM(config: Config) {
+        print("[BIZ]RoleBiz updateLLM")
         self.noLLM = false
         var llm: LLMService? = nil
         if let helper = self.config.llm {
             let value = helper.build(config: config)
+            print("[BIZ]RoleBiz updateLLM value: \(value?.provider) \(value?.model) \(value?.apiProxyAddress) \(value?.apiKey)")
             if let value = value {
                 llm = LLMService(value: value, prompt: prompt)
             }
@@ -166,7 +168,7 @@ public class RoleBiz: ObservableObject, Identifiable {
 
         Task {
             do {
-                let response = try await llm.fakeChat(content: text)
+                let response = try await llm.chat(content: text)
                 // @todo 这部分要根据 Role 来支持自定义，等于说，系统 Role 还要带一个 ResponseHandler 函数
                 // 比如[OneQuestion]，提示词要求返回 JSON，那么这个机器人就要解析对应JSON，并且给出不一样的对话气泡
                 // 那么等于说这个机器人就是「插件」了
@@ -184,7 +186,7 @@ public class RoleBiz: ObservableObject, Identifiable {
                 DispatchQueue.main.async {
                     loadingMessage.loading = false
                     loadingMessage.type = "error"
-                    loadingMessage.payload = ChatPayload.error(ChatErrorBiz(error: "发生了错误"))
+                    loadingMessage.payload = ChatPayload.error(ChatErrorBiz(error: error.localizedDescription))
                     loadingMessage.changePayload(payload: loadingMessage.payload!, store: config.store)
                 }
             }
@@ -271,23 +273,29 @@ public class RoleLLMHelper: Codable {
     func build(config: Config) -> LLMValues? {
         let provider_name = self.provider
         let model_name = self.model
-        let provider = config.languageProviderControllers.first { $0.name == provider_name }
+        let values = config.languageProviderControllers.first { $0.name == provider_name }
 
-        guard let provider = provider else {
+        for v in config.languageProviderControllers {
+            print("[BIZ]RoleLLMHelper build provider: \(v.name) \(v.value.apiProxyAddress) \(v.provider.apiProxyAddress) \(v.value.apiKey)")
+        }
+
+        guard let values = values else {
             return nil
         }
 
-        let model = provider.models.first { $0.name == model_name }
+        print("[BIZ]RoleLLMHelper build provider: \(values.name) \(values.value.apiProxyAddress) \(values.provider.apiProxyAddress) \(values.value.apiKey)")
+
+        let model = values.models.first { $0.name == model_name }
 
         guard let model = model else {
             return nil
         }
 
         return LLMValues(
-            provider: provider.name,
+            provider: values.name,
             model: model.name,
-            apiProxyAddress: provider.value.apiProxyAddress,
-            apiKey: provider.value.apiKey
+            apiProxyAddress: values.value.apiProxyAddress ?? values.provider.apiProxyAddress,
+            apiKey: values.value.apiKey
         )
     }
 }

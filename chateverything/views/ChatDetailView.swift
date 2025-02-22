@@ -23,6 +23,7 @@ class ChatDetailViewModel: ObservableObject {
         self.session = ChatSessionBiz(
             id: id,
             created_at: Date(),
+            updated_at: Date(),
             title: "",
             avatar_uri: "",
             boxes: [],

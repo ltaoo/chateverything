@@ -70,8 +70,11 @@
         <attribute name="avatar_uri" optional="YES" attributeType="String"/>
         <attribute name="config" optional="YES" attributeType="String"/>
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="fixed" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="hidden" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="updated_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
     </entity>
     <entity name="ChatSessionMember" representedClassName="ChatSessionMember" syncable="YES" codeGenerationType="class">
         <attribute name="avatar_uri" optional="YES" attributeType="String"/>

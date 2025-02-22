@@ -128,13 +128,30 @@ class ChatStore: ObservableObject {
     }
 
     func fetchSessions() {
+        let ctx = container.viewContext
         let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
-        let sessions = try? container.viewContext.fetch(request)
+        request.sortDescriptors = [NSSortDescriptor(key: "updated_at", ascending: false)]
+        request.fetchBatchSize = 20
+
+        let sessions = try? ctx.fetch(request)
 
         var result: [ChatSessionBiz] = []
 
         for session in sessions! {
             let biz = ChatSessionBiz.from(session, in: self)
+
+            let request = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+            request.predicate = NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id])
+            request.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: false)]
+            request.fetchBatchSize = 1
+            let boxes: [ChatBox] = try! ctx.fetch(request)
+            let boxes2: [ChatBoxBiz] = boxes.map {
+                let b = ChatBoxBiz.from($0, store: self)
+                b.load(store: self)
+                return b
+            }
+            biz.setBoxes(boxes: boxes2)
+
             result.append(biz)
         }
 

@@ -13,7 +13,8 @@ struct LanguageModelSettingsView: View {
                     ProviderSettingsView(
                         controller: controller,
                         provider: controller.provider,
-                        value: controller.value
+                        value: controller.value,
+                        config: config
                     )
                 }
             }

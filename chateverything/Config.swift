@@ -7,10 +7,15 @@ public enum Route: Hashable {
 }
 
 
-public class ProviderModelValue: Identifiable {
+public class ProviderModelValue: Identifiable, Codable {
     public var id: String { name }
     var name: String
     var enabled: Bool = true
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case enabled
+    }
 
     public init(name: String, enabled: Bool) {
         self.name = name
@@ -53,7 +58,7 @@ public let DefaultProviderValue = ProviderValue(
     apiProxyAddress: nil,
     apiKey: "sk-292831353cda4d1c9f59984067f24379",
     models1: [],
-    models2: []
+    models2: ["deepseek-chat"]
 )
 
 class Config: ObservableObject {
@@ -105,16 +110,25 @@ class Config: ObservableObject {
 
         // print("[BIZ]Config.init: me: \(me.id) \(me.name)")
 
-        if let languageProviderValues: [String:ProviderValue] = UserDefaults.standard.object(forKey: "provider_values") as? [String:ProviderValue] {
+        if let languageProviderValues: [String:Any] = UserDefaults.standard.object(forKey: "provider_values") as? [String:Any] {
             var values: [String: ProviderValue] = [:]
             for (name, data) in languageProviderValues {
                 if let v = data as? [String: Any] {
+                    // 将字典数组转回 ProviderModelValue 数组
+                    let models1Data = v["models1"] as? [[String: Any]] ?? []
+                    let models1 = models1Data.map { dict in
+                        ProviderModelValue(
+                            name: dict["name"] as? String ?? "",
+                            enabled: dict["enabled"] as? Bool ?? true
+                        )
+                    }
+                    
                     values[name] = ProviderValue(
                         provider: name,
                         enabled: v["enabled"] as? Bool ?? false,
-                        apiProxyAddress: v["apiProxyAddress"] as? String ?? nil,
+                        apiProxyAddress: v["apiProxyAddress"]as? String == "" ? nil : v["apiProxyAddress"] as? String,
                         apiKey: v["apiKey"] as? String ?? "",
-                        models1: v["models1"] as? [ProviderModelValue] ?? [],
+                        models1: models1,
                         models2: v["models2"] as? [String] ?? []
                     )
                 }
@@ -170,15 +184,45 @@ class Config: ObservableObject {
 //        self.languageProviderValues = values
         // 这里可以添加持久化存储逻辑
     }
+
+    func updateSingleProviderValue(name: String, value: ProviderValue) {
+        self.languageProviderValues[name] = value
+        
+        // 将 models1 转换为可序列化的字典数组
+        let models1Data = value.models1.map { model -> [String: Any] in
+            return [
+                "name": model.name,
+                "enabled": model.enabled
+            ]
+        }
+        
+        var existing: [String: Any] = UserDefaults.standard.object(forKey: "provider_values") as? [String: Any] ?? [:]
+        existing[name] = [
+            "enabled": value.enabled,
+            "apiProxyAddress": value.apiProxyAddress ?? "", // 处理可选值
+            "apiKey": value.apiKey,
+            "models1": models1Data,
+            "models2": value.models2
+        ]
+        UserDefaults.standard.set(existing, forKey: "provider_values")
+    }
     
     func updateSettings(values: [String:ProviderValue]) {
         var data: [String: Any] = [:]
         for (name, value) in values {
+            // 将 models1 转换为可序列化的字典数组
+            let models1Data = value.models1.map { model -> [String: Any] in
+                return [
+                    "name": model.name,
+                    "enabled": model.enabled
+                ]
+            }
+            
             data[name] = [
                 "enabled": value.enabled,
-                "apiProxyAddress": value.apiProxyAddress,
+                "apiProxyAddress": value.apiProxyAddress ?? "", // 处理可选值
                 "apiKey": value.apiKey,
-                "models1": value.models1,
+                "models1": models1Data,
                 "models2": value.models2
             ]
         }

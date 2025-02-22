@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreData
+import Network
 
 @main
 struct ChatEverythingApp: App {
@@ -16,6 +17,8 @@ struct ChatEverythingApp: App {
     // @StateObject var store: ChatStore
     var store: ChatStore
     var config: Config
+    @StateObject private var networkManager = NetworkManager()
+    
     init() {
         // store = ChatStore(container: PersistenceController.container)
         store = ChatStore(container: container)
@@ -72,7 +75,14 @@ struct ChatEverythingApp: App {
                 //     print("Error saving role: \(error)")
                 // }
 
-        
+        // 检查网络状态变化
+        NotificationCenter.default.addObserver(forName: .networkStatusChanged,
+                                            object: nil,
+                                            queue: .main) { notification in
+            if let isConnected = notification.object as? Bool {
+                print("Network status changed: \(isConnected ? "Connected" : "Disconnected")")
+            }
+        }
     }
 
     
@@ -82,7 +92,13 @@ struct ChatEverythingApp: App {
                 .environment(\.managedObjectContext, container.viewContext)
                 .environmentObject(store)
                 .environmentObject(config)
+                .environmentObject(networkManager)
         }
     }
+}
+
+// 添加通知名称
+extension Notification.Name {
+    static let networkStatusChanged = Notification.Name("networkStatusChanged")
 }
 

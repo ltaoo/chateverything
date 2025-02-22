@@ -10,6 +10,7 @@ import AVFoundation
 import Speech
 import Foundation
 import UIKit
+import Network
 
 // 在 ChatSession struct 后添加以下模型
 struct Season: Codable, Identifiable {
@@ -63,6 +64,7 @@ struct FetchParams: Codable {
 struct ContentView: View {
     @EnvironmentObject var store: ChatStore
     @EnvironmentObject var config: Config
+    @EnvironmentObject var networkManager: NetworkManager
     @StateObject private var capsuleVM = CapsuleButtonViewModel()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
     @State private var path = NavigationPath()
@@ -261,7 +263,8 @@ struct ChatSessionCardView: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                // 头像部分保持不变
                 ZStack(alignment: .topTrailing) {
                     AsyncImage(url: URL(string: chatSession.avatar_uri)) { phase in
                         switch phase {
@@ -301,29 +304,28 @@ struct ChatSessionCardView: View {
                     }
                 }
                 
+                // 修改中间内容部分
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text(chatSession.title)
-                            .font(.headline)
+                            .font(.system(size: 16, weight: .medium))
+                            .lineLimit(1)
+                        
                         Spacer()
-                        Text(formatDate(chatSession.created_at))
+                        
+                        Text(formatDate(chatSession.updated_at))
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
                     
-                    HStack {
-                        if chatSession.unreadCount > 0 {
-                            Text("\(chatSession.unreadCount)")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .padding(6)
-                                .background(Color.red)
-                                .clipShape(Circle())
-                        }
-                    }
+                    ChatMsgPreview(box: chatSession.boxes[0])
+                        .foregroundColor(.gray)
+                        .font(.system(size: 14))
+                        .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
             .contentShape(Rectangle())
             .foregroundColor(.primary)
         }
@@ -338,7 +340,42 @@ struct ChatSessionCardView: View {
     }
 }
 
+struct ChatMsgPreview: View {
+    let box: ChatBoxBiz?
 
+    var body: some View {
+        Group {
+            if let box = box {
+                switch box.type {
+                case "error":
+                    if case let .error(data) = box.payload {
+                        Text("[error]\(data.error)")
+                    }
+                case "audio":
+                    if case .audio = box.payload {
+                        Text("[audio]")
+                    }
+                case "message":
+                    if case let .message(data) = box.payload {
+                        Text(data.text)
+                    }
+                case "quiz":
+                    if case .puzzle = box.payload {
+                        Text("[quiz]")
+                    }
+                case "tip":
+                    if case let .tip(data) = box.payload {
+                        Text("[tip]\(data.title)")
+                    }
+                default:
+                    Text("未知消息类型: \(box.type)")
+                }
+            } else {
+                Text("")
+            }
+        }
+    }
+}
 
 // 确保 ChatDetailView 符合 Hashable 协议
 // extension ChatDetailView: Hashable {
@@ -362,20 +399,27 @@ struct ChatListView: View {
     var body: some View {
         VStack(spacing: 0) {
             // 顶部按钮组 - 现在固定在顶部
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ChatButton(icon: "🤖", text: "想法", onTap: {
-                        showingChatConfig = true
-                    })
-                    ChatButton(icon: "📚", text: "单词", onTap: {
-                        capsuleVM.toggleVisibility()
-                    })
-                    ChatButton(icon: "📅", text: "日历", onTap: {
-                        capsuleVM.toggleVisibility()
-                    })
+            VStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ChatButton(icon: "🤖", text: "想法", onTap: {
+                            showingChatConfig = true
+                        })
+                        ChatButton(icon: "📚", text: "单词", onTap: {
+                            capsuleVM.toggleVisibility()
+                        })
+                        ChatButton(icon: "📅", text: "日历", onTap: {
+                            capsuleVM.toggleVisibility()
+                        })
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
+                
+                Divider()
+                    .frame(height: 0.5)
+                    .background(Color(.systemGray6))
+                    .opacity(0.8)
             }
             
             // 主要内容区域使用 ScrollView

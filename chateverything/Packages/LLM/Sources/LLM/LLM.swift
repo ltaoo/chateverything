@@ -516,7 +516,7 @@ public let LLMServiceProviders = [
         name: "deepseek",
         logo_uri: "provider_dark_deepseek",
         apiKey: "",
-        apiProxyAddress: "https://api.deepseek.com/v1",
+        apiProxyAddress: "https://api.deepseek.com/chat/completions",
         models: [
             LanguageModel(
                 id: "deepseek-chat",
