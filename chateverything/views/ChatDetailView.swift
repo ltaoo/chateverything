@@ -94,12 +94,21 @@ class ChatDetailViewModel: ObservableObject {
     init?(id: UUID, store: ChatStore) {
         self.store = store
 
-        let session = ChatSessionBiz.from(id: id, in: store)
-        guard let session = session else {
-            return nil
-        }
-        self.session = session
-        self.role = session.role
+        // let session = ChatSessionBiz.from(id: id, in: store)
+        // guard let session = session else {
+        //     return nil
+        // }
+        self.session = ChatSessionBiz(
+            id: id,
+            created_at: Date(),
+            boxes: [],
+            role: RoleBiz(id: id, name: "", description: "", avatar: "", prompt: "", language: "",
+                voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
+                created_at: Date()),
+            llm: LLMService(value: LLMValues(provider: "openai", model: "gpt-3.5-turbo", apiProxyAddress: "", apiKey: ""), prompt: ""),
+            store: store
+        )
+        self.role = self.session.role
     }
 
     func showPermissionAlert() {
@@ -345,6 +354,17 @@ struct ChatDetailView: View {
                 ChatDetailToolbarButton(model: model)
             }
         }
+        // 添加导航栏底部分隔线
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(Color(uiColor: .systemBackground), for: .navigationBar)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(Color(uiColor: .systemGray4))
+                .offset(y: -1)
+            , alignment: .top
+        )
+        // 添加导航栏背景色
         .sheet(isPresented: $model.roleDetailVisible) {
             let role = self.model.role
             let session = self.model.session

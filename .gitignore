@@ -107,3 +107,7 @@ iOSInjectionProject/
 .idea/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/ 
+
+
+# Resources
+**/dicts/*.json

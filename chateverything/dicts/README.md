@@ -1,0 +1,1 @@
+字典文件来自 https://github.com/RealKai42/qwerty-learner

@@ -2,6 +2,14 @@ import SwiftUI
 import UIKit
 
 struct DiscoverView: View {
+    @Binding var path: NavigationPath
+    var store: ChatStore
+
+    init(path: Binding<NavigationPath>, store: ChatStore) {
+        _path = path
+        self.store = store
+    }
+
     // 定义磁贴的颜色主题
     private let tileColors: [Color] = [
         Color(hex: "007AFF"),  // iOS 蓝
@@ -47,6 +55,7 @@ struct DiscoverView: View {
                         size: .small
                     ) {
                         print("进入单词模块")
+                        path.append(Route.VocabularyView(filepath: "/dicts/CET4_T"))
                     }
                     
                     // 场景对话 - 小尺寸
@@ -157,11 +166,5 @@ extension Color {
             blue:  Double(b) / 255,
             opacity: Double(a) / 255
         )
-    }
-}
-
-#Preview {
-    NavigationView {
-        DiscoverView()
     }
 }

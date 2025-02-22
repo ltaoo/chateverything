@@ -62,7 +62,7 @@ struct FetchParams: Codable {
 
 struct ContentView: View {
     @EnvironmentObject var store: ChatStore
-    // @StateObject private var store = ChatStore()
+    @StateObject private var capsuleVM = CapsuleButtonViewModel()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
     @State private var path = NavigationPath()
     
@@ -121,46 +121,58 @@ struct ContentView: View {
     
     var body: some View {
         NavigationStack(path: $path) {
-            TabView(selection: $selectedTab) {
-                // 聊天标签页
-                ChatListView(path: $path, showingChatConfig: $showingChatConfig)
+            ZStack {
+                TabView(selection: $selectedTab) {
+                    // 聊天标签页
+                    ChatListView(capsuleVM: capsuleVM, path: $path, showingChatConfig: $showingChatConfig)
+                        .tabItem {
+                            Image(systemName: "message.fill")
+                            Text("聊天")
+                        }
+                        .tag(0)
+                    
+                    SceneView()
+                    // SearchView()
                     .tabItem {
-                        Image(systemName: "message.fill")
-                        Text("聊天")
+                        Image(systemName: "safari.fill")
+                        Text("探索")
                     }
-                    .tag(0)
-                
-                SearchView()
-                .tabItem {
-                    Image(systemName: "safari.fill")
-                    Text("探索")
+                    .tag(1)
+                    
+                    DiscoverView(path: $path, store: self.store)
+                    .tabItem {
+                        Image(systemName: "sparkles")
+                        Text("发现")
+                    }
+                    .tag(2)
+                    
+                    MineView()
+                    .tabItem {
+                        Image(systemName: "person.fill")
+                        Text("我的")
+                    }
+                    .tag(3)
                 }
-                .tag(1)
                 
-                DiscoverView()
-                .tabItem {
-                    Image(systemName: "sparkles")
-                    Text("发现")
+                // 修改胶囊按钮部分
+                VStack {
+                    Spacer()
+                    if capsuleVM.isVisible {
+                        CapsuleButton(
+                            text: capsuleVM.buttonText,
+                            icon: capsuleVM.buttonIcon
+                        ) {
+                            print("Capsule button tapped")
+                            capsuleVM.toggleVisibility()
+                        }
+                        .padding(.bottom, UIScreen.main.bounds.height / 6)
+                        .transition(
+                            .move(edge: .bottom)
+                            .combined(with: .opacity)
+                        )
+                    }
                 }
-                .tag(2)
-                
-                MineView()
-                .tabItem {
-                    Image(systemName: "person.fill")
-                    Text("我的")
-                }
-                .tag(3)
-            }
-            .onAppear {
-                // 设置 UITabBar 的背景样式
-                let appearance = UITabBarAppearance()
-                appearance.configureWithDefaultBackground() // 使用默认的毛玻璃效果
-                
-                // 使用这个外观配置
-                UITabBar.appearance().standardAppearance = appearance
-                if #available(iOS 15.0, *) {
-                    UITabBar.appearance().scrollEdgeAppearance = appearance
-                }
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: capsuleVM.isVisible)
             }
             .sheet(isPresented: $showingChatConfig) {
                 RoleSelectionView(path: $path, onCancel: {
@@ -171,6 +183,8 @@ struct ContentView: View {
                 switch route {
                 case .ChatDetailView(let sessionId):
                     ChatDetailView(sessionId: sessionId, store: self.store).environmentObject(self.store)
+                case .VocabularyView(let filepath):
+                    Vocabulary(filepath: filepath, path: self.path, store: self.store).environmentObject(self.store)
                 }
             }
             .onAppear {
@@ -192,17 +206,19 @@ struct ContentView: View {
 }
 
 struct ChatButton: View {
+    var icon: String
+    var text: String
     var onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 8) {
-                Text("🤖")
+                Text(icon)
                     .font(.system(size: 20))  // 增大表情符号
-                Text("新对话")
+                Text(text)
                     .font(.system(size: 16, weight: .medium))  // 增大字体并加粗
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14))  // 增大箭头
+                // Image(systemName: "chevron.down")
+                //     .font(.system(size: 14))  // 增大箭头
             }
             .foregroundColor(.primary)
             .padding(.horizontal, 16)  // 增加水平内边距
@@ -319,21 +335,35 @@ struct ChatRowView: View {
 // 新增 ChatListView 组件
 struct ChatListView: View {
     @EnvironmentObject var store: ChatStore
+    var capsuleVM: CapsuleButtonViewModel
     @Binding var path: NavigationPath
     @State private var isLoading = false
     @Binding var showingChatConfig: Bool
     
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部栏
-            HStack {
-                Spacer()
-                Spacer()
-                ChatButton(onTap: {
-                    showingChatConfig = true
-                })
+            // 顶部按钮组
+            VStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            showingChatConfig = true
+                        }) {
+                            ChatButton(icon: "🤖", text: "记录", onTap: {
+                                showingChatConfig = true
+                            })
+                            ChatButton(icon: "📚", text: "单词", onTap: {
+                                capsuleVM.toggleVisibility()
+                            })
+                            ChatButton(icon: "📅", text: "日历", onTap: {
+                                capsuleVM.toggleVisibility()
+                            })
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                }
             }
-            .padding(.vertical, 10)
             
             // 主要内容
             if isLoading {
@@ -355,16 +385,56 @@ struct ChatListView: View {
                         .listRowSeparator(session.id == store.sessions.last?.id ? .hidden : .visible)
                     }
                     .onDelete { indexSet in
-                        // 删除选中的会话
                         for index in indexSet {
                             let sessionId = store.sessions[index].id
-                            // $store.deleteSession(sessionId: sessionId)
                         }
                     }
                 }
                 .listStyle(.plain)
+                .listSectionSeparator(.hidden)
+                .environment(\.defaultMinListRowHeight, 0)
+                .scrollContentBackground(.hidden)
             }
         }
+    }
+}
+
+// 更新 CapsuleButton 视图
+struct CapsuleButton: View {
+    let text: String
+    let icon: String
+    let action: () -> Void
+    @State private var isPressed = false
+    
+    var body: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    isPressed = false
+                }
+                action()
+            }
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                Text(text)
+                    .font(.system(size: 16, weight: .medium))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .fill(Color.blue)
+                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+            )
+            .scaleEffect(isPressed ? 0.95 : 1)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

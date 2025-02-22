@@ -1,6 +1,10 @@
 import Foundation
 import LLM
 
+public enum Route: Hashable {
+    case ChatDetailView(sessionId: UUID)
+    case VocabularyView(filepath: String)
+}
 
 
 public class ProviderModelValue: Identifiable {
@@ -43,9 +47,6 @@ public class ProviderValue: ObservableObject, Identifiable {
     }
 }
 
-public enum Route: Hashable {
-    case ChatDetailView(sessionId: UUID)
-}
 public let DefaultProviderValue = ProviderValue(
     provider: "deepseek",
     enabled: true,
