@@ -96,9 +96,14 @@ class Config: ObservableObject {
             avatar: "",
             prompt: "",
             language: "",
-            voice: RoleVoice.GetDefault(),
-            created_at: Date()
+            created_at: Date(),
+            config: RoleConfig(
+                voice: RoleVoice.GetDefault(),
+                llm: defaultRoleLLM
+            )
         )
+
+        // print("[BIZ]Config.init: me: \(me.id) \(me.name)")
 
         if let languageProviderValues: [String:ProviderValue] = UserDefaults.standard.object(forKey: "provider_values") as? [String:ProviderValue] {
             var values: [String: ProviderValue] = [:]

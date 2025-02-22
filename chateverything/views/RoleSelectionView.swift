@@ -87,24 +87,24 @@ class RoleSelectionViewModel: ObservableObject {
     @Published var roles: [RoleBiz] = []
     
     func fetchRoles(from context: NSManagedObjectContext) {
-        let request = NSFetchRequest<Role>(entityName: "Role")
-        
-        do {
-            let fetchedRoles = try context.fetch(request)
-            var results: [RoleBiz] = []
-            
-            fetchedRoles.forEach { role in
-                if let roleBiz = RoleBiz.from(role) {
-                    results.append(roleBiz)
-                }
-            }
-            
-            DispatchQueue.main.async {
-                self.roles = results
-            }
-        } catch {
-            print("Error fetching roles: \(error)")
-        }
+//        let request = NSFetchRequest<Role>(entityName: "Role")
+//        
+//        do {
+//            let fetchedRoles = try context.fetch(request)
+//            var results: [RoleBiz] = []
+//            
+//            fetchedRoles.forEach { role in
+//                if let roleBiz = RoleBiz.from(role, config: config) {
+//                    results.append(roleBiz)
+//                }
+//            }
+//            
+//            DispatchQueue.main.async {
+//                self.roles = results
+//            }
+//        } catch {
+//            print("Error fetching roles: \(error)")
+//        }
     }
     
     func createChatSession(for role: RoleBiz, in context: NSManagedObjectContext, completion: @escaping (Bool) -> Void) {

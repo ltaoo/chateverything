@@ -21,7 +21,7 @@ public class LLMProviderController: ObservableObject, Identifiable {
     @Published public var value: ProviderValue
 
     @Published public var models: [LLMProviderModelController]
-    
+
     public init(provider: LanguageProvider, value: ProviderValue) {
         self.provider = provider
         self.value = value

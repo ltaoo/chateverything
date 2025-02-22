@@ -255,13 +255,9 @@ struct ScaleButtonStyle: ButtonStyle {
 }
 
 // 聊天列表行视图
-struct ChatRowView: View {
+struct ChatSessionCardView: View {
     let chatSession: ChatSessionBiz
     var onTap: () -> Void
-    
-    private var shouldShowBadge: Bool {
-        abs(chatSession.id.hashValue) % 3 == 0
-    }
     
     var body: some View {
         Button(action: onTap) {
@@ -297,7 +293,7 @@ struct ChatRowView: View {
                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
                     
-                    if shouldShowBadge {
+                    if chatSession.unreadCount > 0 {
                         Circle()
                             .fill(Color.green)
                             .frame(width: 12, height: 12)
@@ -401,7 +397,7 @@ struct ChatListView: View {
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(store.sessions) { session in
-                            ChatRowView(chatSession: session, onTap: {
+                            ChatSessionCardView(chatSession: session, onTap: {
                                 path.append(Route.ChatDetailView(sessionId: session.id))
                             })
                             .padding(.horizontal)

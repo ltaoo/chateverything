@@ -14,8 +14,8 @@
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="duration" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
-        <attribute name="nodes" optional="YES" attributeType="Binary"/>
-        <attribute name="other1" optional="YES" attributeType="Binary"/>
+        <attribute name="nodes" optional="YES" attributeType="String"/>
+        <attribute name="other1" optional="YES" attributeType="String"/>
         <attribute name="text" optional="YES" attributeType="String"/>
         <attribute name="updated_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="uri" optional="YES" attributeType="URI"/>
@@ -24,10 +24,24 @@
         <attribute name="box_id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
-        <attribute name="nodes" optional="YES" attributeType="Binary"/>
-        <attribute name="other1" optional="YES" attributeType="Binary"/>
+        <attribute name="nodes" optional="YES" attributeType="String"/>
+        <attribute name="other1" optional="YES" attributeType="String"/>
         <attribute name="text" optional="YES" attributeType="String"/>
         <attribute name="updated_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+    </entity>
+    <entity name="ChatMsgError" representedClassName=".ChatMsgError" syncable="YES" codeGenerationType="class">
+        <attribute name="error" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+    </entity>
+    <entity name="ChatMsgEstimate" representedClassName="ChatMsgEstimate" syncable="YES" codeGenerationType="class">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="ChatMsgImage" representedClassName=".ChatMsgImage" syncable="YES" codeGenerationType="class">
+        <attribute name="height" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="url" optional="YES" attributeType="URI"/>
+        <attribute name="width" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
     </entity>
     <entity name="ChatMsgPuzzle" representedClassName=".ChatMsgPuzzle" syncable="YES" codeGenerationType="class">
         <attribute name="answer" optional="YES" attributeType="String"/>
@@ -35,12 +49,26 @@
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="opts" optional="YES" attributeType="String"/>
-        <attribute name="other1" optional="YES" attributeType="Binary"/>
+        <attribute name="other1" optional="YES" attributeType="String"/>
         <attribute name="title" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="ChatMsgTip" representedClassName=".ChatMsgTip" syncable="YES" codeGenerationType="class">
+        <attribute name="content" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="type" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="ChatMsgVideo" representedClassName=".ChatMsgVideo" syncable="YES" codeGenerationType="class">
+        <attribute name="duration" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="height" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="thumbnail" optional="YES" attributeType="URI"/>
+        <attribute name="url" optional="YES" attributeType="URI"/>
+        <attribute name="width" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
     </entity>
     <entity name="ChatSession" representedClassName=".ChatSession" syncable="YES" codeGenerationType="class">
         <attribute name="avatar_uri" optional="YES" attributeType="String"/>
-        <attribute name="config" optional="YES" attributeType="Binary"/>
+        <attribute name="config" optional="YES" attributeType="String"/>
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="title" optional="YES" attributeType="String"/>
@@ -56,7 +84,7 @@
     </entity>
     <entity name="Role" representedClassName=".Role" syncable="YES" codeGenerationType="class">
         <attribute name="avatar_uri" optional="YES" attributeType="String"/>
-        <attribute name="config" optional="YES" attributeType="Binary"/>
+        <attribute name="config" optional="YES" attributeType="String"/>
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="desc" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>

@@ -3,16 +3,31 @@ import CoreData
 import LLM
 
 
+class ChatSessionConfig: ObservableObject {
+    @Published var blurMsg: Bool
+    @Published var autoSpeaking: Bool
+
+    init(blurMsg: Bool, autoSpeaking: Bool) {
+        self.blurMsg = blurMsg
+        self.autoSpeaking = autoSpeaking
+    }
+}
+
 class ChatSessionBiz: ObservableObject, Identifiable {
     let store: ChatStore
 
-    var id: UUID
+    let id: UUID
     @Published var created_at: Date
     @Published var title: String
     @Published var avatar_uri: String
-    @Published var boxes: [ChatBoxBiz]
+    @Published private(set) var boxes: [ChatBoxBiz] {
+        willSet {
+            objectWillChange.send()
+        }
+    }
     @Published var members: [ChatSessionMemberBiz]
-    
+    @Published var config: ChatSessionConfig
+
     var lastMessageTime: Date {
         get { boxes.last?.created_at ?? Date() }
     }
@@ -34,7 +49,9 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         ctx.insert(record)
         try! ctx.save()
 
-        return ChatSessionBiz(id: id, created_at: created_at, title: title, avatar_uri: avatar_uri, boxes: [], members: [], store: store)
+        let config = ChatSessionConfig(blurMsg: false, autoSpeaking: false)
+
+        return ChatSessionBiz(id: id, created_at: created_at, title: title, avatar_uri: avatar_uri, boxes: [], members: [], config: config, store: store)
     }
     static func delete(session: ChatSessionBiz, in store: ChatStore) {
         let ctx = store.container.viewContext
@@ -48,6 +65,7 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         let created_at = record.created_at ?? Date()
         let title = record.title ?? ""
         let avatar_uri = record.avatar_uri ?? ""
+        let config = ChatSessionConfig(blurMsg: false, autoSpeaking: false)
 
         return ChatSessionBiz(
             id: id,
@@ -56,11 +74,12 @@ class ChatSessionBiz: ObservableObject, Identifiable {
             avatar_uri: avatar_uri,
             boxes: [],
             members: [],
+            config: config,
             store: store
         )
     }
-    func load(id: UUID, in store: ChatStore) {
-        let ctx = store.container.viewContext
+    func load(id: UUID, config: Config) {
+        let ctx = config.store.container.viewContext
         
         let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         req.predicate = NSPredicate(format: "id == %@", id as CVarArg)
@@ -69,14 +88,28 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         let role_req = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
         role_req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id ])
         let role_records = try! ctx.fetch(role_req)
-        let members: [ChatSessionMemberBiz] = role_records.map { ChatSessionMemberBiz.from($0, store: store) }
+        let members: [ChatSessionMemberBiz] = role_records.map {
+            let r = ChatSessionMemberBiz.from($0, store: store)
+            r.role = RoleBiz.Get(id: $0.role_id!, store: store)
+            return r
+        }
 
         let box_req = NSFetchRequest<ChatBox>(entityName: "ChatBox")
         box_req.predicate = NSPredicate(format: "session_id == %@", id as CVarArg)
         box_req.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: true)]
         box_req.fetchLimit = 20
         let box_records = try! ctx.fetch(box_req)
-        let boxes: [ChatBoxBiz] = box_records.map { ChatBoxBiz.from($0, store: store) }
+        let boxes: [ChatBoxBiz] = box_records.map {
+            let box = ChatBoxBiz.from($0, store: store)
+            print("[BIZ]ChatSessionBiz.load: box: \(box.type) \(box.sender_id)")
+            if box.sender_id == config.me.id {
+                box.isMe = true
+            }
+            box.load(store: store)
+            return box
+        }
+
+        print("[BIZ]ChatSessionBiz.load: boxes: \(boxes.count)")
 
         self.created_at = session.created_at ?? Date()
         self.title = session.title ?? ""
@@ -85,19 +118,21 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         self.members = members
     }
 
-    init(id: UUID, created_at: Date, title: String, avatar_uri: String, boxes: [ChatBoxBiz], members: [ChatSessionMemberBiz], store: ChatStore) {
+    init(id: UUID, created_at: Date, title: String, avatar_uri: String, boxes: [ChatBoxBiz], members: [ChatSessionMemberBiz], config: ChatSessionConfig, store: ChatStore) {
         self.id = id
         self.created_at = created_at
         self.title = title
         self.avatar_uri = avatar_uri
         self.boxes = boxes
         self.members = members
+        self.config = config
         self.store = store
     }
 
-    func append(box: ChatBoxBiz) {
-        box.save(sessionId: self.id, store: self.store);
+    func append(box: ChatBoxBiz, completion: (([ChatBoxBiz]) -> Void)? = nil) {
         self.boxes.append(box)
+        box.save(sessionId: self.id, store: self.store)
+        completion?(self.boxes)
     }
 
     func save() {

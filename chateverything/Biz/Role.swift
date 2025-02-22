@@ -9,24 +9,57 @@ public class RoleBiz: ObservableObject, Identifiable {
     public var avatar: String
     public var prompt: String
     public var language: String
-    public var voice: RoleVoice
     public var created_at: Date
+    public var config: RoleConfig
+    public var llm: LLMService?
 
-    init(id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String, voice: RoleVoice, created_at: Date) {
+    @Published var noLLM = true
+
+    static func Get(id: UUID, store: ChatStore) -> RoleBiz? {
+        // let ctx = store.container.viewContext
+        // let req = NSFetchRequest<Role>(entityName: "Role")
+        // req.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        // let role = try! ctx.fetch(req).first!
+        let m = DefaultRoles.first { $0.id == id }
+        if let m = m {
+            return m
+        }
+        return nil
+    }
+
+    init(id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String, created_at: Date, config: RoleConfig) {
         self.id = id
         self.name = name
         self.desc = desc
         self.avatar = avatar
         self.prompt = prompt
         self.language = language
-        self.voice = voice
         self.created_at = created_at
+        self.config = config
+        self.llm = nil
 
         // let matchedProvider = Config.shared.languageProviders.first!
         // let llm = LLMService(
         //     value: LLMValues(provider: matchedProvider.name, model: matchedProvider.models.first!.name ?? "", apiProxyAddress: matchedProvider.apiProxyAddress, apiKey: matchedProvider.apiKey),
         //     prompt: ""
         // )
+    }
+    func updateConfig() {
+
+    }
+    func updateLLM(config: Config) {
+        self.noLLM = false
+        var llm: LLMService? = nil
+        if let helper = self.config.llm {
+            let value = helper.build(config: config)
+            if let value = value {
+                llm = LLMService(value: value, prompt: prompt)
+            }
+        }
+        if llm == nil {
+            self.noLLM = true
+        }
+        self.llm = llm
     }
     
     // mutating func saveSettings(_ settings: RoleSettingsV2) throws {
@@ -37,13 +70,44 @@ public class RoleBiz: ObservableObject, Identifiable {
     //     }
     // }
     
-    static func from(_ entity: Role) -> RoleBiz? {
+    static func from(_ entity: Role, config: Config) -> RoleBiz? {
         let id = entity.id ?? UUID()
         let name = entity.name ?? ""
         let avatar = entity.avatar_uri ?? ""
         let prompt = entity.prompt ?? ""
-        // let settings = entity.settings ?? ""
+        let config_str = entity.config ?? ""
         let created_at = entity.created_at ?? Date()
+        
+        // 解析 config JSON
+        var voice = defaultRoleVoice
+        var llmHelper: RoleLLMHelper? = nil
+
+        if let config_data = config_str.data(using: .utf8) {
+            do {
+                let roleConfig = try JSONDecoder().decode(RoleConfig.self, from: config_data)
+                
+                // 解析 voice 配置
+                if let voiceConfig = roleConfig.voice {
+                    voice = RoleVoice(
+                        engine: voiceConfig.engine ?? "system",
+                        rate: voiceConfig.rate ?? 1,
+                        volume: voiceConfig.volume ?? 1,
+                        style: voiceConfig.style ?? "normal",
+                        role: voiceConfig.role ?? ""
+                    )
+                }
+                
+                // 解析 llm 配置
+                if let llmConfig = roleConfig.llm {
+                    llmHelper = RoleLLMHelper(
+                        provider: llmConfig.provider,
+                        model: llmConfig.model
+                    )
+                }
+            } catch {
+                print("Error parsing role config: \(error)")
+            }
+        }
         
         return RoleBiz(
             id: id,
@@ -52,8 +116,11 @@ public class RoleBiz: ObservableObject, Identifiable {
             avatar: avatar,
             prompt: prompt,
             language: "en-US",
-            voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
-            created_at: created_at
+            created_at: created_at,
+            config: RoleConfig(
+                voice: voice,
+                llm: llmHelper
+            )
         )
     }
 
@@ -66,6 +133,64 @@ public class RoleBiz: ObservableObject, Identifiable {
         // ),
         // speaker: RoleSpeakerV2(id: "", engine: "system"),
         // extra: [:])
+    }
+
+    func response(text: String, session: ChatSessionBiz, config: Config) -> ChatBoxBiz {
+        if self.llm == nil {
+            self.updateLLM(config: config)
+        }
+        guard let llm = self.llm else {
+            return ChatBoxBiz(
+                id: UUID(),
+                type: "error",
+                created_at: Date(),
+                isMe: false,
+                payload_id: UUID(),
+                session_id: session.id,
+                sender_id: self.id,
+                payload: ChatPayload.error(ChatErrorBiz(error: "请先配置语言模型")),
+                loading: false,
+                blurred: false
+            )
+        }
+        let loadingMessage = ChatBoxBiz(
+            id: UUID(),
+            type: "message",
+            created_at: Date(),
+            isMe: false,
+            payload_id: UUID(),
+            session_id: session.id,
+            sender_id: self.id,
+            payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: []))
+        )
+
+        Task {
+            do {
+                let response = try await llm.fakeChat(content: text)
+                // @todo 这部分要根据 Role 来支持自定义，等于说，系统 Role 还要带一个 ResponseHandler 函数
+                // 比如[OneQuestion]，提示词要求返回 JSON，那么这个机器人就要解析对应JSON，并且给出不一样的对话气泡
+                // 那么等于说这个机器人就是「插件」了
+                // ok，OneQuestion 只进行一次对话，即接受用户的输入，对用户输入和问题进行评价，并给出评分，然后结束对话
+                DispatchQueue.main.async {
+                    if case .message(let message) = loadingMessage.payload {
+                        message.updateText(text: response, config: config)
+                    }
+                    loadingMessage.updatePayload(payload: loadingMessage.payload!, store: config.store)
+                    loadingMessage.loading = false
+                    loadingMessage.blurred = true
+                }
+                // toggleSpeaking(message: loadingMessage)
+            } catch {
+                DispatchQueue.main.async {
+                    loadingMessage.loading = false
+                    loadingMessage.type = "error"
+                    loadingMessage.payload = ChatPayload.error(ChatErrorBiz(error: "发生了错误"))
+                    loadingMessage.changePayload(payload: loadingMessage.payload!, store: config.store)
+                }
+            }
+        }
+
+        return loadingMessage
     }
 }
 
@@ -126,11 +251,53 @@ struct AnyCodable: Codable {
             throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: container.codingPath, debugDescription: "AnyCodable value cannot be encoded"))
         }
     }
-} 
+}
+
+// 在 AnyCodable 之前添加这些结构体
+public struct RoleConfig: Codable {
+    public let voice: RoleVoice?
+    public let llm: RoleLLMHelper?
+}
+
+public class RoleLLMHelper: Codable {
+    public var provider: String
+    public var model: String
+
+    public init(provider: String, model: String) {
+        self.provider = provider
+        self.model = model
+    }
+
+    func build(config: Config) -> LLMValues? {
+        let provider_name = self.provider
+        let model_name = self.model
+        let provider = config.languageProviderControllers.first { $0.name == provider_name }
+
+        guard let provider = provider else {
+            return nil
+        }
+
+        let model = provider.models.first { $0.name == model_name }
+
+        guard let model = model else {
+            return nil
+        }
+
+        return LLMValues(
+            provider: provider.name,
+            model: model.name,
+            apiProxyAddress: provider.value.apiProxyAddress,
+            apiKey: provider.value.apiKey
+        )
+    }
+}
+
+
 
 public let defaultRoleVoice = RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: "")
+public let defaultRoleLLM = RoleLLMHelper(provider: "deepseek", model: "deepseek-chat")
 
-public class RoleVoice: ObservableObject {
+public class RoleVoice: ObservableObject, Codable {
     // 引擎，目前支持 QCloud、System
     @Published var engine: String
     // 语速
@@ -141,6 +308,32 @@ public class RoleVoice: ObservableObject {
     @Published var style: String
     // 角色 id
     @Published var role: String
+
+    enum CodingKeys: String, CodingKey {
+        case engine
+        case rate
+        case volume
+        case style
+        case role
+    }
+    
+    required public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.engine = try container.decode(String.self, forKey: .engine)
+        self.rate = try container.decode(Double.self, forKey: .rate)
+        self.volume = try container.decode(Double.self, forKey: .volume)
+        self.style = try container.decode(String.self, forKey: .style)
+        self.role = try container.decode(String.self, forKey: .role)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(engine, forKey: .engine)
+        try container.encode(rate, forKey: .rate)
+        try container.encode(volume, forKey: .volume)
+        try container.encode(style, forKey: .style)
+        try container.encode(role, forKey: .role)
+    }
 
     static func GetDefault() -> RoleVoice {
         return defaultRoleVoice
@@ -155,7 +348,6 @@ public class RoleVoice: ObservableObject {
     }
 }
 
-
 public let DefaultRoles: [RoleBiz] = [
     RoleBiz(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
@@ -164,8 +356,11 @@ public let DefaultRoles: [RoleBiz] = [
         avatar: "https://static.funzm.com/chateverything/avatars/avatar7.jpeg",
         prompt: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。",
         language: "en-US",
-        voice: defaultRoleVoice,
-        created_at: Date()
+        created_at: Date(),
+        config: RoleConfig(
+            voice: defaultRoleVoice,
+            llm: defaultRoleLLM
+        )
     ),
     RoleBiz(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
@@ -174,8 +369,11 @@ public let DefaultRoles: [RoleBiz] = [
         avatar: "https://static.funzm.com/chateverything/avatars/avatar6.jpeg",
         prompt: "你是一个AI助手，请回答用户的问题。",
         language: "en-US",
-        voice: defaultRoleVoice,
-        created_at: Date()
+        created_at: Date(),
+        config: RoleConfig(
+            voice: defaultRoleVoice,
+            llm: defaultRoleLLM
+        )
     ),
     RoleBiz(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
@@ -184,8 +382,11 @@ public let DefaultRoles: [RoleBiz] = [
         avatar: "https://static.funzm.com/chateverything/avatars/avatar1.jpeg",
         prompt: "你是一位经验丰富的英语口语教练。你需要：1. 帮助学生提升口语表达能力 2. 纠正发音错误 3. 教授地道的英语表达方式 4. 模拟真实对话场景 5. 给出详细的改进建议。请用简单友好的方式与学生交流。",
         language: "en-US",
-        voice: defaultRoleVoice,
-        created_at: Date()
+        created_at: Date(),
+        config: RoleConfig(
+            voice: defaultRoleVoice,
+            llm: defaultRoleLLM
+        )
     ),
     RoleBiz(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
@@ -194,8 +395,11 @@ public let DefaultRoles: [RoleBiz] = [
         avatar: "https://static.funzm.com/chateverything/avatars/avatar2.jpeg",
         prompt: "あなたは親切な日本語会話パートナーです。学習者の日本語レベルに合わせて、簡単な日常会話から高度な議論まで対応できます。日本の文化や習慣についても説明し、自然な日本語の使い方を教えてください。",
         language: "ja-JP",
-        voice: defaultRoleVoice,
-        created_at: Date()
+        created_at: Date(),
+        config: RoleConfig(
+            voice: defaultRoleVoice,
+            llm: defaultRoleLLM
+        )
     ),
     RoleBiz(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!,
@@ -204,8 +408,11 @@ public let DefaultRoles: [RoleBiz] = [
         avatar: "https://static.funzm.com/chateverything/avatars/avatar3.jpeg",
         prompt: "你是一位经验丰富的托福考试指导老师。你需要：1. 根据学生的目标分数制定学习计划 2. 讲解各个科目的考试技巧 3. 分析真题并提供详细解答 4. 指出常见错误并给出改进建议 5. 提供高效的备考方法。请用专业且易懂的方式回答问题。",
         language: "en-US",
-        voice: defaultRoleVoice,
-        created_at: Date()
+        created_at: Date(),
+        config: RoleConfig(
+            voice: defaultRoleVoice,
+            llm: defaultRoleLLM
+        )
     ),
     RoleBiz(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!,
@@ -214,7 +421,10 @@ public let DefaultRoles: [RoleBiz] = [
         avatar: "https://static.funzm.com/chateverything/avatars/avatar4.jpeg",
         prompt: "Eres un profesor de español entusiasta y paciente. Tu objetivo es: 1. Enseñar español de manera natural y efectiva 2. Explicar la gramática de forma clara 3. Compartir conocimientos sobre la cultura hispana 4. Practicar conversación 5. Corregir errores con amabilidad. Por favor, adapta tu nivel de español según el estudiante.",
         language: "es-ES",
-        voice: defaultRoleVoice,
-        created_at: Date()
+        created_at: Date(),
+        config: RoleConfig(
+            voice: defaultRoleVoice,
+            llm: defaultRoleLLM
+        )
     )
 ]

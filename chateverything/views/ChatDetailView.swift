@@ -5,8 +5,9 @@ import Speech
 import LLM
 
 class ChatDetailViewModel: ObservableObject {
+    let config: Config
     let store: ChatStore
-    let session: ChatSessionBiz
+    @Published var session: ChatSessionBiz
 
     @Published var loading = true
     @Published var disabled = true
@@ -14,9 +15,10 @@ class ChatDetailViewModel: ObservableObject {
     @Published var promptPopoverVisible = false
     @Published var permissionAlertVisible = false
     @Published var error: String?
-    @Published var messages: [ChatBoxBiz] = []
+    @Published var boxes: [ChatBoxBiz] = []
 
-    init(id: UUID, store: ChatStore) {
+    init(id: UUID, config: Config, store: ChatStore) {
+        self.config = config
         self.store = store
         self.session = ChatSessionBiz(
             id: id,
@@ -25,11 +27,13 @@ class ChatDetailViewModel: ObservableObject {
             avatar_uri: "",
             boxes: [],
             members: [],
+            config: ChatSessionConfig(blurMsg: false, autoSpeaking: false),
             store: store
         )
     }
     func load() {
-        self.session.load(id: self.session.id, in: self.store)
+        self.session.load(id: self.session.id, config: self.config)
+        self.boxes = self.session.boxes
     }
     func showPermissionAlert() {
         self.permissionAlertVisible = true
@@ -40,9 +44,12 @@ class ChatDetailViewModel: ObservableObject {
     func showPromptPopover() {
         self.promptPopoverVisible = true
     }
-    func appendMessage(message: ChatBoxBiz) {
-        self.session.append(box: message)
-        self.messages.append(message)
+    func appendMessage(box: ChatBoxBiz) {
+        print("Appending message to session")
+        DispatchQueue.main.async {
+            self.objectWillChange.send()
+            self.session.append(box: box)
+        }
     }
 }
 
@@ -64,7 +71,7 @@ struct ChatDetailView: View {
         self.sessionId = sessionId
         self.config = config
         self.store = config.store
-        _model = StateObject(wrappedValue: ChatDetailViewModel(id: sessionId, store: config.store))
+        _model = StateObject(wrappedValue: ChatDetailViewModel(id: sessionId, config: config, store: config.store))
         _recorder = StateObject(wrappedValue: AudioRecorder())
     }
 
@@ -190,7 +197,7 @@ struct ChatDetailView: View {
             print("recognizedText is empty")
             return
         }
-        print("handleRecognizedSpeech \(recognizedText)")
+        // print("handleRecognizedSpeech \(recognizedText)")
         let viewModel = self.model
         let userMessage = ChatBoxBiz(
             id: UUID(),
@@ -211,40 +218,20 @@ struct ChatDetailView: View {
             loading: false,
             blurred: false
         )
-        viewModel.appendMessage(message: userMessage)
-        // let loadingMessage = ChatBoxBiz(
-        //     id: UUID(),
-        //     type: "message",
-        //     created_at: Date(),
-        //     isMe: false,
-        //     payload_id: UUID(),
-        //     session_id: viewModel.session.id,
-        //     sender_id: UUID(),
-        //     payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: []))
-        // )
-        // viewModel.appendMessage(message: loadingMessage)
+        viewModel.session.append(box: userMessage) { boxes in
+            print("Current box count: \(boxes.count)")
+            viewModel.boxes = boxes
+        }
 
-        // Task {
-        //     do {
-        //         let response = try await viewModel.session.llm.fakeChat(content: recognizedText)
-        //         // @todo 这部分要根据 Role 来支持自定义，等于说，系统 Role 还要带一个 ResponseHandler 函数
-        //         // 比如[OneQuestion]，提示词要求返回 JSON，那么这个机器人就要解析对应JSON，并且给出不一样的对话气泡
-        //         // 那么等于说这个机器人就是「插件」了
-        //         // ok，OneQuestion 只进行一次对话，即接受用户的输入，对用户输入和问题进行评价，并给出评分，然后结束对话
-        //         if let payload = loadingMessage.controller?.payload as? ChatPayload.message {
-        //             payload.updateText(text: response)
-        //         }
-        //         loadingMessage.isLoading = false
-        //         loadingMessage.isBlurred = true
-        //         // toggleSpeaking(message: loadingMessage)
-        //     } catch {
-        //         loadingMessage.isLoading = false
-        //         loadingMessage.type = "error"
-        //         loadingMessage.controller?.setPayload(
-        //             payload: ChatPayload.error(ChatErrorBiz(error: "发生了错误"))
-        //         )
-        //     }
-        // }
+        for member in viewModel.session.members {
+            if let role = member.role {
+                let box = role.response(text: recognizedText, session: viewModel.session, config: config)
+                viewModel.session.append(box: box) { boxes in
+                    print("Current box count: \(boxes.count)")
+                    viewModel.boxes = boxes
+                }
+            }
+        }
     }
     
     
@@ -287,6 +274,7 @@ struct ChatDetailView: View {
         }
         .onAppear {
             setupRecorderCallbacks()
+            model.load()
         }
         .onDisappear {
             self.recorder.cleanup()
@@ -341,21 +329,24 @@ private struct ChatMessageList: View {
         ScrollView {
             ScrollViewReader { proxy in
                 LazyVStack(spacing: 12) {
-                    ForEach(model.messages) { box in
+                    ForEach(Array(model.boxes.enumerated()), id: \.element.id) { index, box in
                         ChatBoxView(
-                            box: box,
+                            box: model.boxes[index],
                             recorder: recorder,
                             onSpeakToggle: onSpeakToggle
                         )
-                        .id(box.id)
+                        .id(model.boxes[index].id)
                     }
                 }
                 .padding()
-                .padding(.bottom, 180) // Add padding for InputBarView
-                .onChange(of: model.messages) { _ in
-                    if let lastMessage = model.messages.last {
+                Color.clear
+                    .frame(height: 180)
+                    .id("bottomSpacer")
+                .onChange(of: model.boxes) { newBoxes in
+                    print("Messages updated in view: \(newBoxes.count)")
+                    if let lastMessage = newBoxes.last {
                         withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            proxy.scrollTo("bottomSpacer", anchor: .bottom)
                         }
                     }
                 }
@@ -506,7 +497,7 @@ struct TextNodeView: View {
 }
 
 
-// 消息内容视图
+// 文本消息视图
 private struct MessageContentView: View {
     @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatMessageBiz2
@@ -790,7 +781,7 @@ struct QuizContentView: View {
                 Text("评估")
                     .font(.subheadline)
                     .foregroundColor(.gray)
-                Text(data.question)
+                Text(data.title)
                     .font(.headline)
             }
             
@@ -832,7 +823,7 @@ struct QuizContentView: View {
                 HStack {
                     Image(systemName: "info.circle")
                     Text(data.attempts == 1 ? "第一次尝试" : "第 \(data.attempts) 次尝试")
-                    if data.isCorrect {
+                    if data.corrected {
                         Text("- 答对了！")
                             .foregroundColor(.green)
                     }
