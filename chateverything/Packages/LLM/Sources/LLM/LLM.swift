@@ -100,6 +100,9 @@ public class LLMService: ObservableObject {
     private var prompt: String
     private var messages: [Message]
     
+    // 添加一个属性来存储当前的数据任务
+    private var currentTask: URLSessionDataTask?
+    
     public init(value: LLMValues, prompt: String = "") {
         self.value = value
         self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
@@ -114,6 +117,12 @@ public class LLMService: ObservableObject {
         self.value = value
         self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
         self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(id: "", name: "")
+    }
+
+    public func fakeChat(content: String) async throws -> String {
+        // 延迟2秒 (2000000000 纳秒 = 2秒)
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+        return "This is a fake response for: \(content)"
     }
     
     public func chat(content: String) async throws -> String {
@@ -174,6 +183,118 @@ public class LLMService: ObservableObject {
             
         } catch {
             throw error
+        }
+    }
+
+    // 添加取消方法
+    public func cancel() {
+        currentTask?.cancel()
+        currentTask = nil
+    }
+
+    public func chatStream(content: String) async throws -> AsyncThrowingStream<String, Error> {
+        // 添加用户消息
+        let userMessage = Message(role: "user", content: content)
+        messages.append(userMessage)
+        
+        let apiProxyAddress = value.apiProxyAddress ?? provider.apiProxyAddress
+        let apiKey = value.apiKey ?? provider.apiKey
+        print("[Package]LLM chatStream: \(model.name) \(apiProxyAddress) \(apiKey)")
+
+        guard let url = URL(string: apiProxyAddress) else {
+            throw NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
+        }
+        
+        let requestBody = ChatRequest(
+            model: model.name,
+            messages: messages,
+            format: "json",
+            stream: true
+        )
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        return AsyncThrowingStream { continuation in
+            // Declare task as a variable first
+            var task: URLSessionDataTask?
+            
+            task = URLSession.shared.dataTask(with: request) { data, response, error in
+                // Store task reference
+                self.currentTask = task
+                
+                // 检查是否被取消
+                if let error = error as NSError?, error.code == NSURLErrorCancelled {
+                    continuation.finish()
+                    return
+                }
+                
+                if let error = error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"]))
+                    return
+                }
+                
+                guard httpResponse.statusCode == 200 else {
+                    continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "API request failed: HTTP \(httpResponse.statusCode)"]))
+                    return
+                }
+                
+                guard let data = data else {
+                    continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "No data received"]))
+                    return
+                }
+                
+                // 处理 SSE 格式的响应
+                let responseText = String(decoding: data, as: UTF8.self)
+                let lines = responseText.components(separatedBy: "\n")
+                
+                var fullContent = ""
+                
+                for line in lines {
+                    guard !line.isEmpty else { continue }
+                    
+                    if line == "data: [DONE]" {
+                        // 流结束时，将完整内容添加到消息历史
+                        let assistantMessage = Message(role: "assistant", content: fullContent)
+                        self.messages.append(assistantMessage)
+                        continuation.finish()
+                        return
+                    }
+                    
+                    guard line.hasPrefix("data: ") else { continue }
+                    
+                    let jsonString = String(line.dropFirst(6))
+                    do {
+                        if let jsonData = jsonString.data(using: .utf8),
+                           let response = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                           let choices = response["choices"] as? [[String: Any]],
+                           let delta = choices.first?["delta"] as? [String: Any],
+                           let content = delta["content"] as? String {
+                            fullContent += content
+                            continuation.yield(content)
+                        }
+                    } catch {
+                        print("Error parsing JSON: \(error)")
+                        continue
+                    }
+                }
+            }
+            
+            // Start the task
+            task?.resume()
+            
+            continuation.onTermination = { @Sendable _ in
+                task?.cancel()
+                self.currentTask = nil
+            }
         }
     }
     

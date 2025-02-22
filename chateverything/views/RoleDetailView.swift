@@ -196,10 +196,18 @@ struct ModelListView: View {
 }
 
 struct EnabledLanguageModelsView: View {
-    @State var providers = Config.shared.enabledProviders
+    @EnvironmentObject var config: Config
+    @State var providers: [LLMProviderController] = []
     // @State var values = Config.shared.languageProviderValues
     @ObservedObject var role: RoleBiz
     @ObservedObject var session: ChatSessionBiz
+
+    init(role: RoleBiz, session: ChatSessionBiz) {
+        self.role = role
+        self.session = session
+
+        _providers = State(initialValue: config.enabledProviders)
+    }
 
     // 添加派生字段，过滤掉 isEnabled 为 false 的值
 //    private var enabledValues: [LanguageProvider] {
@@ -214,7 +222,8 @@ struct EnabledLanguageModelsView: View {
     var body: some View {
         ForEach(providers, id: \.id) { (provider: LLMProviderController) in
                 Section {
-                    ModelListView(controller: provider, llm: self.session.llm)
+                    Text("Hello")
+//                    ModelListView(controller: provider, llm: self.session.llm)
                 } header: {
                     HStack {
                         Image(provider.provider.logo_uri)

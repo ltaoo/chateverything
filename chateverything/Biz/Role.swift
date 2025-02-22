@@ -5,22 +5,28 @@ import LLM
 public class RoleBiz: ObservableObject, Identifiable {
     public var id: UUID
     public var name: String
-    public var description: String
+    public var desc: String
     public var avatar: String
     public var prompt: String
     public var language: String
     public var voice: RoleVoice
     public var created_at: Date
-    
-    init(id: UUID, name: String, description: String, avatar: String, prompt: String, language: String, voice: RoleVoice, created_at: Date) {
+
+    init(id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String, voice: RoleVoice, created_at: Date) {
         self.id = id
         self.name = name
-        self.description = description
+        self.desc = desc
         self.avatar = avatar
         self.prompt = prompt
         self.language = language
         self.voice = voice
         self.created_at = created_at
+
+        // let matchedProvider = Config.shared.languageProviders.first!
+        // let llm = LLMService(
+        //     value: LLMValues(provider: matchedProvider.name, model: matchedProvider.models.first!.name ?? "", apiProxyAddress: matchedProvider.apiProxyAddress, apiKey: matchedProvider.apiKey),
+        //     prompt: ""
+        // )
     }
     
     // mutating func saveSettings(_ settings: RoleSettingsV2) throws {
@@ -34,7 +40,7 @@ public class RoleBiz: ObservableObject, Identifiable {
     static func from(_ entity: Role) -> RoleBiz? {
         let id = entity.id ?? UUID()
         let name = entity.name ?? ""
-        let avatar = entity.avatar ?? ""
+        let avatar = entity.avatar_uri ?? ""
         let prompt = entity.prompt ?? ""
         // let settings = entity.settings ?? ""
         let created_at = entity.created_at ?? Date()
@@ -42,7 +48,7 @@ public class RoleBiz: ObservableObject, Identifiable {
         return RoleBiz(
             id: id,
             name: name,
-            description: "",
+            desc: "",
             avatar: avatar,
             prompt: prompt,
             language: "en-US",
@@ -122,17 +128,23 @@ struct AnyCodable: Codable {
     }
 } 
 
-public struct RoleVoice {
+public let defaultRoleVoice = RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: "")
+
+public class RoleVoice: ObservableObject {
     // 引擎，目前支持 QCloud、System
-    var engine: String
+    @Published var engine: String
     // 语速
-    var rate: Double
+    @Published var rate: Double
     // 音量
-    var volume: Double
+    @Published var volume: Double
     // 情感表现
-    var style: String
+    @Published var style: String
     // 角色 id
-    var role: String
+    @Published var role: String
+
+    static func GetDefault() -> RoleVoice {
+        return defaultRoleVoice
+    }
 
     init(engine: String, rate: Double, volume: Double, style: String, role: String) {
         self.engine = engine
@@ -143,25 +155,28 @@ public struct RoleVoice {
     }
 }
 
+public let role0UUID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+public let role1UUID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+public let role2UUID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
 public let DefaultRoles = [
     RoleBiz(
-        id: UUID(),
+        id: role1UUID,
         name: "雅思助教",
-        description: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。回复内容限制在100字以内。",
+        desc: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。回复内容限制在100字以内。",
         avatar: "",
         prompt: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。",
         language: "",
-        voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
+        voice: defaultRoleVoice,
         created_at: Date()
     ),
     RoleBiz(
-        id: UUID(),
+        id: role2UUID,
         name: "AI助手",
-        description: "你是一个AI助手，请回答用户的问题。回复内容限制在100字以内。",
+        desc: "你是一个AI助手，请回答用户的问题。回复内容限制在100字以内。",
         avatar: "",
         prompt: "你是一个AI助手，请回答用户的问题。",
         language: "",
-        voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
+        voice: defaultRoleVoice,
         created_at: Date()
     )
 ]

@@ -15,10 +15,11 @@ struct ChatEverythingApp: App {
     let container = PersistenceController.container
     // @StateObject var store: ChatStore
     var store: ChatStore
-
+    var config: Config
     init() {
         // store = ChatStore(container: PersistenceController.container)
         store = ChatStore(container: container)
+        config = Config(store: store)
         // _store = StateObject(wrappedValue: ChatStore(container: container))
         
         // let fetchRequest: NSFetchRequest<UserEntity> = UserEntity.fetchRequest()
@@ -80,6 +81,7 @@ struct ChatEverythingApp: App {
             ContentView()
                 .environment(\.managedObjectContext, container.viewContext)
                 .environmentObject(store)
+                .environmentObject(config)
         }
     }
 }

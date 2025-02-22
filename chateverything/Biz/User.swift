@@ -7,7 +7,7 @@ struct UserBiz {
     var avatar: String
     var created_at: Date
     
-    static func from(_ entity: UserEntity) -> UserBiz? {
+    static func from(_ entity: User) -> UserBiz? {
         guard let id = entity.id,
               let name = entity.name,
               let avatar = entity.avatar,

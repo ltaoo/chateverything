@@ -57,12 +57,11 @@ public let DefaultProviderValue = ProviderValue(
 )
 
 class Config: ObservableObject {
-    static let shared = Config()
-
+    let store: ChatStore
     // 系统固定角色
-    var roles: [RoleEntity] = []
+    var roles: [RoleBiz] = []
 
-    var userId: UUID
+    var me: RoleBiz
     var languageProviders: [LanguageProvider]
     var languageProviderValues: [String:ProviderValue] = [:]
     var languageProviderControllers: [LLMProviderController]
@@ -74,13 +73,31 @@ class Config: ObservableObject {
     @Published var apiProxyAddress: String?
     @Published var apiKey: String?
     
-    private init() {
-        if let userIdString = UserDefaults.standard.string(forKey: "userId") {
-            self.userId = UUID(uuidString: userIdString) ?? UUID()
-        } else {
-            self.userId = UUID()
-            UserDefaults.standard.set(self.userId.uuidString, forKey: "userId")
-        }
+    init(store: ChatStore) {
+        self.store = store
+        // if let userIdString = UserDefaults.standard.string(forKey: "userId") {
+        //     let id = UUID(uuidString: userIdString) ?? UUID()
+            
+        // } else {
+        //     let id = UUID()
+        //     self.my = RoleBiz(
+        //         id: id,
+        //         name: "小明",
+        //         avatar_uri: "",
+        //         store: store
+        //     )
+        //     UserDefaults.standard.set(id.uuidString, forKey: "userId")
+        // }
+        self.me = RoleBiz(
+            id: role0UUID,
+            name: "u5x9k4",
+            desc: "",
+            avatar: "",
+            prompt: "",
+            language: "",
+            voice: RoleVoice.GetDefault(),
+            created_at: Date()
+        )
 
         if let languageProviderValues: [String:ProviderValue] = UserDefaults.standard.object(forKey: "provider_values") as? [String:ProviderValue] {
             var values: [String: ProviderValue] = [:]

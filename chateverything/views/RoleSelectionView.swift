@@ -21,7 +21,7 @@ struct RoleSelectionView: View {
                             DispatchQueue.main.async {
                                 isLoading = true
                             }
-                            store.addSession(id: UUID(), user1_id: role.id, user2_id: Config.shared.userId)
+                            // store.addSession(id: UUID(), user1_id: role.id, user2_id: Config.shared.userId)
     // DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
     //                                 isLoading = false
     //                                     path.append(Route.ChatDetailView(roleId: role.id))
@@ -108,23 +108,23 @@ class RoleSelectionViewModel: ObservableObject {
     }
     
     func createChatSession(for role: RoleBiz, in context: NSManagedObjectContext, completion: @escaping (Bool) -> Void) {
-        guard let entity = NSEntityDescription.entity(forEntityName: "ChatSession", in: context) else {
-            completion(false)
-            return
-        }
+        // guard let entity = NSEntityDescription.entity(forEntityName: "ChatSession", in: context) else {
+        //     completion(false)
+        //     return
+        // }
         
-        let session = ChatSession(entity: entity, insertInto: context)
-        session.id = UUID()
-        session.user1_id = role.id
-        session.user2_id = Config.shared.userId
-        session.created_at = Date()
+        // let session = ChatSession(entity: entity, insertInto: context)
+        // session.id = UUID()
+        // session.user1_id = role.id
+        // session.user2_id = Config.shared.userId
+        // session.created_at = Date()
         
-        do {
-            try context.save()
-            completion(true)
-        } catch {
-            print("Error saving chat session: \(error)")
-            completion(false)
-        }
+        // do {
+        //     try context.save()
+        //     completion(true)
+        // } catch {
+        //     print("Error saving chat session: \(error)")
+        //     completion(false)
+        // }
     }
 } 

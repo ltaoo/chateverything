@@ -1,43 +1,75 @@
 import Foundation
 import CoreData
 
-class ChatBoxBiz: ObservableObject {
+class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
     var id: UUID
-    var payload_id: UUID
-    var session_id: UUID
     var type: String
     var created_at: Date
+    var isMe: Bool
+    var payload_id: UUID
+    var session_id: UUID
+    var sender_id: UUID
     @Published var loading: Bool = true
+    @Published var blurred: Bool = false
+    @Published var speaking: Bool = false
+    @Published var playing: Bool = false
     @Published var payload: ChatPayload?
 
     enum CodingKeys: String, CodingKey {
-        case id, payload_id, session_id, type, created_at, loading, payload
+        case id, payload_id, session_id, receiver_id, sender_id, type, created_at
     }
     
-    init(id: UUID, type: String, payload_id: UUID, created_at: Date, session_id: UUID, payload: ChatPayload?) {
+    init(
+        id: UUID,
+        type: String,
+        created_at: Date,
+        isMe: Bool,
+        payload_id: UUID,
+        session_id: UUID,
+        sender_id: UUID,
+        payload: ChatPayload?,
+        loading: Bool = false,
+        blurred: Bool = false
+    ) {
         self.id = id
         self.type = type
-        self.payload_id = payload_id
         self.created_at = created_at
+        self.isMe = isMe
+        self.payload_id = payload_id
         self.session_id = session_id
+        self.sender_id = sender_id
         self.payload = payload
+        self.loading = loading
+        self.blurred = blurred
+    }
+
+    static func ==(lhs: ChatBoxBiz, rhs: ChatBoxBiz) -> Bool {
+        return lhs.id == rhs.id
     }
     
-    static func from(_ entity: ChatBoxEntity) -> ChatBoxBiz? {
-        guard let id = entity.id,
-              let type = entity.type,
-              let payload_id = entity.payload_id,
-              let created_at = entity.created_at,
-              let session_id = entity.session_id else {
-            return nil
-        }
+    static func from(_ entity: ChatBox, store: ChatStore) -> ChatBoxBiz {
+        // guard let id = entity.id,
+        //       let type = entity.type,
+        //       let payload_id = entity.payload_id,
+        //       let created_at = entity.created_at,
+        //       let session_id = entity.session_id else {
+        //     return nil
+        // }
+        let id = entity.id ?? UUID()
+        let type = entity.type ?? ""
+        let created_at = entity.created_at ?? Date()
+        let session_id = entity.session_id ?? UUID()
+        let payload_id = entity.payload_id ?? UUID()
+        let sender_id = entity.sender_id ?? UUID()
         
         return ChatBoxBiz(
             id: id,
             type: type,
-            payload_id: payload_id,
             created_at: created_at,
+            isMe: false,
+            payload_id: payload_id,
             session_id: session_id,
+            sender_id: sender_id,
             payload: nil
         )
     }
@@ -47,9 +79,17 @@ class ChatBoxBiz: ObservableObject {
         self.payload = payload
     }
 
+    func blur() {
+        self.blurred = true
+    }
+
+    func unblur() {
+        self.blurred = false
+    }
+
     func load(store: ChatStore) {
         if self.type == "message" {
-            let req = NSFetchRequest<ChatMessage>(entityName: "ChatMessage")
+            let req = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
             req.predicate = NSPredicate(format: "id == %@", self.payload_id as! any CVarArg as CVarArg)
             if let message = try! store.container.viewContext.fetch(req).first {
                 self.payload = .message(ChatMessageBiz2(text: "发出的消息", nodes: []))
@@ -63,7 +103,7 @@ class ChatBoxBiz: ObservableObject {
         //     }
         // }
         if self.type == "question" {
-            let req = NSFetchRequest<ChatQuestion>(entityName: "ChatQuestion")
+            let req = NSFetchRequest<ChatMsgPuzzle>(entityName: "ChatMsgPuzzle")
             req.predicate = NSPredicate(format: "id == %@", self.payload_id as! any CVarArg as CVarArg)
             if let question = try! store.container.viewContext.fetch(req).first {
                 let options = [
@@ -73,6 +113,94 @@ class ChatBoxBiz: ObservableObject {
                 ]
                 self.payload = .puzzle(ChatPuzzleBiz(question: "请选出正确的选项", options: options, correctOption: options[0], selectedOption: nil, isCorrect: false))
             }
+        }
+    }
+    func save(sessionId: UUID, store: ChatStore) {
+        let context = store.container.viewContext
+        
+        // Check if record already exists
+        let fetchRequest = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+        fetchRequest.predicate = NSPredicate(format: "id == %@", self.id as CVarArg)
+        
+        do {
+            let existingRecords = try context.fetch(fetchRequest)
+            if !existingRecords.isEmpty {
+                // Record already exists, skip saving
+                return
+            }
+            
+            // Create new record
+            let entity = ChatBox(context: context)
+            entity.id = self.id
+            entity.type = self.type
+            entity.payload_id = self.payload_id
+            entity.created_at = self.created_at
+            entity.session_id = self.session_id
+            
+            // Save payload based on type
+            if let payload = self.payload {
+                switch payload {
+                case .message(let messageBiz):
+                    let messageCheck = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
+                    messageCheck.predicate = NSPredicate(format: "id == %@", self.payload_id as CVarArg)
+                    if try context.fetch(messageCheck).isEmpty {
+                        let message = ChatMsgContent(context: context)
+                        message.id = self.payload_id
+                        message.text = messageBiz.text
+                    }
+                    
+                case .audio(let audioBiz):
+                    let audioCheck = NSFetchRequest<ChatMsgAudio>(entityName: "ChatMsgAudio")
+                    audioCheck.predicate = NSPredicate(format: "id == %@", self.payload_id as CVarArg)
+                    if try context.fetch(audioCheck).isEmpty {
+                        let audio = ChatMsgAudio(context: context)
+                        audio.id = self.payload_id
+                        audio.text = audioBiz.text
+                        audio.uri = audioBiz.url
+                        audio.duration = audioBiz.duration
+                    }
+                    
+                // case .puzzle(let puzzleBiz):
+                //     let puzzleCheck = NSFetchRequest<ChatQuestion>(entityName: "ChatQuestion")
+                //     puzzleCheck.predicate = NSPredicate(format: "id == %@", self.payload_id as CVarArg)
+                //     if try context.fetch(puzzleCheck).isEmpty {
+                //         let puzzle = ChatQuestion(context: context)
+                //         puzzle.id = self.payload_id
+                //         puzzle.question = puzzleBiz.question
+                //         // Save other puzzle properties as needed
+                //     }
+                    
+                // case .image(let imageBiz):
+                //     let imageCheck = NSFetchRequest<ChatImage>(entityName: "ChatImage")
+                //     imageCheck.predicate = NSPredicate(format: "id == %@", self.payload_id as CVarArg)
+                //     if try context.fetch(imageCheck).isEmpty {
+                //         let image = ChatImage(context: context)
+                //         image.id = self.payload_id
+                //         image.url = imageBiz.url
+                //         image.width = imageBiz.width
+                //         image.height = imageBiz.height
+                //     }
+                    
+                // case .video(let videoBiz):
+                //     let videoCheck = NSFetchRequest<ChatVideo>(entityName: "ChatVideo")
+                //     videoCheck.predicate = NSPredicate(format: "id == %@", self.payload_id as CVarArg)
+                //     if try context.fetch(videoCheck).isEmpty {
+                //         let video = ChatVideo(context: context)
+                //         video.id = self.payload_id
+                //         video.url = videoBiz.url
+                //         video.thumbnail = videoBiz.thumbnail
+                //         video.duration = videoBiz.duration
+                //     }
+                    
+                // Add other cases as needed
+                default:
+                    break
+                }
+            }
+            
+            try context.save()
+        } catch {
+            print("Error saving ChatBox: \(error)")
         }
     }
 } 

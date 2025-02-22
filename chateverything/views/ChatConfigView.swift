@@ -3,22 +3,22 @@ import CoreData
 
 struct ChatConfigView: View {
     @Binding var isPresented: Bool
-    let onComplete: (RoleEntity?) -> Void
+    let onComplete: (Role?) -> Void
     
     // 添加 CoreData 获取请求
     @FetchRequest(
-        entity: RoleEntity.entity(),
-        sortDescriptors: [NSSortDescriptor(keyPath: \RoleEntity.name, ascending: true)]
-    ) private var roles: FetchedResults<RoleEntity>
+        entity: Role.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \Role.name, ascending: true)]
+    ) private var roles: FetchedResults<Role>
     
-    @State private var selectedRole: RoleEntity?
+    @State private var selectedRole: Role?
     
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("选择角色")) {
                     Picker("角色", selection: $selectedRole) {
-                        Text("无").tag(Optional<RoleEntity>.none)
+                        Text("无").tag(Optional<Role>.none)
                         ForEach(roles, id: \.self) { role in
                             Text(role.name ?? "未命名").tag(Optional(role))
                         }

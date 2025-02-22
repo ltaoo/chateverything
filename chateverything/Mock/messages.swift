@@ -1,84 +1,80 @@
 import Foundation
 
 let MockMessages = [
-        LocalChatBox(
+        ChatBoxBiz(
             id: UUID(),
-            timestamp: Date(),
+            type: "message",
+            created_at: Date(),
             isMe: true,
-            isLoading: false,
-            type: "message",
-            audioURL: nil,
-            box: ChatBoxBiz(
-                id: UUID(),
-                type: "message",
-                payload_id: UUID(),
-                created_at: Date(),
-                session_id: UUID(),
-                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: []))
-            )
-        ),
-        LocalChatBox(
-            id: UUID(),
-            timestamp: Date(),
-            isMe: false,
-            isLoading: false,
-            type: "message",
-            audioURL: nil,
-            box: ChatBoxBiz(
-                id: UUID(),
-                type: "message",
-                payload_id: UUID(),
-                created_at: Date(),
-                session_id: UUID(),
-                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: []))
-            )
-        ),
-        LocalChatBox(
-            id: UUID(),
-            timestamp: Date(),
-            isMe: true,
-            isLoading: false,
-            type: "message",
-            audioURL: nil,
-            box: ChatBoxBiz(
-                id: UUID(),
-                type: "message",
-                payload_id: UUID(),
-                created_at: Date(),
-                session_id: UUID(),
-                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
-            )
-        ),
-        LocalChatBox(
-            id: UUID(),
-            timestamp: Date(),
-            isMe: true,
-            isLoading: false,
-            type: "message",
-            audioURL: nil,
-            box: ChatBoxBiz(
-                id: UUID(),
-                type: "message",
-                payload_id: UUID(),
-                created_at: Date(),
-                session_id: UUID(),
-                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
-            )
-        ),
-        LocalChatBox(
-            id: UUID(),
-            timestamp: Date(),
-            isMe: true,
-            isLoading: false,
-            type: "message",
-            audioURL: nil,
-            box: ChatBoxBiz(
-                id: UUID(),
-                type: "message",
-                payload_id: UUID(),
-                created_at: Date(),
-                session_id: UUID(),
-                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
-            )
-        ),
-    ]
+            payload_id: UUID(),
+            session_id: UUID(),
+            sender_id: UUID(),
+            payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: [])),
+            loading: false,
+            blurred: false
+        )
+        // LocalChatBox(
+        //     id: UUID(),
+        //     timestamp: Date(),
+        //     isMe: false,
+        //     isLoading: false,
+        //     type: "message",
+        //     box: ChatBoxBiz(
+        //         id: UUID(),
+        //         type: "message",
+        //         created_at: Date(),
+        //         isMe: false,
+        //         payload_id: UUID(),
+        //         session_id: UUID(),
+        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: []))
+        //     )
+        // ),
+        // LocalChatBox(
+        //     id: UUID(),
+        //     timestamp: Date(),
+        //     isMe: true,
+        //     isLoading: false,
+        //     type: "message",
+        //     box: ChatBoxBiz(
+        //         id: UUID(),
+        //         type: "message",
+        //         created_at: Date(),
+        //         isMe: true,
+        //         payload_id: UUID(),
+        //         session_id: UUID(),
+        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
+        //     )
+        // ),
+        // LocalChatBox(
+        //     id: UUID(),
+        //     timestamp: Date(),
+        //     isMe: true,
+        //     isLoading: false,
+        //     type: "message",
+        //     box: ChatBoxBiz(
+        //         id: UUID(),
+        //         type: "message",
+        //         created_at: Date(),
+        //         isMe: true,
+        //         payload_id: UUID(),
+        //         session_id: UUID(),
+        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
+        //     )
+        // ),
+        // LocalChatBox(
+        //     id: UUID(),
+        //     timestamp: Date(),
+        //     isMe: true,
+        //     isLoading: false,
+        //     type: "message",
+        //     box: ChatBoxBiz(
+        //         id: UUID(),
+        //         type: "message",
+        //         created_at: Date(),
+        //         isMe: true,
+        //         payload_id: UUID(),
+        //         session_id: UUID(),
+        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
+        //     )
+        // ),
+]

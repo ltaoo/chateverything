@@ -62,6 +62,7 @@ struct FetchParams: Codable {
 
 struct ContentView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var config: Config
     @StateObject private var capsuleVM = CapsuleButtonViewModel()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
     @State private var path = NavigationPath()
@@ -182,7 +183,7 @@ struct ContentView: View {
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .ChatDetailView(let sessionId):
-                    ChatDetailView(sessionId: sessionId, store: self.store).environmentObject(self.store)
+                    ChatDetailView(sessionId: sessionId, config: self.config).environmentObject(self.config)
                 case .VocabularyView(let filepath):
                     Vocabulary(filepath: filepath, path: self.path, store: self.store).environmentObject(self.store)
                 }
@@ -284,10 +285,10 @@ struct ChatRowView: View {
                 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(chatSession.name)
+                        Text(chatSession.title)
                             .font(.headline)
                         Spacer()
-                        Text(formatDate(chatSession.lastMessageTime))
+                        Text(formatDate(chatSession.created_at))
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
@@ -349,7 +350,7 @@ struct ChatListView: View {
                         Button(action: {
                             showingChatConfig = true
                         }) {
-                            ChatButton(icon: "🤖", text: "记录", onTap: {
+                            ChatButton(icon: "🤖", text: "想法", onTap: {
                                 showingChatConfig = true
                             })
                             ChatButton(icon: "📚", text: "单词", onTap: {

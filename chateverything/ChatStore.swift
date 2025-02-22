@@ -120,93 +120,22 @@ import CoreData
 
 class ChatStore: ObservableObject {
     @Published var sessions: [ChatSessionBiz] = []
-//    @Published var messages: [UUID: ChatMessageBiz] = [:]
-//    @Published var questions: [UUID: ChatQuestionBiz] = [:]
     
     public let container: NSPersistentContainer
-    private let sessionsKey = "chat_sessions"
-    private let messagesKey = "chat_messages"
-    private let questionsKey = "chat_questions"
-    // private let context = PersistenceController.container.viewContext
     
     init(container: NSPersistentContainer) {
         self.container = container
-        // container = NSPersistentContainer(name: "ChatEverything")
-        // container.loadPersistentStores { description, error in
-        //     if let error = error {
-        //         print("Core Data failed to load: \(error.localizedDescription)")
-        //     }
-        // }
-        
-        // loadData()
-    }
-    
-//     private func loadData() {
-//         // Load sessions from Core Data
-//         let request = NSFetchRequest<ChatSessionEntity>(entityName: "ChatSession")
-        
-//         do {
-//             let sessions = try container.viewContext.fetch(request)
-//             chatSessions = sessions.map { entity in
-//                 ChatSession(
-//                     id: entity.id ?? UUID(),
-//                     name: entity.user1 ?? "",
-//                     avatar: "",  // You might want to add this to Core Data as well
-//                     lastMessage: "",
-//                     lastMessageTime: entity.createdAt ?? Date(),
-//                     unreadCount: 0,
-//                     roleId: "",
-//                     modelId: ""
-//                 )
-//             }
-//         } catch {
-//             print("Error loading chat sessions from Core Data: \(error)")
-//         }
-        
-//         // Load messages and questions from UserDefaults as before
-//         if let data = UserDefaults.standard.data(forKey: messagesKey) {
-//             do {
-//                 messages = try JSONDecoder().decode([UUID: ChatMessageEntity].self, from: data)
-//             } catch {
-//                 print("Error loading messages: \(error)")
-//                 messages = [:]
-//             }
-//         }
-        
-//         if let data = UserDefaults.standard.data(forKey: questionsKey) {
-//             do {
-//                 questions = try JSONDecoder().decode([UUID: ChatQuestionEntity].self, from: data)
-//             } catch {
-//                 print("Error loading questions: \(error)")
-//                 questions = [:]
-//             }
-//         }
-//     }
-    
-    private func saveContext() {
-        if container.viewContext.hasChanges {
-            do {
-                try container.viewContext.save()
-            } catch {
-                print("Error saving context: \(error)")
-            }
-        }
     }
 
     func fetchSessions() {
         let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         let sessions = try? container.viewContext.fetch(request)
 
-        if sessions == nil {
-            return;
-        }
-
         var result: [ChatSessionBiz] = []
 
         for session in sessions! {
-            if let biz = ChatSessionBiz.from(id: session.id!, in: self) {
-                result.append(biz)
-            }
+            let biz = ChatSessionBiz.from(session, in: self)
+            result.append(biz)
         }
 
         self.sessions = result
@@ -216,94 +145,16 @@ class ChatStore: ObservableObject {
         let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         let session = try? container.viewContext.fetch(request).first
-        return ChatSessionBiz.from(id: session!.id!, in: self)
+        guard let session = session else {
+            return nil
+        }
+        return ChatSessionBiz.from(session, in: self)
     }
     
     func addSession(id: UUID, user1_id: UUID, user2_id: UUID) {
         print("addSession: \(id), \(user1_id), \(user2_id)")
-
-        //  guard let entity = NSEntityDescription.entity(forEntityName: "ChatSession", in: container.viewContext) else {
-        //     fatalError("Failed to initialize ChatSessionEntity")
-        // }
-
-        // let newSession = ChatSession(entity: entity, insertInto: container.viewContext)
-        // newSession.id = id
-        // newSession.user1_id = user1_id
-        // newSession.user2_id = user2_id
-        // newSession.created_at = Date()
-        
-        // saveContext()
-        
-        // Update the published array
-        // sessions.insert(session, at: 0)
     }
     
-//     func deleteSession(at indexSet: IndexSet) {
-//         // Delete from Core Data
-//         let request = NSFetchRequest<ChatSessionEntity>(entityName: "ChatSession")
-        
-//         indexSet.forEach { index in
-//             let sessionId = chatSessions[index].id
-//             request.predicate = NSPredicate(format: "id == %@", sessionId as CVarArg)
-            
-//             do {
-//                 let sessions = try container.viewContext.fetch(request)
-//                 sessions.forEach { session in
-//                     container.viewContext.delete(session)
-//                 }
-//                 try container.viewContext.save()
-//             } catch {
-//                 print("Error deleting session: \(error)")
-//             }
-//         }
-        
-//         // Update the published array
-//         chatSessions.remove(atOffsets: indexSet)
-//     }
-    
-//     func updateSession(_ session: ChatSession) {
-//         if let index = chatSessions.firstIndex(where: { $0.id == session.id }) {
-//             chatSessions[index] = session
-//             saveContext()
-//         }
-//     }
-    
-//     func addMessage(_ message: ChatMessage, to sessionId: UUID) {
-//         if let index = chatSessions.firstIndex(where: { $0.id == sessionId }) {
-//             messages[message.id] = message
-//             var session = chatSessions[index]
-//             session.messageIds.append(message.id)
-//             session.lastMessage = message.content
-//             session.lastMessageTime = message.timestamp
-//             chatSessions[index] = session
-//             saveContext()
-//         }
-//     }
-    
     func loadInitialSessions(limit: Int) {
-        // let fetchRequest: NSFetchRequest<ChatSessionEntity> = ChatSessionEntity.fetchRequest()
-        // fetchRequest.fetchLimit = limit
-        // fetchRequest.sortDescriptors = [
-        //     NSSortDescriptor(keyPath: \ChatSessionEntity.lastMessageTime, ascending: false)
-        // ]
-        
-        // do {
-        //     let results = try context.fetch(fetchRequest)
-        //     self.chatSessions = results.map { entity in
-        //         ChatSession(
-        //             id: entity.id ?? UUID(),
-        //             name: entity.name ?? "",
-        //             avatar: entity.avatar ?? "person.circle.fill",
-        //             lastMessage: entity.lastMessage ?? "",
-        //             lastMessageTime: entity.lastMessageTime ?? Date(),
-        //             unreadCount: Int(entity.unreadCount),
-        //             messages: [], // 这里可以根据需要加载消息
-        //             roleId: entity.roleId ?? "",
-        //             modelId: entity.modelId ?? ""
-        //         )
-        //     }
-        // } catch {
-        //     print("Error loading chat sessions: \(error)")
-        // }
     }
 } 

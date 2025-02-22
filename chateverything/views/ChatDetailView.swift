@@ -4,51 +4,9 @@ import AVFoundation
 import Speech
 import LLM
 
-
-class LocalChatBox: ObservableObject, Identifiable, Equatable {
-    let id: UUID
-    let timestamp: Date
-    let isMe: Bool
-    var type: String
-
-    @Published var controller: ChatBoxBiz?
-    // var type: String {
-    //     get { controller?.type ?? "unkown" }
-    // }
-
-    @Published var audioURL: URL?
-    @Published var isLoading: Bool = true
-    @Published var isBlurred: Bool = false
-    @Published var isPlaying: Bool = false
-    @Published var isSpeaking: Bool = false
-    
-    init(id: UUID = UUID(), timestamp: Date = Date(), isMe: Bool, isLoading: Bool = true, type: String, audioURL: URL? = nil, box: ChatBoxBiz) {
-        self.id = id
-        self.timestamp = timestamp
-        self.isMe = isMe
-        self.isLoading = isLoading
-        self.type = type
-        self.audioURL = audioURL
-        self.controller = box
-    }
-
-    static func ==(first: LocalChatBox, second: LocalChatBox) -> Bool {
-        return first.id == second.id
-    }
-
-    func blur() {
-        self.isBlurred = true
-    }
-
-    func unblur() {
-        self.isBlurred = false
-    }
-}
-
 class ChatDetailViewModel: ObservableObject {
     let store: ChatStore
     let session: ChatSessionBiz
-    let role: RoleBiz
 
     @Published var loading = true
     @Published var disabled = true
@@ -56,61 +14,23 @@ class ChatDetailViewModel: ObservableObject {
     @Published var promptPopoverVisible = false
     @Published var permissionAlertVisible = false
     @Published var error: String?
-    @Published var messages: [LocalChatBox] = [
-        LocalChatBox(
-            id: UUID(),
-            timestamp: Date(),
-            isMe: true,
-            isLoading: false,
-            type: "tip",
-            box: ChatBoxBiz(
-                id: UUID(),
-                type: "tip",
-                payload_id: UUID(),
-                created_at: Date(),
-                session_id: UUID(),
-                payload: ChatPayload.tip(ChatTipBiz(title: "提示", content: "长按录音按钮，开始录音", type: "tip"))
-            )
-        ),
-         LocalChatBox(
-            id: UUID(),
-            timestamp: Date(),
-            isMe: false,
-            isLoading: false,
-            type: "message",
-            audioURL: nil,
-            box: ChatBoxBiz(
-                id: UUID(),
-                type: "message",
-                payload_id: UUID(),
-                created_at: Date(),
-                session_id: UUID(),
-                payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: []))
-            )
-        ),
-    ]
+    @Published var messages: [ChatBoxBiz] = []
 
-        
-    init?(id: UUID, store: ChatStore) {
+    init(id: UUID, store: ChatStore) {
         self.store = store
-
-        // let session = ChatSessionBiz.from(id: id, in: store)
-        // guard let session = session else {
-        //     return nil
-        // }
         self.session = ChatSessionBiz(
             id: id,
             created_at: Date(),
+            title: "",
+            avatar_uri: "",
             boxes: [],
-            role: RoleBiz(id: id, name: "", description: "", avatar: "", prompt: "", language: "",
-                voice: RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: ""),
-                created_at: Date()),
-            llm: LLMService(value: LLMValues(provider: "openai", model: "gpt-3.5-turbo", apiProxyAddress: "", apiKey: ""), prompt: ""),
+            members: [],
             store: store
         )
-        self.role = self.session.role
     }
-
+    func load() {
+        self.session.load(id: self.session.id, in: self.store)
+    }
     func showPermissionAlert() {
         self.permissionAlertVisible = true
     }
@@ -120,7 +40,8 @@ class ChatDetailViewModel: ObservableObject {
     func showPromptPopover() {
         self.promptPopoverVisible = true
     }
-    func appendMessage(message: LocalChatBox) {
+    func appendMessage(message: ChatBoxBiz) {
+        self.session.append(box: message)
         self.messages.append(message)
     }
 }
@@ -129,6 +50,7 @@ class ChatDetailViewModel: ObservableObject {
 struct ChatDetailView: View {
     var sessionId: UUID
     var store: ChatStore
+    var config: Config
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
@@ -138,10 +60,11 @@ struct ChatDetailView: View {
 
     @State private var toastMessage: String?
     
-    init(sessionId: UUID, store: ChatStore) {
+    init(sessionId: UUID, config: Config) {
         self.sessionId = sessionId
-        self.store = store
-        _model = StateObject(wrappedValue: ChatDetailViewModel(id: sessionId, store: store)!)
+        self.config = config
+        self.store = config.store
+        _model = StateObject(wrappedValue: ChatDetailViewModel(id: sessionId, store: config.store))
         _recorder = StateObject(wrappedValue: AudioRecorder())
     }
 
@@ -202,7 +125,7 @@ struct ChatDetailView: View {
         // }
     }
     
-    private func toggleSpeaking(message: LocalChatBox) {
+    private func toggleSpeaking(message: ChatBoxBiz) {
         // if message.isSpeaking {
         //     TTSManager.shared.stopSpeaking()
         //     message.isSpeaking = false
@@ -245,6 +168,10 @@ struct ChatDetailView: View {
         let request = SFSpeechURLRecognitionRequest(url: url)
         request.shouldReportPartialResults = false
         
+        // 获取音频时长
+        let audioPlayer = try? AVAudioPlayer(contentsOf: url)
+        let duration = audioPlayer?.duration ?? 0
+        
         recognizer.recognitionTask(with: request) {  result, error in
             if let error = error {
                 print("Recognition failed with error: \(error.localizedDescription)")
@@ -254,81 +181,70 @@ struct ChatDetailView: View {
             guard let result = result, result.isFinal else { return }
             
             let recognizedText = result.bestTranscription.formattedString
-            self.handleRecognizedSpeech(recognizedText: recognizedText, audioURL: url)
+            self.handleRecognizedSpeech(recognizedText: recognizedText, audioURL: url, duration: duration)
         }
     }
     
-    private func handleRecognizedSpeech(recognizedText: String, audioURL: URL) {
-        // guard let viewModel = self.model else {
-        //     return
-        // }
+    private func handleRecognizedSpeech(recognizedText: String, audioURL: URL, duration: TimeInterval) {
         if recognizedText.isEmpty {
             print("recognizedText is empty")
             return
         }
         print("handleRecognizedSpeech \(recognizedText)")
         let viewModel = self.model
-            let userMessage = LocalChatBox(
-                id: UUID(),
-                timestamp: Date(),
-                isMe: true,
-                isLoading: false,
-                type: "audio",
-                audioURL: audioURL,
-                box: ChatBoxBiz(
-                    id: UUID(),
-                    type: "audio",
-                    payload_id: UUID(),
-                    created_at: Date(),
-                    session_id: viewModel.session.id,
-                    payload: ChatPayload.audio(ChatAudioBiz(text: recognizedText, nodes: [], url: audioURL, duration: 0))
+        let userMessage = ChatBoxBiz(
+            id: UUID(),
+            type: "audio",
+            created_at: Date(),
+            isMe: true,
+            payload_id: UUID(),
+            session_id: viewModel.session.id,
+            sender_id: config.me.id,
+            payload: ChatPayload.audio(
+                ChatAudioBiz(
+                    text: recognizedText,
+                    nodes: [],
+                    url: audioURL,
+                    duration: duration
                 )
-            )
-            viewModel.appendMessage(message: userMessage)
-            let loadingMessage = LocalChatBox(
-                id: UUID(),
-                timestamp: Date(),
-                isMe: false,
-                isLoading: true,
-                type: "message",
-                audioURL: nil,
-                box: ChatBoxBiz(
-                    id: UUID(),
-                    type: "message",
-                    payload_id: UUID(),
-                    created_at: Date(),
-                    session_id: viewModel.session.id,
-                    payload: ChatPayload.message(ChatMessageBiz2(text: "...", nodes: []))
-                )
-            )
-            viewModel.appendMessage(message: loadingMessage)
+            ),
+            loading: false,
+            blurred: false
+        )
+        viewModel.appendMessage(message: userMessage)
+        // let loadingMessage = ChatBoxBiz(
+        //     id: UUID(),
+        //     type: "message",
+        //     created_at: Date(),
+        //     isMe: false,
+        //     payload_id: UUID(),
+        //     session_id: viewModel.session.id,
+        //     sender_id: UUID(),
+        //     payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: []))
+        // )
+        // viewModel.appendMessage(message: loadingMessage)
 
-            Task {
-                do {
-                    let response = try await viewModel.session.llm.chat(content: recognizedText)
-                    print("before update box isLoading")
-                    if let loadingMessage = viewModel.messages.last {
-                        loadingMessage.controller?.setPayload(
-                                payload: ChatPayload.message(ChatMessageBiz2(text: response, nodes: []))
-                            )
-                            print("before update box isLoading !!")
-                            loadingMessage.isLoading = false
-                            loadingMessage.isBlurred = true
-                            // toggleSpeaking(message: loadingMessage)
-                    }
-                } catch {
-                    print("LLM chat error: \(error)")
-                    // Remove loading message on error
-                    if let loadingMessage = viewModel.messages.last {
-                        print("before update box isLoading")
-                        loadingMessage.isLoading = false
-                        loadingMessage.type = "error"
-                        loadingMessage.controller?.setPayload(
-                            payload: ChatPayload.error(ChatErrorBiz(error: "发生了错误"))
-                        )
-                    }
-                }
-            }
+        // Task {
+        //     do {
+        //         let response = try await viewModel.session.llm.fakeChat(content: recognizedText)
+        //         // @todo 这部分要根据 Role 来支持自定义，等于说，系统 Role 还要带一个 ResponseHandler 函数
+        //         // 比如[OneQuestion]，提示词要求返回 JSON，那么这个机器人就要解析对应JSON，并且给出不一样的对话气泡
+        //         // 那么等于说这个机器人就是「插件」了
+        //         // ok，OneQuestion 只进行一次对话，即接受用户的输入，对用户输入和问题进行评价，并给出评分，然后结束对话
+        //         if let payload = loadingMessage.controller?.payload as? ChatPayload.message {
+        //             payload.updateText(text: response)
+        //         }
+        //         loadingMessage.isLoading = false
+        //         loadingMessage.isBlurred = true
+        //         // toggleSpeaking(message: loadingMessage)
+        //     } catch {
+        //         loadingMessage.isLoading = false
+        //         loadingMessage.type = "error"
+        //         loadingMessage.controller?.setPayload(
+        //             payload: ChatPayload.error(ChatErrorBiz(error: "发生了错误"))
+        //         )
+        //     }
+        // }
     }
     
     
@@ -343,8 +259,8 @@ struct ChatDetailView: View {
 
     var body: some View {
         ChatDetailContentView(
-            recorder: recorder,
             model: model,
+            recorder: recorder,
             onDismiss: { dismiss() },
             onSpeakToggle: toggleSpeaking
         )
@@ -361,14 +277,13 @@ struct ChatDetailView: View {
             Rectangle()
                 .frame(height: 0.5)
                 .foregroundColor(Color(uiColor: .systemGray4))
-                .offset(y: -1)
-            , alignment: .top
+            .offset(y: -1)
+        , alignment: .top
         )
         // 添加导航栏背景色
         .sheet(isPresented: $model.roleDetailVisible) {
-            let role = self.model.role
-            let session = self.model.session
-            RoleDetailView(role: role, session: session)
+            // let session = self.model.session
+            // RoleDetailView(session: session)
         }
         .onAppear {
             setupRecorderCallbacks()
@@ -381,10 +296,10 @@ struct ChatDetailView: View {
 
 // 拆分出主要内容视图
 private struct ChatDetailContentView: View {
-    let recorder: AudioRecorder
     let model: ChatDetailViewModel
+    let recorder: AudioRecorder
     let onDismiss: () -> Void
-    let onSpeakToggle: (LocalChatBox) -> Void
+    let onSpeakToggle: (ChatBoxBiz) -> Void
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -420,7 +335,7 @@ private struct ChatDetailContentView: View {
 private struct ChatMessageList: View {
     @ObservedObject var model: ChatDetailViewModel
     let recorder: AudioRecorder
-    let onSpeakToggle: (LocalChatBox) -> Void
+    let onSpeakToggle: (ChatBoxBiz) -> Void
     
     var body: some View {
         ScrollView {
@@ -593,17 +508,17 @@ struct TextNodeView: View {
 
 // 消息内容视图
 private struct MessageContentView: View {
-    @ObservedObject var box: LocalChatBox
+    @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatMessageBiz2
     let recorder: AudioRecorder
-    var onSpeakToggle: (LocalChatBox) -> Void
+    var onSpeakToggle: (ChatBoxBiz) -> Void
 
     var body: some View {
         VStack(alignment: box.isMe ? .trailing : .leading, spacing: 8) {
             HStack {
                 if box.isMe { Spacer() }
                 
-                if box.isLoading {
+                if box.loading {
                     HStack {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle())
@@ -634,8 +549,8 @@ private struct MessageContentView: View {
                 
                 if !box.isMe { Spacer() }
             }
-            .blur(radius: box.isBlurred ? 4 : 0)
-            .animation(.easeInOut(duration: 0.2), value: box.isBlurred)
+            .blur(radius: box.blurred ? 4 : 0)
+            .animation(.easeInOut(duration: 0.2), value: box.blurred)
 
             if !box.isMe {
                 BotMessageActions(
@@ -649,17 +564,17 @@ private struct MessageContentView: View {
     }
 }
 private struct AudioContentView: View {
-    @ObservedObject var box: LocalChatBox
+    @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatAudioBiz
     let recorder: AudioRecorder
-    var onSpeakToggle: (LocalChatBox) -> Void
+    var onSpeakToggle: (ChatBoxBiz) -> Void
 
     var body: some View {
         VStack(alignment: box.isMe ? .trailing : .leading, spacing: 8) {
             HStack {
                 if box.isMe { Spacer() }
                 
-                if box.isLoading {
+                if box.loading {
                     HStack {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle())
@@ -690,8 +605,8 @@ private struct AudioContentView: View {
                 
                 if !box.isMe { Spacer() }
             }
-            .blur(radius: box.isBlurred ? 4 : 0)
-            .animation(.easeInOut(duration: 0.2), value: box.isBlurred)
+            .blur(radius: box.blurred ? 4 : 0)
+            .animation(.easeInOut(duration: 0.2), value: box.blurred)
 
             if box.isMe && data.url != nil {
                 UserMessageActions(
@@ -738,9 +653,9 @@ private struct TipContentView: View {
 
 // 在 ChatBoxView 的 body 中更新条件分支
 struct ChatBoxView: View {
-    @ObservedObject var box: LocalChatBox
+    @ObservedObject var box: ChatBoxBiz
     var recorder: AudioRecorder
-    let onSpeakToggle: (LocalChatBox) -> Void
+    let onSpeakToggle: (ChatBoxBiz) -> Void
     @State private var isShowingActions = false
 
     // 操作函数
@@ -768,11 +683,11 @@ struct ChatBoxView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if box.type == "error" {
-                if case let .error(data) = box.controller?.payload {
+                if case let .error(data) = box.payload {
                     ErrorContentView(data: data)
                 }
             } else if box.type == "audio" {
-                if case let .audio(data) = box.controller?.payload {
+                if case let .audio(data) = box.payload {
                     AudioContentView(
                         box: box,
                         data: data,
@@ -781,16 +696,16 @@ struct ChatBoxView: View {
                     )
                 }
             } else if box.type == "message" {
-                if case let .message(data) = box.controller?.payload {
+                if case let .message(data) = box.payload {
                     MessageContentView(box: box, data: data, recorder: recorder, onSpeakToggle: onSpeakToggle)
                 }
             } else if box.type == "quiz" {
-                if case let .puzzle(data) = box.controller?.payload {
+                if case let .puzzle(data) = box.payload {
                     QuizContentView(data: data)
                         .frame(maxWidth: .infinity)
                 }
             } else if box.type == "tip" {
-                if case let .tip(data) = box.controller?.payload {
+                if case let .tip(data) = box.payload {
                     TipContentView(data: data)
                 }
             }
@@ -1068,33 +983,31 @@ struct InputBarView: View {
     }
 }
 
-// 优化 UserMessageActions 样式
+
 private struct UserMessageActions: View {
     let recorder: AudioRecorder
-    @ObservedObject var box: LocalChatBox
+    @ObservedObject var box: ChatBoxBiz
+
+    func play() {
+        if case let .audio(data) = box.payload {
+            recorder.playAudio(url: data.url) {
+                //
+            }
+        }
+    }
     
     var body: some View {
         HStack(spacing: 8) {
-            if let _ = box.audioURL {
+            if case let .audio(data) = box.payload {
                 Button(action: {
-                    if let url = box.audioURL {
-                        if box.isPlaying {
-                            recorder.stopPlayback()
-                            box.isPlaying = false
-                        } else {
-                            recorder.playAudio(url: url) {
-                                box.isPlaying = false
-                            }
-                            box.isPlaying = true
-                        }
-                    }
+                    play()
                 }) {
                     HStack(spacing: 4) {
-                        Image(systemName: box.isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                        Image(systemName: box.playing ? "stop.circle.fill" : "play.circle.fill")
                             .frame(width: 16, height: 16)
                             .imageScale(.medium)
                             .foregroundColor(.blue)
-                        Text(box.isPlaying ? "停止" : "回放")
+                        Text(box.playing ? "停止" : "回放")
                             .font(.caption)
                             .foregroundColor(.blue)
                     }
@@ -1111,20 +1024,20 @@ private struct UserMessageActions: View {
 }
 
 private struct BotMessageActions: View {
-    @ObservedObject var box: LocalChatBox
+    @ObservedObject var box: ChatBoxBiz
     
-    let onSpeakToggle: (LocalChatBox) -> Void
+    let onSpeakToggle: (ChatBoxBiz) -> Void
     
     var body: some View {
         HStack(spacing: 8) {
             Button(action: {
-                box.isBlurred.toggle()
+                box.blurred.toggle()
             }) {
                 HStack(spacing: 4) {
-                    Image(systemName: box.isBlurred ? "eye.slash.fill" : "eye.fill")
+                    Image(systemName: box.blurred ? "eye.slash.fill" : "eye.fill")
                         .frame(width: 16, height: 16)
                         .imageScale(.medium)
-                    Text(box.isBlurred ? "显示" : "隐藏")
+                    Text(box.blurred ? "显示" : "隐藏")
                         .font(.caption)
                 }
                 .foregroundColor(.gray)
@@ -1138,10 +1051,10 @@ private struct BotMessageActions: View {
                 onSpeakToggle(box)
             }) {
                 HStack(spacing: 4) {
-                    Image(systemName: box.isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                    Image(systemName: box.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
                         .frame(width: 16, height: 16)
                         .imageScale(.medium)
-                    Text(box.isSpeaking ? "停止" : "朗读")
+                    Text(box.speaking ? "停止" : "朗读")
                         .font(.caption)
                 }
                 .foregroundColor(.gray)

@@ -7,119 +7,97 @@ class ChatSessionBiz: ObservableObject, Identifiable {
     let store: ChatStore
 
     var id: UUID
-    var created_at: Date
-    var boxes: [ChatBoxBiz]
-    var role: RoleBiz
-    var llm: LLMService
-
-    var name: String {
-        get { role.name }
-    }
-    
-    var avatar: String {
-        get { role.avatar }
-    }
+    @Published var created_at: Date
+    @Published var title: String
+    @Published var avatar_uri: String
+    @Published var boxes: [ChatBoxBiz]
+    @Published var members: [ChatSessionMemberBiz]
     
     var lastMessageTime: Date {
         get { boxes.last?.created_at ?? Date() }
     }
-    // var lastMessage: String {
-    //     get { boxes.last?.content ?? "" }
-    // }
     var unreadCount: Int {
-	return 0
+        return 0
     }
-    
-    static func from(id: UUID, in store: ChatStore) -> ChatSessionBiz? {
-        let viewContext = store.container.viewContext
-        
-        // 获取 ChatSession
-        let sessionRequest = NSFetchRequest<ChatSession>(entityName: "ChatSession")
-        sessionRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        let session = try! viewContext.fetch(sessionRequest).first!
-        
-        // 获取 Role
-        let roleRequest = NSFetchRequest<Role>(entityName: "Role")
-        roleRequest.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", session.user1_id ])
-        let role = try! viewContext.fetch(roleRequest).first!
-        let roleResult = RoleBiz.from(role)
-        // print("roleResult: \(roleResult?.settings.model.name)")
-        guard let roleResult = roleResult else {
-            return nil
-        }
-        // 获取 ChatBoxes
-        let boxRequest = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-        boxRequest.predicate = NSPredicate(format: "session_id == %@", id as CVarArg)
-        boxRequest.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: true)]
-        boxRequest.fetchLimit = 20
-        let boxes = try! viewContext.fetch(boxRequest)
-        
-        // 初始化消息数组
-        // var initialMessages: [ChatMessage] = []
-        let boxResult: [ChatBoxBiz] = []
-        
-        // 遍历 boxes 并加载对应的消息或问题
-        for box in boxes {
-            
-        }
-        
+    static func delete(session: ChatSessionBiz, in store: ChatStore) {
+        let ctx = store.container.viewContext
+        let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
+        req.predicate = NSPredicate(format: "id == %@", session.id as CVarArg)
+        let session = try! ctx.fetch(req).first!
+        ctx.delete(session)
+    }
+    static func from(_ record: ChatSession, in store: ChatStore) -> ChatSessionBiz {
+        let id = record.id ?? UUID()
+        let created_at = record.created_at ?? Date()
+        let title = record.title ?? ""
+        let avatar_uri = record.avatar_uri ?? ""
 
-        // 获取 ViewContext
-        // let context = PersistenceController.container.viewContext
-        
-        // // 创建获取请求
-        // let fetchRequest = ChatSessionEntity.fetchRequest()
-        // fetchRequest.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        
-        // do {
-        //     // 尝试获取匹配的会话
-        //     if let entity = try context.fetch(fetchRequest).first {
-        //         // 获取关联的 Role
-        //         let roleFetch = RoleEntity.fetchRequest()
-        //         // Fix ambiguous type by explicitly creating UUID instance
-        //         let userId = entity.user1_id ?? UUID()
-        //         roleFetch.predicate = NSPredicate(format: "id == %@", userId as CVarArg)
-        //         if let role_entity = try? context.fetch(roleFetch).first,
-        //            let role = RoleBiz.from(role_entity) {
-                    
-        //             // 转换消息和聊天框
-        //             let messages = entity.messagesArray.compactMap { ChatMessageBiz.from($0) }
-        //             let boxes = entity.chatBoxesArray.compactMap { ChatBoxBiz.from($0) }
-                    
-        //             return ChatSessionBiz(
-        //                 id: id,
-        //                 created_at: entity.created_at ?? Date(),
-        //                 boxes: boxes,
-        //                 role: role
-        //             )
-        //         }
-        //     }
-        // } catch {
-        //     print("Error fetching ChatSession: \(error)")
-        // }
-        let matchedProvider = Config.shared.languageProviders.first
-        guard let matchedProvider = matchedProvider else {
-            return nil
-        }
         return ChatSessionBiz(
             id: id,
-            created_at: session.created_at ?? Date(),
-            boxes: boxResult,
-            role: roleResult,
-            llm: LLMService(
-                value: LLMValues(provider: matchedProvider.name, model: matchedProvider.models.first!.name ?? "", apiProxyAddress: matchedProvider.apiProxyAddress, apiKey: matchedProvider.apiKey),
-                prompt: ""
-            ),
+            created_at: created_at,
+            title: title,
+            avatar_uri: avatar_uri,
+            boxes: [],
+            members: [],
             store: store
         )
     }
+    func load(id: UUID, in store: ChatStore) {
+        let ctx = store.container.viewContext
+        
+        let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
+        req.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        let session = try! ctx.fetch(req).first!
 
-    init(id: UUID, created_at: Date, boxes: [ChatBoxBiz], role: RoleBiz, llm: LLMService, store: ChatStore) {
+        let role_req = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
+        role_req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id ])
+        let role_records = try! ctx.fetch(role_req)
+        let members: [ChatSessionMemberBiz] = role_records.map { ChatSessionMemberBiz.from($0, store: store) }
+
+        let box_req = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+        box_req.predicate = NSPredicate(format: "session_id == %@", id as CVarArg)
+        box_req.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: true)]
+        box_req.fetchLimit = 20
+        let box_records = try! ctx.fetch(box_req)
+        let boxes: [ChatBoxBiz] = box_records.map { ChatBoxBiz.from($0, store: store) }
+
+        self.created_at = session.created_at ?? Date()
+        self.title = session.title ?? ""
+        self.avatar_uri = session.avatar_uri ?? ""
+        self.boxes = boxes
+        self.members = members
+    }
+
+    init(id: UUID, created_at: Date, title: String, avatar_uri: String, boxes: [ChatBoxBiz], members: [ChatSessionMemberBiz], store: ChatStore) {
         self.id = id
         self.created_at = created_at
+        self.title = title
+        self.avatar_uri = avatar_uri
         self.boxes = boxes
-        self.role = role
-        self.llm = llm
+        self.members = members
         self.store = store
+    }
+
+    func append(box: ChatBoxBiz) {
+        box.save(sessionId: self.id, store: self.store);
+        self.boxes.append(box)
+    }
+
+    func save() {
+        let viewContext = self.store.container.viewContext
+        
+        let record = ChatSession(context: viewContext)
+        record.id = self.id
+        record.created_at = self.created_at
+        // record.user1_id = self.role.id
+        // record.user2_id = Config.shared.userId
+
+        // 保存到 CoreData
+        do {
+            try viewContext.save()
+        } catch {
+            print("Error saving chat box: \(error)")
+            return
+        }
     }
 }
