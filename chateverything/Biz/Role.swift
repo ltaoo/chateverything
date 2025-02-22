@@ -137,6 +137,10 @@ public class RoleBiz: ObservableObject, Identifiable {
         // extra: [:])
     }
 
+    func cancel() {
+        self.llm?.cancel()
+    }
+
     func response(text: String, session: ChatSessionBiz, config: Config) -> ChatBoxBiz {
         if self.llm == nil {
             self.updateLLM(config: config)
@@ -168,19 +172,34 @@ public class RoleBiz: ObservableObject, Identifiable {
 
         Task {
             do {
-                let response = try await llm.chat(content: text)
-                // @todo 这部分要根据 Role 来支持自定义，等于说，系统 Role 还要带一个 ResponseHandler 函数
-                // 比如[OneQuestion]，提示词要求返回 JSON，那么这个机器人就要解析对应JSON，并且给出不一样的对话气泡
-                // 那么等于说这个机器人就是「插件」了
-                // ok，OneQuestion 只进行一次对话，即接受用户的输入，对用户输入和问题进行评价，并给出评分，然后结束对话
-                DispatchQueue.main.async {
-                    if case .message(let message) = loadingMessage.payload {
-                        message.updateText(text: response, config: config)
+                let stream = llm.chat(content: text)
+                for try await chunk in stream {
+                    // 处理每个响应片段
+                    print("[BIZ]RoleBiz response chunk: \(chunk)")
+                    DispatchQueue.main.async {
+                        if case .message(let message) = loadingMessage.payload {
+                            message.updateText(text: chunk, config: config)
+                        }
+                        loadingMessage.updatePayload(payload: loadingMessage.payload!, store: config.store)
+                        loadingMessage.loading = false
+                        loadingMessage.blurred = true
                     }
-                    loadingMessage.updatePayload(payload: loadingMessage.payload!, store: config.store)
-                    loadingMessage.loading = false
-                    loadingMessage.blurred = true
                 }
+                // let response = try await llm.chat(content: text, callback: { content in
+                //     print("[BIZ]RoleBiz response callback: \(content)")
+                //     // @todo 这部分要根据 Role 来支持自定义，等于说，系统 Role 还要带一个 ResponseHandler 函数
+                //     // 比如[OneQuestion]，提示词要求返回 JSON，那么这个机器人就要解析对应JSON，并且给出不一样的对话气泡
+                //     // 那么等于说这个机器人就是「插件」了
+                //     // ok，OneQuestion 只进行一次对话，即接受用户的输入，对用户输入和问题进行评价，并给出评分，然后结束对话
+                //     DispatchQueue.main.async {
+                //         if case .message(let message) = loadingMessage.payload {
+                //             message.updateText(text: content, config: config)
+                //         }
+                //         loadingMessage.updatePayload(payload: loadingMessage.payload!, store: config.store)
+                //         loadingMessage.loading = false
+                //         loadingMessage.blurred = true
+                //     }
+                // })
                 // toggleSpeaking(message: loadingMessage)
             } catch {
                 DispatchQueue.main.async {
@@ -264,10 +283,14 @@ public struct RoleConfig: Codable {
 public class RoleLLMHelper: Codable {
     public var provider: String
     public var model: String
+    public var stream: Bool = false
+    public var json: Bool = false
 
-    public init(provider: String, model: String) {
+    public init(provider: String, model: String, stream: Bool = false, json: Bool = false) {
         self.provider = provider
         self.model = model
+        self.stream = stream
+        self.json = json
     }
 
     func build(config: Config) -> LLMValues? {
@@ -295,7 +318,11 @@ public class RoleLLMHelper: Codable {
             provider: values.name,
             model: model.name,
             apiProxyAddress: values.value.apiProxyAddress ?? values.provider.apiProxyAddress,
-            apiKey: values.value.apiKey
+            apiKey: values.value.apiKey,
+            extra: [
+                "stream": self.stream,
+                "json": self.json
+            ]
         )
     }
 }
@@ -393,7 +420,7 @@ public let DefaultRoles: [RoleBiz] = [
         created_at: Date(),
         config: RoleConfig(
             voice: defaultRoleVoice,
-            llm: defaultRoleLLM
+            llm: RoleLLMHelper(provider: "deepseek", model: "deepseek-chat", stream: true)
         )
     ),
     RoleBiz(

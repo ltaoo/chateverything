@@ -317,11 +317,12 @@ struct ChatSessionCardView: View {
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
-                    
+                    if chatSession.boxes.count > 0 {
                     ChatMsgPreview(box: chatSession.boxes[0])
                         .foregroundColor(.gray)
                         .font(.system(size: 14))
                         .lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
