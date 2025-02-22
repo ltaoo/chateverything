@@ -140,10 +140,10 @@ struct ContentView: View {
                     }
                     .tag(1)
                     
-                    DiscoverView(path: $path, store: self.store)
+                    RoleListPage(path: $path, config: self.config)
                     .tabItem {
                         Image(systemName: "sparkles")
-                        Text("发现")
+                        Text("角色")
                     }
                     .tag(2)
                     
@@ -153,6 +153,17 @@ struct ContentView: View {
                         Text("我的")
                     }
                     .tag(3)
+                }
+                .onAppear {
+                    // 设置 TabView 的背景颜色为浅灰色
+                    let appearance = UITabBarAppearance()
+                    appearance.configureWithOpaqueBackground()
+                    appearance.backgroundColor = UIColor.systemGray6
+                    
+                    UITabBar.appearance().standardAppearance = appearance
+                    if #available(iOS 15.0, *) {
+                        UITabBar.appearance().scrollEdgeAppearance = appearance
+                    }
                 }
                 
                 // 修改胶囊按钮部分
@@ -243,20 +254,12 @@ struct ScaleButtonStyle: ButtonStyle {
     }
 }
 
-let avatars = ["avatar1", "avatar2", "avatar3", "avatar4", "avatar5", "avatar6"]
-
 // 聊天列表行视图
 struct ChatRowView: View {
     let chatSession: ChatSessionBiz
     var onTap: () -> Void
     
-    private var avatarIndex: Int {
-        abs(chatSession.id.hashValue) % avatars.count
-    }
-    
-    // 决定是否显示 badge
     private var shouldShowBadge: Bool {
-        // 使用 id 的哈希值来确定是否显示 badge，这样大约 1/3 的会话会显示
         abs(chatSession.id.hashValue) % 3 == 0
     }
     
@@ -264,17 +267,36 @@ struct ChatRowView: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 ZStack(alignment: .topTrailing) {
-                    Image(avatars[avatarIndex])
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 46, height: 46)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
+                    AsyncImage(url: URL(string: chatSession.avatar_uri)) { phase in
+                        switch phase {
+                        case .empty:
+                            // 加载时显示占位图
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .foregroundColor(.gray)
+                        case .success(let image):
+                            // 成功加载图片
+                            image
+                                .resizable()
+                        case .failure(_):
+                            // 加载失败时显示占位图
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .foregroundColor(.gray)
+                        @unknown default:
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 46, height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
                     
-                    // Badge
                     if shouldShowBadge {
                         Circle()
                             .fill(Color.green)
@@ -343,58 +365,55 @@ struct ChatListView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部按钮组
-            VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            showingChatConfig = true
-                        }) {
-                            ChatButton(icon: "🤖", text: "想法", onTap: {
-                                showingChatConfig = true
-                            })
-                            ChatButton(icon: "📚", text: "单词", onTap: {
-                                capsuleVM.toggleVisibility()
-                            })
-                            ChatButton(icon: "📅", text: "日历", onTap: {
-                                capsuleVM.toggleVisibility()
-                            })
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+            // 顶部按钮组 - 现在固定在顶部
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ChatButton(icon: "🤖", text: "想法", onTap: {
+                        showingChatConfig = true
+                    })
+                    ChatButton(icon: "📚", text: "单词", onTap: {
+                        capsuleVM.toggleVisibility()
+                    })
+                    ChatButton(icon: "📅", text: "日历", onTap: {
+                        capsuleVM.toggleVisibility()
+                    })
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
             }
             
-            // 主要内容
-            if isLoading {
-                ProgressView()
-            } else if store.sessions.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "message")
-                        .font(.system(size: 50))
-                        .foregroundColor(.gray)
-                    Text("暂无聊天记录")
-                        .foregroundColor(.gray)
-                }
-            } else {
-                List {
-                    ForEach(store.sessions) { session in
-                        ChatRowView(chatSession: session, onTap: {
-                            path.append(Route.ChatDetailView(sessionId: session.id))
-                        })
-                        .listRowSeparator(session.id == store.sessions.last?.id ? .hidden : .visible)
+            // 主要内容区域使用 ScrollView
+            ScrollView {
+                if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if store.sessions.isEmpty {
+                    VStack(spacing: 16) {
+                        Spacer()
+                            .frame(height: 100)
+                        Image(systemName: "message")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray)
+                        Text("暂无聊天记录")
+                            .foregroundColor(.gray)
                     }
-                    .onDelete { indexSet in
-                        for index in indexSet {
-                            let sessionId = store.sessions[index].id
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    LazyVStack(spacing: 0) {
+                        ForEach(store.sessions) { session in
+                            ChatRowView(chatSession: session, onTap: {
+                                path.append(Route.ChatDetailView(sessionId: session.id))
+                            })
+                            .padding(.horizontal)
+                            .padding(.vertical, 4)
+                            
+                            if session.id != store.sessions.last?.id {
+                                Divider()
+                                    .padding(.horizontal)
+                            }
                         }
                     }
                 }
-                .listStyle(.plain)
-                .listSectionSeparator(.hidden)
-                .environment(\.defaultMinListRowHeight, 0)
-                .scrollContentBackground(.hidden)
             }
         }
     }

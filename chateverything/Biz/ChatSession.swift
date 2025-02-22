@@ -19,6 +19,23 @@ class ChatSessionBiz: ObservableObject, Identifiable {
     var unreadCount: Int {
         return 0
     }
+    static func create(role: RoleBiz, in store: ChatStore) -> ChatSessionBiz {
+        let id = UUID()
+        let created_at = Date()
+        let title = role.name
+        let avatar_uri = role.avatar
+
+        let ctx = store.container.viewContext
+        let record = ChatSession(context: ctx)
+        record.id = id
+        record.created_at = created_at
+        record.title = title
+        record.avatar_uri = avatar_uri
+        ctx.insert(record)
+        try! ctx.save()
+
+        return ChatSessionBiz(id: id, created_at: created_at, title: title, avatar_uri: avatar_uri, boxes: [], members: [], store: store)
+    }
     static func delete(session: ChatSessionBiz, in store: ChatStore) {
         let ctx = store.container.viewContext
         let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")

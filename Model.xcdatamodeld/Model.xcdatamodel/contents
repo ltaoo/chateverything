@@ -50,9 +50,9 @@
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="role_id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="role_type" optional="YES" attributeType="String"/>
-        <attribute name="session_id" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
-        <attribute name="user_id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="session_id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
     </entity>
     <entity name="Role" representedClassName=".Role" syncable="YES" codeGenerationType="class">
         <attribute name="avatar_uri" optional="YES" attributeType="String"/>

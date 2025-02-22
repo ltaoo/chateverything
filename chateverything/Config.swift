@@ -88,8 +88,9 @@ class Config: ObservableObject {
         //     )
         //     UserDefaults.standard.set(id.uuidString, forKey: "userId")
         // }
+
         self.me = RoleBiz(
-            id: role0UUID,
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
             name: "u5x9k4",
             desc: "",
             avatar: "",
