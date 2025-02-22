@@ -167,7 +167,8 @@ public class RoleBiz: ObservableObject, Identifiable {
             payload_id: UUID(),
             session_id: session.id,
             sender_id: self.id,
-            payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: []))
+            payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
+            loading: true
         )
 
         Task {

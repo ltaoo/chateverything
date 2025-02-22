@@ -263,22 +263,19 @@ struct ChatSessionCardView: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .top, spacing: 12) {
-                // 头像部分保持不变
+            HStack(alignment: .top, spacing: 16) {  // 增加间距从 12 到 16
+                // 头像部分
                 ZStack(alignment: .topTrailing) {
                     AsyncImage(url: URL(string: chatSession.avatar_uri)) { phase in
                         switch phase {
                         case .empty:
-                            // 加载时显示占位图
                             Image(systemName: "person.circle.fill")
                                 .resizable()
                                 .foregroundColor(.gray)
                         case .success(let image):
-                            // 成功加载图片
                             image
                                 .resizable()
                         case .failure(_):
-                            // 加载失败时显示占位图
                             Image(systemName: "person.circle.fill")
                                 .resizable()
                                 .foregroundColor(.gray)
@@ -289,44 +286,45 @@ struct ChatSessionCardView: View {
                         }
                     }
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 46, height: 46)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 56, height: 56)  // 增加头像尺寸从 46 到 56
+                    .clipShape(RoundedRectangle(cornerRadius: 12))  // 增加圆角从 8 到 12
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 12)  // 匹配上面的圆角
                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
                     
                     if chatSession.unreadCount > 0 {
                         Circle()
                             .fill(Color.green)
-                            .frame(width: 12, height: 12)
+                            .frame(width: 14, height: 14)  // 增加未读标记尺寸从 12 到 14
                             .offset(x: 3, y: -3)
                     }
                 }
                 
-                // 修改中间内容部分
-                VStack(alignment: .leading, spacing: 6) {
+                // 内容部分
+                VStack(alignment: .leading, spacing: 8) {  // 增加间距从 6 到 8
                     HStack {
                         Text(chatSession.title)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 17, weight: .semibold))  // 增加字体大小并加粗
                             .lineLimit(1)
                         
                         Spacer()
                         
                         Text(formatDate(chatSession.updated_at))
-                            .font(.caption)
+                            .font(.system(size: 14))  // 增加时间字体大小
                             .foregroundColor(.gray)
                     }
                     if chatSession.boxes.count > 0 {
-                    ChatMsgPreview(box: chatSession.boxes[0])
-                        .foregroundColor(.gray)
-                        .font(.system(size: 14))
-                        .lineLimit(1)
+                        ChatMsgPreview(box: chatSession.boxes[0])
+                            .foregroundColor(.gray)
+                            .font(.system(size: 15))  // 增加预览文字大小
+                            .lineLimit(1)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 12)  // 增加垂直内边距从 8 到 12
+            .padding(.horizontal, 4)  // 添加水平内边距
             .contentShape(Rectangle())
             .foregroundColor(.primary)
         }
@@ -423,11 +421,12 @@ struct ChatListView: View {
                     .opacity(0.8)
             }
             
-            // 主要内容区域使用 ScrollView
-            ScrollView {
+            // 将 ScrollView 和 LazyVStack 替换为 List
+            List {
                 if isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .listRowBackground(Color.clear)
                 } else if store.sessions.isEmpty {
                     VStack(spacing: 16) {
                         Spacer()
@@ -439,23 +438,29 @@ struct ChatListView: View {
                             .foregroundColor(.gray)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .listRowBackground(Color.clear)
                 } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(store.sessions) { session in
-                            ChatSessionCardView(chatSession: session, onTap: {
-                                path.append(Route.ChatDetailView(sessionId: session.id))
-                            })
-                            .padding(.horizontal)
-                            .padding(.vertical, 4)
-                            
-                            if session.id != store.sessions.last?.id {
-                                Divider()
-                                    .padding(.horizontal)
+                    ForEach(Array(store.sessions.enumerated()), id: \.element.id) { index, session in
+                        ChatSessionCardView(chatSession: session, onTap: {
+                            path.append(Route.ChatDetailView(sessionId: session.id))
+                        })
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowBackground(Color(UIColor.systemBackground))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                withAnimation {
+//                                    store.deleteSession(sessionId: session.id)
+                                }
+                            } label: {
+                                Label("删除", systemImage: "trash")
                             }
                         }
+                        // 只有不是最后一个元素时才添加分隔线
+                        .listRowSeparator(index == store.sessions.count - 1 ? .hidden : .visible)
                     }
                 }
             }
+            .listStyle(PlainListStyle())
         }
     }
 }

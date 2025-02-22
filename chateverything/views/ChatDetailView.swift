@@ -498,7 +498,40 @@ struct TextNodeView: View {
 }
 
 
-// 文本消息视图
+// 更新 LoadingView 组件
+private struct LoadingView: View {
+    @State private var isAnimating = false
+    private let dotCount = 3
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<dotCount, id: \.self) { index in
+                Circle()
+                    .fill(Color.gray.opacity(0.6))
+                    .frame(width: 8, height: 8)
+                    .scaleEffect(isAnimating ? 1.2 : 0.8)
+                    .animation(
+                        Animation
+                            .easeInOut(duration: 0.6)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(index) * 0.2), // 每个圆点延迟0.2秒开始动画
+                        value: isAnimating
+                    )
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(UIColor.systemGray6))
+        )
+        .onAppear {
+            isAnimating = true
+        }
+    }
+}
+
+// 更新 MessageContentView 中的 loading 视图
 private struct MessageContentView: View {
     @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatMessageBiz2
@@ -511,15 +544,7 @@ private struct MessageContentView: View {
                 if box.isMe { Spacer() }
                 
                 if box.loading {
-                    HStack {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                        Text("思考中...")
-                            .foregroundColor(.gray)
-                    }
-                    .padding(12)
-                    .background(Color(uiColor: .systemGray5))
-                    .cornerRadius(16)
+                    LoadingView()
                 } else {
                     VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
                         if !data.ok {
@@ -544,7 +569,7 @@ private struct MessageContentView: View {
             .blur(radius: box.blurred ? 4 : 0)
             .animation(.easeInOut(duration: 0.2), value: box.blurred)
 
-            if !box.isMe {
+            if !box.loading && !box.isMe {
                 BotMessageActions(
                     box: box,
                     onSpeakToggle: { box in
@@ -555,6 +580,8 @@ private struct MessageContentView: View {
         }
     }
 }
+
+// 同样更新 AudioContentView 中的 loading 视图
 private struct AudioContentView: View {
     @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatAudioBiz
@@ -567,15 +594,7 @@ private struct AudioContentView: View {
                 if box.isMe { Spacer() }
                 
                 if box.loading {
-                    HStack {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                        Text("思考中...")
-                            .foregroundColor(.gray)
-                    }
-                    .padding(12)
-                    .background(Color(uiColor: .systemGray5))
-                    .cornerRadius(16)
+                    LoadingView()
                 } else {
                     VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
                         if !data.ok {

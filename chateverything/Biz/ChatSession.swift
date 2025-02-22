@@ -94,15 +94,16 @@ class ChatSessionBiz: ObservableObject, Identifiable {
             r.role = RoleBiz.Get(id: $0.role_id!, store: store)
             return r
         }
-
+         let fetchBatchSize = 20
         let box_req = NSFetchRequest<ChatBox>(entityName: "ChatBox")
         box_req.predicate = NSPredicate(format: "session_id == %@", id as CVarArg)
         box_req.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: true)]
+        box_req.fetchBatchSize = fetchBatchSize
         box_req.fetchLimit = 20
         let box_records = try! ctx.fetch(box_req)
         let boxes: [ChatBoxBiz] = box_records.map {
             let box = ChatBoxBiz.from($0, store: store)
-            print("[BIZ]ChatSessionBiz.load: box: \(box.type) \(box.sender_id)")
+            // print("[BIZ]ChatSessionBiz.load: box: \(box.type) \(box.sender_id)")
             if box.sender_id == config.me.id {
                 box.isMe = true
             }
@@ -110,7 +111,7 @@ class ChatSessionBiz: ObservableObject, Identifiable {
             return box
         }
 
-        print("[BIZ]ChatSessionBiz.load: boxes: \(boxes.count)")
+        // print("[BIZ]ChatSessionBiz.load: boxes: \(boxes.count)")
 
         self.created_at = session.created_at ?? Date()
         self.updated_at = session.updated_at ?? Date()

@@ -91,44 +91,88 @@ struct RoleCardInListPage: View {
     let role: RoleBiz
     let onTap: () -> Void
     
+    @State private var isPressed = false
+    @State private var isLoading = false
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
                 AsyncImage(url: URL(string: role.avatar)) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 56, height: 56)
                 } placeholder: {
                     Image(systemName: "person.circle.fill")
                         .resizable()
                         .foregroundColor(.gray)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 56, height: 56)
                 }
                 .clipShape(Circle())
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(role.name)
-                        .font(.headline)
+                        .font(.title3)
+                        .bold()
                     
                     Text(role.language)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
+                        .font(.subheadline)
+                        .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(Color.secondary.opacity(0.2))
                         .cornerRadius(8)
                 }
+                
+                Spacer()
+                
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                }
             }
             
             Text(role.desc)
-                .font(.subheadline)
+                .font(.body)
                 .foregroundColor(.secondary)
                 .lineLimit(3)
+                .padding(.leading, 2)
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(15)
-        .onTapGesture(perform: onTap)
+        .padding(.vertical, 20)
+        .padding(.horizontal, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        )
+        .scaleEffect(isPressed ? 0.98 : 1.0)
+        .animation(.spring(response: 0.3), value: isPressed)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation {
+                isPressed = true
+                isLoading = true
+            }
+            
+            // 添加触觉反馈
+            let impactMed = UIImpactFeedbackGenerator(style: .medium)
+            impactMed.impactOccurred()
+            
+            // 延迟重置按压状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation {
+                    isPressed = false
+                }
+            }
+            
+            onTap()
+            
+            // 模拟加载完成后重置状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                withAnimation {
+                    isLoading = false
+                }
+            }
+        }
     }
 }
