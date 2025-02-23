@@ -2,49 +2,56 @@ import SwiftUI
 import LLM
 
 struct RoleDetailView: View {
-//    let model: ChatDetailViewModel
-    let role: RoleBiz
-    let session: ChatSessionBiz
+    let roleId: UUID
+    var path: NavigationPath
+    var config: Config
+    @StateObject var role: RoleBiz
+
+    init(roleId: UUID, path: NavigationPath, config: Config) {
+        self.roleId = roleId
+        self.path = path
+        self.config = config
+        _role = StateObject(wrappedValue: RoleBiz(props: RoleProps(id: roleId)))
+    }
 
     var body: some View {
-        List {
-            // 头部卡片
-            Section {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 20) {
-                        // 头像
-                            Image(role.avatar)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 80, height: 80)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(role.name)
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.primary)
-                            
-                            // if let description = role.description {
-                            //     Text(description)
-                            //         .font(.subheadline)
-                            //         .foregroundStyle(.secondary)
-                            //         .lineLimit(2)
-                            // }
+        Group {
+            if role.loading {
+                ProgressView()
+            } else {
+                List {
+                    // 头部卡片
+                    Section {
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+                            HStack(spacing: DesignSystem.Spacing.large) {
+                                // 替换头像实现
+                                Avatar(uri: role.avatar, size: DesignSystem.AvatarSize.large)
+                                    .primaryShadow()
+                                
+                                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xSmall) {
+                                    Text(role.name)
+                                        .font(DesignSystem.Typography.headingMedium)
+                                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                                }
+                            }
                         }
+                        .padding(.vertical, DesignSystem.Spacing.small)
                     }
-                }
-                .padding(.vertical, 12)
-            }
 
-            EnabledLanguageModelsView(role: self.role, session: self.session)
-            
-            // 添加 TTS 设置部分
-            TTSSettingsView(role: self.role)
+                    // EnabledLanguageModelsView(role: self.role, session: self.session)
+                    
+                    // 添加 TTS 设置部分
+                    TTSSettingsView(role: self.role)
+                }
+                .listStyle(InsetGroupedListStyle())
+            }
         }
-        .listStyle(InsetGroupedListStyle())
-        .navigationTitle("角色详情")
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(DesignSystem.Colors.background)
+        .onAppear {
+            print("[VIEW]RoleDetailView onAppear")
+            role.loading = true
+            role.load(config: config)
+        }
     }
 }
 
@@ -55,18 +62,22 @@ struct TTSSettingsView: View {
     @State private var selectedRole: TTSEngineRole? = TTSEngineOptions[0].roles[0]
     
     var body: some View {
-        Section(header: Text("语音设置")) {
+        Section(header: Text("语音设置")
+            .font(DesignSystem.Typography.bodyMedium)
+            .foregroundColor(DesignSystem.Colors.textSecondary)) {
             Picker("语音引擎", selection: $selectedEngine) {
                 ForEach(TTSEngineOptions, id: \.name) { option in
-                    Text(option.name).tag(option)
+                    Text(option.name)
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .tag(option)
                 }
             }
             
-            // 添加语音角色选择
             Picker("语音角色", selection: $selectedRole) {
                 ForEach(selectedEngine.roles, id: \.voice) { role in
                     Text(role.name)
-                        .tag(Optional(role))  // 使用 Optional 包装是因为 selectedRole 是可选类型
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .tag(Optional(role))
                 }
             }
             .onChange(of: selectedEngine) { newEngine in
@@ -92,25 +103,38 @@ struct SystemTTSSettingsView: View {
     let languages = ["zh-CN", "en-US", "ja-JP"]
     
     var body: some View {
-        VStack {
+        VStack(spacing: DesignSystem.Spacing.medium) {
             Picker("语言", selection: $selectedLanguage) {
                 ForEach(languages, id: \.self) { language in
-                    Text(language).tag(language)
+                    Text(language)
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .tag(language)
                 }
             }
             
             HStack {
                 Text("音量")
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
                 Slider(value: $volume, in: 0...1)
+                    .accentColor(DesignSystem.Colors.primary)
                 Text("\(Int(volume * 100))%")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
             }
             
             HStack {
                 Text("语速")
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
                 Slider(value: $speed, in: 0.5...2)
+                    .accentColor(DesignSystem.Colors.primary)
                 Text("\(speed, specifier: "%.1f")x")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
             }
         }
+        .padding(.vertical, DesignSystem.Spacing.small)
     }
 }
 

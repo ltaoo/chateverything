@@ -196,10 +196,12 @@ struct ContentView: View {
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
-                case .ChatDetailView(let sessionId):
-                    ChatDetailView(sessionId: sessionId, config: self.config).environmentObject(self.config)
-                case .VocabularyView(let filepath):
-                    Vocabulary(filepath: filepath, path: self.path, store: self.store).environmentObject(self.store)
+                    case .ChatDetailView(let sessionId):
+                        ChatDetailView(sessionId: sessionId, config: self.config).environmentObject(self.config)
+                    case .VocabularyView(let filepath):
+                        Vocabulary(filepath: filepath, path: self.path, store: self.store).environmentObject(self.store)
+                    case .RoleDetailView(let roleId):
+                        RoleDetailView(roleId: roleId, path: self.path, config: self.config).environmentObject(self.config)
                 }
             }
             .onAppear {
@@ -264,40 +266,19 @@ struct ChatSessionCardView: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .top, spacing: 16) {  // 增加间距从 12 到 16
+            HStack(alignment: .top, spacing: 16) {
                 // 头像部分
                 ZStack(alignment: .topTrailing) {
-                    AsyncImage(url: URL(string: chatSession.avatar_uri)) { phase in
-                        switch phase {
-                        case .empty:
-                            Image(systemName: "person.circle.fill")
-                                .resizable()
-                                .foregroundColor(.gray)
-                        case .success(let image):
-                            image
-                                .resizable()
-                        case .failure(_):
-                            Image(systemName: "person.circle.fill")
-                                .resizable()
-                                .foregroundColor(.gray)
-                        @unknown default:
-                            Image(systemName: "person.circle.fill")
-                                .resizable()
-                                .foregroundColor(.gray)
-                        }
-                    }
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 56, height: 56)  // 增加头像尺寸从 46 到 56
-                    .clipShape(RoundedRectangle(cornerRadius: 12))  // 增加圆角从 8 到 12
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)  // 匹配上面的圆角
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
+                    Avatar(uri: chatSession.avatar_uri, size: 56)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
                     
                     if chatSession.unreadCount > 0 {
                         Circle()
                             .fill(Color.green)
-                            .frame(width: 14, height: 14)  // 增加未读标记尺寸从 12 到 14
+                            .frame(width: 14, height: 14)
                             .offset(x: 3, y: -3)
                     }
                 }

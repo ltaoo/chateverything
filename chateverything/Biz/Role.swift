@@ -2,18 +2,34 @@ import Foundation
 import CoreData
 import LLM
 
+public struct RoleProps {
+    var id: UUID  // 必填
+    var name: String = ""
+    var desc: String = ""
+    var avatar: String = "avatar1"
+    var prompt: String = ""
+    var language: String = "en-US"
+    var created_at: Date = Date()
+    var config: RoleConfig = RoleConfig(voice: defaultRoleVoice, llm: defaultRoleLLM)
+    
+    public init(id: UUID) {
+        self.id = id
+    }
+}
+
 public class RoleBiz: ObservableObject, Identifiable {
     public var id: UUID
-    public var name: String
-    public var desc: String
-    public var avatar: String
-    public var prompt: String
-    public var language: String
-    public var created_at: Date
-    public var config: RoleConfig
+    @Published public var name: String
+    @Published public var desc: String
+    @Published public var avatar: String
+    @Published public var prompt: String
+    @Published public var language: String
+    @Published public var created_at: Date
+    @Published public var config: RoleConfig
     public var llm: LLMService?
 
     @Published var noLLM = true
+    @Published var loading = false
 
     static func Get(id: UUID, store: ChatStore) -> RoleBiz? {
         // let ctx = store.container.viewContext
@@ -27,23 +43,31 @@ public class RoleBiz: ObservableObject, Identifiable {
         return nil
     }
 
-    init(id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String, created_at: Date, config: RoleConfig) {
-        self.id = id
-        self.name = name
-        self.desc = desc
-        self.avatar = avatar
-        self.prompt = prompt
-        self.language = language
-        self.created_at = created_at
-        self.config = config
+    init(props: RoleProps) {
+        self.id = props.id
+        self.name = props.name
+        self.desc = props.desc
+        self.avatar = props.avatar
+        self.prompt = props.prompt
+        self.language = props.language
+        self.created_at = props.created_at
+        self.config = props.config
         self.llm = nil
-
-        // let matchedProvider = Config.shared.languageProviders.first!
-        // let llm = LLMService(
-        //     value: LLMValues(provider: matchedProvider.name, model: matchedProvider.models.first!.name ?? "", apiProxyAddress: matchedProvider.apiProxyAddress, apiKey: matchedProvider.apiKey),
-        //     prompt: ""
-        // )
     }
+
+    // Add convenience init that uses the old parameter list but creates RoleProps internally
+    convenience init(id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String, created_at: Date, config: RoleConfig) {
+        var props = RoleProps(id: id)
+        props.name = name
+        props.desc = desc
+        props.avatar = avatar
+        props.prompt = prompt
+        props.language = language
+        props.created_at = created_at
+        props.config = config
+        self.init(props: props)
+    }
+
     func updateConfig() {
 
     }
@@ -71,14 +95,42 @@ public class RoleBiz: ObservableObject, Identifiable {
     //         self._settings = jsonString
     //     }
     // }
+
+    func load(config: Config) {
+        let m = DefaultRoles.first { $0.id == id }
+        guard let m = m else {
+            print("[BIZ]RoleBiz load error: role not found")
+            DispatchQueue.main.async {
+                self.loading = false
+            }
+            return
+        }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            print("[BIZ]RoleBiz refresh UI")
+            self.name = m.name
+            self.desc = m.desc
+            self.avatar = m.avatar
+            self.prompt = m.prompt
+            self.language = m.language
+            self.created_at = m.created_at
+            self.config = m.config
+            self.updateConfig()
+            self.updateLLM(config: config)
+            self.loading = false  // 移到最后，确保所有数据都加载完成
+        }
+    }
     
     static func from(_ entity: Role, config: Config) -> RoleBiz? {
         let id = entity.id ?? UUID()
-        let name = entity.name ?? ""
-        let avatar = entity.avatar_uri ?? ""
-        let prompt = entity.prompt ?? ""
         let config_str = entity.config ?? ""
-        let created_at = entity.created_at ?? Date()
+        
+        var props = RoleProps(id: id)
+        props.name = entity.name ?? ""
+        props.avatar = entity.avatar_uri ?? ""
+        props.prompt = entity.prompt ?? ""
+        props.created_at = entity.created_at ?? Date()
         
         // 解析 config JSON
         var voice = defaultRoleVoice
@@ -88,7 +140,6 @@ public class RoleBiz: ObservableObject, Identifiable {
             do {
                 let roleConfig = try JSONDecoder().decode(RoleConfig.self, from: config_data)
                 
-                // 解析 voice 配置
                 if let voiceConfig = roleConfig.voice {
                     voice = RoleVoice(
                         engine: voiceConfig.engine ?? "system",
@@ -99,7 +150,6 @@ public class RoleBiz: ObservableObject, Identifiable {
                     )
                 }
                 
-                // 解析 llm 配置
                 if let llmConfig = roleConfig.llm {
                     llmHelper = RoleLLMHelper(
                         provider: llmConfig.provider,
@@ -111,19 +161,9 @@ public class RoleBiz: ObservableObject, Identifiable {
             }
         }
         
-        return RoleBiz(
-            id: id,
-            name: name,
-            desc: "",
-            avatar: avatar,
-            prompt: prompt,
-            language: "en-US",
-            created_at: created_at,
-            config: RoleConfig(
-                voice: voice,
-                llm: llmHelper
-            )
-        )
+        props.config = RoleConfig(voice: voice, llm: llmHelper)
+        
+        return RoleBiz(props: props)
     }
 
     func updateSettings(provider: LanguageProvider, modelId: String) {
@@ -385,24 +425,19 @@ public class RoleVoice: ObservableObject, Codable {
 }
 
 public let DefaultRoles: [RoleBiz] = [
-    RoleBiz(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
-        name: "雅思助教",
-        desc: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。回复内容限制在100字以内。",
-        avatar: "https://static.funzm.com/chateverything/avatars/avatar7.jpeg",
-        prompt: "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。",
-        language: "en-US",
-        created_at: Date(),
-        config: RoleConfig(
-            voice: defaultRoleVoice,
-            llm: defaultRoleLLM
-        )
-    ),
+    RoleBiz(props: {
+        var props = RoleProps(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
+        props.name = "雅思助教"
+        props.desc = "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。回复内容限制在100字以内。"
+        props.avatar = "avatar7"
+        props.prompt = "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。"
+        return props
+    }()),
     RoleBiz(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
         name: "AI助手",
         desc: "你是一个AI助手，请回答用户的问题。回复内容限制在100字以内。",
-        avatar: "https://static.funzm.com/chateverything/avatars/avatar6.jpeg",
+        avatar: "avatar6",
         prompt: "你是一个AI助手，请回答用户的问题。",
         language: "en-US",
         created_at: Date(),
@@ -415,7 +450,7 @@ public let DefaultRoles: [RoleBiz] = [
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
         name: "英语口语教练",
         desc: "专业的英语口语教练，帮助你提升口语表达能力，纠正发音问题，提供地道的表达方式。",
-        avatar: "https://static.funzm.com/chateverything/avatars/avatar1.jpeg",
+        avatar: "avatar1",
         prompt: "你是一位经验丰富的英语口语教练。你需要：1. 帮助学生提升口语表达能力 2. 纠正发音错误 3. 教授地道的英语表达方式 4. 模拟真实对话场景 5. 给出详细的改进建议。请用简单友好的方式与学生交流。",
         language: "en-US",
         created_at: Date(),
@@ -428,7 +463,7 @@ public let DefaultRoles: [RoleBiz] = [
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
         name: "日语会话伙伴",
         desc: "友好的日语会话伙伴，帮助你练习日常对话，学习日本文化，提高日语水平。",
-        avatar: "https://static.funzm.com/chateverything/avatars/avatar2.jpeg",
+        avatar: "avatar2",
         prompt: "あなたは親切な日本語会話パートナーです。学習者の日本語レベルに合わせて、簡単な日常会話から高度な議論まで対応できます。日本の文化や習慣についても説明し、自然な日本語の使い方を教えてください。",
         language: "ja-JP",
         created_at: Date(),
@@ -441,7 +476,7 @@ public let DefaultRoles: [RoleBiz] = [
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!,
         name: "托福备考指导",
         desc: "专业的托福考试指导老师，提供备考策略，讲解考试技巧，助你获得理想分数。",
-        avatar: "https://static.funzm.com/chateverything/avatars/avatar3.jpeg",
+        avatar: "avatar3",
         prompt: "你是一位经验丰富的托福考试指导老师。你需要：1. 根据学生的目标分数制定学习计划 2. 讲解各个科目的考试技巧 3. 分析真题并提供详细解答 4. 指出常见错误并给出改进建议 5. 提供高效的备考方法。请用专业且易懂的方式回答问题。",
         language: "en-US",
         created_at: Date(),
@@ -454,7 +489,7 @@ public let DefaultRoles: [RoleBiz] = [
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!,
         name: "西班牙语老师",
         desc: "热情的西班牙语教师，教授地道的西班牙语，带你了解西语国家的文化。",
-        avatar: "https://static.funzm.com/chateverything/avatars/avatar4.jpeg",
+        avatar: "avatar4",
         prompt: "Eres un profesor de español entusiasta y paciente. Tu objetivo es: 1. Enseñar español de manera natural y efectiva 2. Explicar la gramática de forma clara 3. Compartir conocimientos sobre la cultura hispana 4. Practicar conversación 5. Corregir errores con amabilidad. Por favor, adapta tu nivel de español según el estudiante.",
         language: "es-ES",
         created_at: Date(),

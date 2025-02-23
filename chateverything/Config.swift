@@ -4,6 +4,7 @@ import LLM
 public enum Route: Hashable {
     case ChatDetailView(sessionId: UUID)
     case VocabularyView(filepath: String)
+    case RoleDetailView(roleId: UUID)
 }
 
 

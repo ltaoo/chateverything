@@ -32,12 +32,14 @@ struct RoleListPage: View {
             ScrollView {
                 LazyVStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(roles) { role in
-                        RoleCardInListPage(role: role) {
+                        RoleCardInListPage(role: role, onTap: {
                             let session = ChatSessionBiz.create(role: role, in: config.store)
                             ChatSessionMemberBiz.create(role: role, session: session, in: config.store)
                             ChatSessionMemberBiz.create(role: config.me, session: session, in: config.store)
                             path.append(Route.ChatDetailView(sessionId: session.id))
-                        }
+                        }, onSecondaryTap: {
+                            path.append(Route.RoleDetailView(roleId: role.id))
+                        })
                     }
                 }
                 .padding(DesignSystem.Spacing.medium)
@@ -89,6 +91,7 @@ struct RoleListHeader: View {
 struct RoleCardInListPage: View {
     let role: RoleBiz
     let onTap: () -> Void
+    let onSecondaryTap: () -> Void
     
     @State private var isPressed = false
     @State private var isLoading = false
@@ -96,20 +99,10 @@ struct RoleCardInListPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
             HStack(spacing: DesignSystem.Spacing.medium) {
-                AsyncImage(url: URL(string: role.avatar)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: DesignSystem.AvatarSize.large, 
-                               height: DesignSystem.AvatarSize.large)
-                } placeholder: {
-                    Image(systemName: "person.circle.fill")
-                        .resizable()
-                        .foregroundColor(DesignSystem.Colors.textSecondary)
-                        .frame(width: DesignSystem.AvatarSize.large, 
-                               height: DesignSystem.AvatarSize.large)
-                }
-                .clipShape(Circle())
+                Avatar(
+                    uri: role.avatar,
+                    size: DesignSystem.AvatarSize.large
+                )
                 
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxSmall) {
                     Text(role.name)
@@ -136,6 +129,34 @@ struct RoleCardInListPage: View {
                 .foregroundColor(DesignSystem.Colors.textSecondary)
                 .lineLimit(3)
                 .padding(.leading, DesignSystem.Spacing.xxxSmall)
+            
+            Divider()
+                .padding(.top, DesignSystem.Spacing.small)
+            
+            HStack(spacing: DesignSystem.Spacing.medium) {
+                Button(action: onTap) {
+                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
+                        Image(systemName: "message.fill")
+                        Text("开始聊天")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DesignSystem.Spacing.small)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isLoading)
+                
+                Button(action: onSecondaryTap) {
+                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
+                        Image(systemName: "info.circle")
+                        Text("详情")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DesignSystem.Spacing.small)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isLoading)
+            }
+            .padding(.top, DesignSystem.Spacing.small)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DesignSystem.Spacing.large)
@@ -152,28 +173,5 @@ struct RoleCardInListPage: View {
         )
         .scaleEffect(isPressed ? 0.98 : 1.0)
         .animation(.spring(response: 0.3), value: isPressed)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation {
-                isPressed = true
-                isLoading = true
-            }
-            
-            // 延迟重置按压状态
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation {
-                    isPressed = false
-                }
-            }
-            
-            onTap()
-            
-            // 模拟加载完成后重置状态
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation {
-                    isLoading = false
-                }
-            }
-        }
     }
 }

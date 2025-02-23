@@ -56,7 +56,11 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         let ctx = store.container.viewContext
         let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         req.predicate = NSPredicate(format: "id == %@", session.id as CVarArg)
-        let session = try! ctx.fetch(req).first!
+        let session = try! ctx.fetch(req).first
+        guard let session = session else {
+            print("[BIZ]ChatSessionBiz.delete: session not found")
+            return
+        }
         ctx.delete(session)
     }
     static func from(_ record: ChatSession, in store: ChatStore) -> ChatSessionBiz {
@@ -84,7 +88,12 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         
         let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         req.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        let session = try! ctx.fetch(req).first!
+        let session = try! ctx.fetch(req).first
+
+        guard let session = session else {
+            print("[BIZ]ChatSessionBiz.load: session not found")
+            return
+        }
 
         let role_req = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
         role_req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id ])
@@ -143,7 +152,11 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         let ctx = self.store.container.viewContext
         let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.id])
-        let session = try! ctx.fetch(req).first!
+        let session = try! ctx.fetch(req).first
+        guard let session = session else {
+            print("[BIZ]ChatSessionBiz.append: session not found")
+            return
+        }
         session.updated_at = Date()
         try! ctx.save()
 
