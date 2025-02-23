@@ -71,6 +71,7 @@ struct ContentView: View {
     
     @State private var showingChatConfig = false
     @State private var isLoading = false // 添加加载状态
+    @State private var showingCalendar = false
     
     func loadSeasons() {
         let hostname = "https://media.funzm.com"
@@ -127,7 +128,7 @@ struct ContentView: View {
             ZStack {
                 TabView(selection: $selectedTab) {
                     // 聊天标签页
-                    ChatListView(capsuleVM: capsuleVM, path: $path, showingChatConfig: $showingChatConfig)
+                    ChatListView(capsuleVM: capsuleVM, path: $path, showingChatConfig: $showingChatConfig, showingCalendar: $showingCalendar)
                         .tabItem {
                             Image(systemName: "message.fill")
                             Text("聊天")
@@ -188,10 +189,10 @@ struct ContentView: View {
                 }
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: capsuleVM.isVisible)
             }
-            .sheet(isPresented: $showingChatConfig) {
-                RoleSelectionView(path: $path, onCancel: {
-                    showingChatConfig = false
-                })
+            .sheet(isPresented: $showingCalendar) {
+                CalendarPopupView(isPresented: $showingCalendar)
+                    .presentationDetents([.medium])  // 只允许中等高度，移除 .large 选项
+                    .presentationDragIndicator(.visible)
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
@@ -394,6 +395,7 @@ struct ChatListView: View {
     @Binding var path: NavigationPath
     @State private var isLoading = false
     @Binding var showingChatConfig: Bool
+    @Binding var showingCalendar: Bool
     
     var body: some View {
         VStack(spacing: 0) {
@@ -408,7 +410,9 @@ struct ChatListView: View {
                             capsuleVM.toggleVisibility()
                         })
                         ChatButton(icon: "📅", text: "日历", onTap: {
-                            capsuleVM.toggleVisibility()
+                            withAnimation {
+                                showingCalendar = true
+                            }
                         })
                     }
                     .padding(.horizontal, 16)
