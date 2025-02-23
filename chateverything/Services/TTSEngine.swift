@@ -337,20 +337,10 @@ struct TTSEngineOption: Identifiable, Hashable {
 
 let TTSEngineOptions = [
     TTSEngineOption(name: "系统", roles: [
-        TTSEngineRole(name: "系统", voice: "系统", language: "en-US", description: "系统默认语音"),
+        TTSEngineRole(name: "默认", voice: "默认", language: "en-US", description: "系统默认语音"),
     ]),
     TTSEngineOption(name: "腾讯云", roles: [
-        TTSEngineRole(name: "WeJames", voice: "501008", language: "en-US", description: "英文男声"),
-        TTSEngineRole(name: "WeWinny", voice: "501009", language: "en-US", description: "英文女声"),
-        TTSEngineRole(name: "WeJack", voice: "101050", language: "en-US", description: "英文男声"),
-        TTSEngineRole(name: "WeRose", voice: "101051", language: "en-US", description: "英文女声"),
-        TTSEngineRole(name: "智小柔", voice: "502001", language: "zh-CN", description: "对话女声"),
-        TTSEngineRole(name: "智斌", voice: "501000", language: "zh-CN", description: "阅读男声"),
-        TTSEngineRole(name: "智兰", voice: "501001", language: "zh-CN", description: "资讯女声"),
-        TTSEngineRole(name: "智菊", voice: "501002", language: "zh-CN", description: "阅读女声"),
-        TTSEngineRole(name: "智宇", voice: "501003", language: "zh-CN", description: "阅读男声"),
-        TTSEngineRole(name: "月华", voice: "501004", language: "zh-CN", description: "对话女声"),
-        TTSEngineRole(name: "飞镜", voice: "501005", language: "zh-CN", description: "对话男声"),
+      
     ]),
 ]
 
@@ -418,4 +408,127 @@ class TTSManager {
         }
     }
 }
+
+struct TTSCredential: Identifiable {
+    let appId: String?
+    let secretId: String?
+    let secretKey: String?
+}
+
+// 修改 TTSProvider 结构
+struct TTSProvider: Identifiable {
+    let id: String
+    let name: String
+    let logo_uri: String
+    let stream: Bool
+    let credential: TTSCredential
+    let roles: [TTSEngineRole]
+}
+
+// 示例配置
+let TTSProviders = [
+    TTSProvider(
+        id: "system",
+        name: "系统",
+        logo_uri: "https://qcloud.com/logo.png",
+        stream: false,
+        credential: TTSCredential(
+            appId: nil,
+            secretId: nil,
+            secretKey: nil
+        ),
+        roles: [],
+        configFields: [
+            TTSConfigField(
+                id: "system_gender",
+                key: "gender",
+                label: "声音性别",
+                type: .singleSelect,
+                defaultValue: "female",
+                description: "选择声音性别",
+                options: [
+                    TTSConfigOption(id: "male", label: "男声", value: "male", description: nil),
+                    TTSConfigOption(id: "female", label: "女声", value: "female", description: nil)
+                ],
+                min: nil,
+                max: nil,
+                step: nil,
+                required: true,
+                placeholder: nil
+            )
+        ]
+    ),
+    TTSProvider(
+        id: "qcloud",
+        name: "腾讯云",
+        logo_uri: "https://qcloud.com/logo.png",
+        credential: TTSCredential(
+            appId: nil,
+            secretId: nil,
+            secretKey: nil
+        ),
+        roles: [
+            TTSEngineRole(name: "WeJames", voice: "501008", language: "en-US", description: "英文男声"),
+            TTSEngineRole(name: "WeWinny", voice: "501009", language: "en-US", description: "英文女声"),
+            TTSEngineRole(name: "WeJack", voice: "101050", language: "en-US", description: "英文男声"),
+            TTSEngineRole(name: "WeRose", voice: "101051", language: "en-US", description: "英文女声"),
+            TTSEngineRole(name: "智小柔", voice: "502001", language: "zh-CN", description: "对话女声"),
+            TTSEngineRole(name: "智斌", voice: "501000", language: "zh-CN", description: "阅读男声"),
+            TTSEngineRole(name: "智兰", voice: "501001", language: "zh-CN", description: "资讯女声"),
+            TTSEngineRole(name: "智菊", voice: "501002", language: "zh-CN", description: "阅读女声"),
+            TTSEngineRole(name: "智宇", voice: "501003", language: "zh-CN", description: "阅读男声"),
+            TTSEngineRole(name: "月华", voice: "501004", language: "zh-CN", description: "对话女声"),
+            TTSEngineRole(name: "飞镜", voice: "501005", language: "zh-CN", description: "对话男声"),
+        ],
+        configFields: [
+            TTSConfigField(
+                id: "qcloud_speed",
+                key: "speed",
+                label: "语速",
+                type: .slider,
+                defaultValue: 1.0,
+                description: "调节语音速度",
+                options: nil,
+                min: 0.5,
+                max: 2.0,
+                step: 0.1,
+                required: true,
+                placeholder: nil
+            ),
+            TTSConfigField(
+                id: "qcloud_volume",
+                key: "volume",
+                label: "音量",
+                type: .slider,
+                defaultValue: 1.0,
+                description: "调节语音音量",
+                options: nil,
+                min: 0.0,
+                max: 1.0,
+                step: 0.1,
+                required: true,
+                placeholder: nil
+            ),
+            TTSConfigField(
+                id: "qcloud_role",
+                key: "role",
+                label: "语音角色",
+                type: .singleSelect,
+                defaultValue: "501008",
+                description: "选择语音角色",
+                options: [
+                    TTSConfigOption(id: "501008", label: "WeJames", value: "501008", description: "英文男声"),
+                    TTSConfigOption(id: "501009", label: "WeWinny", value: "501009", description: "英文女声")
+                    // ... 可以添加更多角色选项
+                ],
+                min: nil,
+                max: nil,
+                step: nil,
+                required: true,
+                placeholder: nil
+            )
+        ]
+    ),
+]
+
 

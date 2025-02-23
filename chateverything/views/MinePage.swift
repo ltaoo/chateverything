@@ -132,7 +132,7 @@ struct SettingsList: View {
                     SettingsRow(icon: "brain", title: "语言模型", showDivider: true)
                 }
                 
-                SettingsRow(icon: "waveform", title: "发音设置", showDivider: true)
+                SettingsRow(icon: "waveform", title: "语音设置", showDivider: true)
                 SettingsRow(icon: "gear", title: "通用设置", showDivider: true)
             }
         }
