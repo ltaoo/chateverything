@@ -1,74 +1,92 @@
 import SwiftUI
 
 // 配置项的值类型枚举
-enum FormInputType: Codable {
-    case string(StringInput)           // 字符串类型
-    case number(NumberInput)          // 数值类型
-    case boolean(BooleanInput)        // 布尔类型
-    case select(SelectInput)          // 单选类型
-    case multiSelect(MultiSelectInput) // 多选类型
-    case slider(SliderInput)          // 滑块类型(数值范围)
+public enum FormInputType: Codable {
+    case InputString(StringInput)           // 字符串类型
+    case InputNumber(NumberInput)          // 数值类型
+    case InputBoolean(BooleanInput)        // 布尔类型
+    case InputSelect(SelectInput)          // 单选类型
+    case InputMultiSelect(MultiSelectInput) // 多选类型
+    case InputSlider(SliderInput)          // 滑块类型(数值范围)
     
     // 添加编码和解码的实现
     private enum CodingKeys: String, CodingKey {
         case type, value
     }
     
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .string(let input):
+        case .InputString(let input):
             try container.encode("string", forKey: .type)
             try container.encode(input, forKey: .value)
-        case .number(let input):
+        case .InputNumber(let input):
             try container.encode("number", forKey: .type)
             try container.encode(input, forKey: .value)
-        case .boolean(let input):
+        case .InputBoolean(let input):
             try container.encode("boolean", forKey: .type)
             try container.encode(input, forKey: .value)
-        case .select(let input):
+        case .InputSelect(let input):
             try container.encode("select", forKey: .type)
             try container.encode(input, forKey: .value)
-        case .multiSelect(let input):
+        case .InputMultiSelect(let input):
             try container.encode("multiSelect", forKey: .type)
             try container.encode(input, forKey: .value)
-        case .slider(let input):
+        case .InputSlider(let input):
             try container.encode("slider", forKey: .type)
             try container.encode(input, forKey: .value)
         }
     }
     
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
         
         switch type {
         case "string":
-            self = .string(try container.decode(StringInput.self, forKey: .value))
+            self = .InputString(try container.decode(StringInput.self, forKey: .value))
         case "number":
-            self = .number(try container.decode(NumberInput.self, forKey: .value))
+            self = .InputNumber(try container.decode(NumberInput.self, forKey: .value))
         case "boolean":
-            self = .boolean(try container.decode(BooleanInput.self, forKey: .value))
+            self = .InputBoolean(try container.decode(BooleanInput.self, forKey: .value))
         case "select":
-            self = .select(try container.decode(SelectInput.self, forKey: .value))
+            self = .InputSelect(try container.decode(SelectInput.self, forKey: .value))
         case "multiSelect":
-            self = .multiSelect(try container.decode(MultiSelectInput.self, forKey: .value))
+            self = .InputMultiSelect(try container.decode(MultiSelectInput.self, forKey: .value))
         case "slider":
-            self = .slider(try container.decode(SliderInput.self, forKey: .value))
+            self = .InputSlider(try container.decode(SliderInput.self, forKey: .value))
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown type")
+        }
+    }
+
+    // 添加 setValue 方法
+    func setValue(_ value: Any?) {
+        switch self {
+        case .InputString(let input):
+            input.setValue(value: value as? String)
+        case .InputNumber(let input):
+            input.setValue(value: value as? Double)
+        case .InputBoolean(let input):
+            input.setValue(value: value as? Bool)
+        case .InputSelect(let input):
+            input.setValue(value: value as? String)
+        case .InputMultiSelect(let input):
+            input.setValue(value: value as? [String])
+        case .InputSlider(let input):
+            input.setValue(value: value as? Double)
         }
     }
 }
 
 // 使用协议而不是类
-protocol FormInputProtocol: Codable, ObservableObject {
+public protocol FormInputProtocol: Codable, ObservableObject {
     associatedtype ValueType: Codable
     var value: ValueType { get set }
 }
 
 // 定义一个新的协议来规范所有输入类型的行为
-protocol FormInputBehavior {
+public protocol FormInputBehavior {
     associatedtype T
     var value: T? { get set }
     var disabled: Bool { get set }
@@ -81,18 +99,18 @@ protocol FormInputBehavior {
 }
 
 // 修改基础输入类以实现该协议
-class FormInput<T: Codable>: ObservableObject, FormInputBehavior, Codable {
-    let id: String
-    @Published var placeholder: String?
-    @Published var disabled: Bool = false
-    @Published var defaultValue: T?
-    @Published var value: T?
-    var onChange: ((T?) -> Void)?
+public class FormInput<T: Codable>: ObservableObject, FormInputBehavior, Codable {
+    public let id: String
+    @Published public var placeholder: String?
+    @Published public var disabled: Bool = false
+    @Published public var defaultValue: T?
+    @Published public var value: T?
+    public var onChange: ((T?) -> Void)?
     
     init(
         id: String,
         placeholder: String? = nil,
-	disabled: Bool = false,
+	    disabled: Bool = false,
         defaultValue: T? = nil,
         onChange: ((T?) -> Void)? = nil
     ) {
@@ -112,7 +130,7 @@ class FormInput<T: Codable>: ObservableObject, FormInputBehavior, Codable {
         case value
     }
     
-    required init(from decoder: Decoder) throws {
+    required public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
@@ -122,7 +140,7 @@ class FormInput<T: Codable>: ObservableObject, FormInputBehavior, Codable {
         onChange = nil
     }
     
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encodeIfPresent(placeholder, forKey: .placeholder)
@@ -131,31 +149,30 @@ class FormInput<T: Codable>: ObservableObject, FormInputBehavior, Codable {
         try container.encodeIfPresent(value, forKey: .value)
     }
 
-    func setValue(value: T?) {
+    public func setValue(value: T?) {
         self.value = value
         onChange?(value)
     }
-    func clear() {
+    public func clear() {
         self.value = nil
         onChange?(nil)
     }
-    func disable() {
+    public func disable() {
         self.disabled = true
     }
-    func enable() {
+    public func enable() {
         self.disabled = false
     }
 }
 
 // 字符串输入
-class StringInput: FormInput<String> {
+public class StringInput: FormInput<String> {
     // 可以添加字符串特有的属性
-    let maxLength: Int?
+    public let maxLength: Int?
     
     init(
         id: String,
-        placeholder: String? = nil,
-	disabled: Bool = false,
+	    disabled: Bool = false,
         defaultValue: String? = nil,
         maxLength: Int? = nil,
         onChange: ((String?) -> Void)? = nil
@@ -163,7 +180,6 @@ class StringInput: FormInput<String> {
         self.maxLength = maxLength
         super.init(
             id: id,
-            placeholder: placeholder,
             disabled: disabled,
             defaultValue: defaultValue,
             onChange: onChange
@@ -176,9 +192,9 @@ class StringInput: FormInput<String> {
 }
 
 // 数值输入
-class NumberInput: FormInput<Double> {
-    let min: Double?
-    let max: Double?
+public class NumberInput: FormInput<Double> {
+    public let min: Double?
+    public let max: Double?
     
     init(
         id: String,
@@ -203,22 +219,36 @@ class NumberInput: FormInput<Double> {
     required init(from decoder: Decoder) throws {
         fatalError("init(from:) has not been implemented")
     }
+
+    public override func setValue(value: Double?) {
+	self.value = value
+	if let value = value {
+		if let min = min, value < min {
+			self.value = min
+		}
+		if let max = max, value > max {
+			self.value = max
+		}
+	}
+	print("setValue: \(self.id) \(self.value) \(value)")
+	super.setValue(value: self.value)
+    }
 }
 
 // 布尔输入
-class BooleanInput: FormInput<Bool> {}
+public class BooleanInput: FormInput<Bool> {}
 
 // 配置项的选项
-struct FormSelectOption: Identifiable, Codable {
-    let id: String
-    let label: String
-    let value: String
-    let description: String?
+public struct FormSelectOption: Identifiable, Codable {
+    public let id: String
+    public let label: String
+    public let value: String
+    public let description: String?
 }
 
 // 选择输入
-class SelectInput: FormInput<String> {
-    let options: [FormSelectOption]
+public class SelectInput: FormInput<String> {
+    public let options: [FormSelectOption]
     
     init(
         id: String,
@@ -244,8 +274,8 @@ class SelectInput: FormInput<String> {
 }
 
 // 多选输入
-class MultiSelectInput: FormInput<[String]> {
-    let options: [FormSelectOption]
+public class MultiSelectInput: FormInput<[String]> {
+    public let options: [FormSelectOption]
     
     init(
         id: String,
@@ -271,10 +301,10 @@ class MultiSelectInput: FormInput<[String]> {
 }
 
 // 滑块输入
-class SliderInput: FormInput<Double> {
-    let min: Double
-    let max: Double
-    let step: Double
+public class SliderInput: FormInput<Double> {
+    public let min: Double
+    public let max: Double
+    public let step: Double
     
     init(
         id: String,
@@ -303,19 +333,19 @@ class SliderInput: FormInput<Double> {
     }
 }
 
-struct FieldError: Identifiable {
-	let id: String
-	let message: String
+public struct FieldError: Identifiable {
+	public let id: String
+	public let message: String
 }
 
 // 配置项定义
-class FormField: Identifiable {
-    let id: String           // 配置项唯一标识
-    let key: String         // 配置项键名
-    let label: String       // 显示标签
-    let required: Bool      // 是否必填
-    let input: FormInputType  // 值类型
-    let errors: [FieldError] = [] // 错误信息
+public class FormField: Identifiable {
+    public let id: String           // 配置项唯一标识
+    public let key: String         // 配置项键名
+    public let label: String       // 显示标签
+    public let required: Bool      // 是否必填
+    public let input: FormInputType  // 值类型
+    public let errors: [FieldError] = [] // 错误信息
 
     init(id: String, key: String, label: String, required: Bool, input: FormInputType) {
         self.id = id
@@ -327,12 +357,12 @@ class FormField: Identifiable {
 
     var value: Any? {
         switch input {
-        case .string(let input): return input.value
-        case .number(let input): return input.value
-        case .boolean(let input): return input.value
-        case .select(let input): return input.value
-        case .multiSelect(let input): return input.value
-        case .slider(let input): return input.value
+        case .InputString(let input): return input.value
+        case .InputNumber(let input): return input.value
+        case .InputBoolean(let input): return input.value
+        case .InputSelect(let input): return input.value
+        case .InputMultiSelect(let input): return input.value
+        case .InputSlider(let input): return input.value
         }
     }
 
@@ -341,6 +371,17 @@ class FormField: Identifiable {
         let isValid: Bool
         let value: Any?
         let errors: [FieldError]
+    }
+
+    func setValue(value: Any?) {
+        switch input {
+        case .InputString(let input): input.setValue(value: value as? String)
+        case .InputNumber(let input): input.setValue(value: value as? Double)
+        case .InputBoolean(let input): input.setValue(value: value as? Bool)
+        case .InputSelect(let input): input.setValue(value: value as? String)
+        case .InputMultiSelect(let input): input.setValue(value: value as? [String])
+        case .InputSlider(let input): input.setValue(value: value as? Double)
+        }
     }
     
     func validate() -> ValidationResult {
@@ -354,13 +395,13 @@ class FormField: Identifiable {
         
         // 根据不同类型进行特定验证
         switch input {
-        case .string(let input):
+        case .InputString(let input):
             if let maxLength = input.maxLength,
                let strValue = value as? String,
                strValue.count > maxLength {
                 errors.append(FieldError(id: id, message: "\(label)长度不能超过\(maxLength)"))
             }
-        case .number(let input):
+        case .InputNumber(let input):
             if let numValue = value as? Double {
                 if let min = input.min, numValue < min {
                     errors.append(FieldError(id: id, message: "\(label)不能小于\(min)"))
@@ -378,13 +419,13 @@ class FormField: Identifiable {
 }
 
 // 然后修改 FormObjectField 的定义
-class FormObjectField: Identifiable {
-    let id: String
-    let key: String
-    let label: String
-    let required: Bool
-    let fields: [String:AnyFormField]
-    let errors: [FieldError] = []
+public class FormObjectField: Identifiable {
+    public let id: String
+    public let key: String
+    public let label: String
+    public let required: Bool
+    public let fields: [String:AnyFormField]
+    public let errors: [FieldError] = []
 
     init(id: String, key: String, label: String, required: Bool, fields: [String:AnyFormField]) {
         self.id = id
@@ -416,11 +457,24 @@ class FormObjectField: Identifiable {
     // 在 FormObjectField 中添加验证方法
     struct ValidationResult {
         let isValid: Bool
-        let values: [String: Any]
+        let value: [String: Any]
         let errors: [String: [FieldError]]
     }
-    
-    func validateValues() -> ValidationResult {
+    func setValue(value: [String: Any]) {
+        for (key, field) in fields {
+            switch field {
+            case .single(let formField):
+                print("setValue: \(key) \(value[key])")
+                formField.setValue(value: value[key])
+            case .array(let arrayField):
+                arrayField.setValue(value: value[key] as! [Any])
+            case .object(let objectField):
+                objectField.setValue(value: value[key] as! [String : Any])
+            }
+        }
+    }
+
+    func validate() -> ValidationResult {
         var allValues: [String: Any] = [:]
         var allErrors: [String: [FieldError]] = [:]
         var isValid = true
@@ -438,34 +492,34 @@ class FormObjectField: Identifiable {
                 }
                 
             case .array(let arrayField):
-                let result = arrayField.validateValues()
+                let result = arrayField.validate()
                 if !result.isValid {
                     isValid = false
                     allErrors[key] = result.errors
                 }
-                allValues[key] = result.values
+                allValues[key] = result.value
                 
             case .object(let objectField):
-                let result = objectField.validateValues()
+                let result = objectField.validate()
                 if !result.isValid {
                     isValid = false
                     allErrors[key] = result.errors.flatMap { $0.value }
                 }
-                allValues[key] = result.values
+                allValues[key] = result.value
             }
         }
         
-        return ValidationResult(isValid: isValid, values: allValues, errors: allErrors)
+        return ValidationResult(isValid: isValid, value: allValues, errors: allErrors)
     }
 }
 
-class FormArrayField: Identifiable {
-    let id: String
-    let key: String
-    let label: String
-    let required: Bool
-    let errors: [FieldError] = []
-    let field: (_ index: Int) -> AnyFormField
+public class FormArrayField: Identifiable {
+    public let id: String
+    public let key: String
+    public let label: String
+    public let required: Bool
+    public let errors: [FieldError] = []
+    public let field: (_ index: Int) -> AnyFormField
 
     var fields: [AnyFormField] = []
 
@@ -502,11 +556,24 @@ class FormArrayField: Identifiable {
     // 在 FormArrayField 中添加验证方法
     struct ValidationResult {
         let isValid: Bool
-        let values: [Any]
+        let value: [Any]
         let errors: [FieldError]
     }
+
+    func setValue(value: [Any]) {
+        for (index, field) in fields.enumerated() {
+            switch field {
+            case .single(let formField):
+                formField.setValue(value: value[index])
+            case .array(let arrayField):
+                arrayField.setValue(value: value[index] as! [Any])
+            case .object(let objectField):
+                objectField.setValue(value: value[index] as! [String : Any])
+            }
+        }
+    }
     
-    func validateValues() -> ValidationResult {
+    func validate() -> ValidationResult {
         var allValues: [Any] = []
         var allErrors: [FieldError] = []
         var isValid = true
@@ -522,34 +589,34 @@ class FormArrayField: Identifiable {
                 allValues.append(result.value ?? NSNull())
                 
             case .array(let arrayField):
-                let result = arrayField.validateValues()
+                let result = arrayField.validate()
                 if !result.isValid {
                     isValid = false
                     allErrors.append(contentsOf: result.errors)
                 }
-                allValues.append(result.values)
+                allValues.append(result.value)
                 
             case .object(let objectField):
-                let result = objectField.validateValues()
+                let result = objectField.validate()
                 if !result.isValid {
                     isValid = false
                     allErrors.append(contentsOf: result.errors.flatMap { $0.value })
                 }
-                allValues.append(result.values)
+                allValues.append(result.value)
             }
         }
         
-        return ValidationResult(isValid: isValid, values: allValues, errors: allErrors)
+        return ValidationResult(isValid: isValid, value: allValues, errors: allErrors)
     }
 }
 
 // 首先定义一个新的枚举类型来表示所有可能的字段类型
-enum AnyFormField: Identifiable {
+public enum AnyFormField: Identifiable {
     case single(FormField)
     case array(FormArrayField)
     case object(FormObjectField)
     
-    var id: String {
+    public var id: String {
         switch self {
         case .single(let field): return field.id
         case .array(let field): return field.id

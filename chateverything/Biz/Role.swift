@@ -30,6 +30,7 @@ public class RoleBiz: ObservableObject, Identifiable {
 
     @Published var noLLM = true
     @Published var loading = false
+    @Published var count: Int = 0
 
     static func Get(id: UUID, store: ChatStore) -> RoleBiz? {
         // let ctx = store.container.viewContext
@@ -73,19 +74,19 @@ public class RoleBiz: ObservableObject, Identifiable {
     }
     func updateLLM(config: Config) {
         print("[BIZ]RoleBiz updateLLM")
-        self.noLLM = false
-        var llm: LLMService? = nil
-        if let helper = self.config.llm {
-            let value = helper.build(config: config)
-            print("[BIZ]RoleBiz updateLLM value: \(value?.provider) \(value?.model) \(value?.apiProxyAddress) \(value?.apiKey)")
-            if let value = value {
-                llm = LLMService(value: value, prompt: prompt)
-            }
-        }
-        if llm == nil {
-            self.noLLM = true
-        }
-        self.llm = llm
+//        self.noLLM = false
+//        var llm: LLMService? = nil
+//        if let helper = self.config.llm {
+//            let value = helper.build(config: config)
+//            print("[BIZ]RoleBiz updateLLM value: \(value?.provider) \(value?.model) \(value?.apiProxyAddress) \(value?.apiKey)")
+//            if let value = value {
+//                llm = LLMService(value: value, prompt: prompt)
+//            }
+//        }
+//        if llm == nil {
+//            self.noLLM = true
+//        }
+//        self.llm = llm
     }
     
     // mutating func saveSettings(_ settings: RoleSettingsV2) throws {
@@ -134,28 +135,18 @@ public class RoleBiz: ObservableObject, Identifiable {
         
         // 解析 config JSON
         var voice = defaultRoleVoice
-        var llmHelper: RoleLLMHelper? = nil
+        var llmHelper = defaultRoleLLM
 
         if let config_data = config_str.data(using: .utf8) {
             do {
                 let roleConfig = try JSONDecoder().decode(RoleConfig.self, from: config_data)
-                
-                if let voiceConfig = roleConfig.voice {
-                    voice = RoleVoice(
-                        engine: voiceConfig.engine ?? "system",
-                        rate: voiceConfig.rate ?? 1,
-                        volume: voiceConfig.volume ?? 1,
-                        style: voiceConfig.style ?? "normal",
-                        role: voiceConfig.role ?? ""
-                    )
-                }
-                
-                if let llmConfig = roleConfig.llm {
-                    llmHelper = RoleLLMHelper(
-                        provider: llmConfig.provider,
-                        model: llmConfig.model
-                    )
-                }
+                voice["provider"] = roleConfig.voice["provider"] ?? "system"
+                voice["rate"] = roleConfig.voice["rate"] ?? 1
+                voice["volume"] = roleConfig.voice["volume"] ?? 1
+                voice["style"] = roleConfig.voice["style"] ?? "normal"
+                voice["role"] = roleConfig.voice["role"] ?? ""
+                llmHelper["provider"] = roleConfig.llm["provider"] as! String ?? "deepseek"
+                llmHelper["model"] = roleConfig.llm["model"] as! String ?? "deepseek-chat"
             } catch {
                 print("Error parsing role config: \(error)")
             }
@@ -166,7 +157,7 @@ public class RoleBiz: ObservableObject, Identifiable {
         return RoleBiz(props: props)
     }
 
-    func updateSettings(provider: LanguageProvider, modelId: String) {
+    func updateSettings(provider: LLMProvider, modelId: String) {
         // print("updateSettings \(provider.name) \(modelId)")
         // self.settings.update(model: RoleModelV2(
         //     name: modelId,
@@ -264,14 +255,14 @@ public class RoleBiz: ObservableObject, Identifiable {
 // extension RoleSpeakerV2: Codable {}
 
 // AnyCodable 包装器
-struct AnyCodable: Codable {
+public struct AnyCodable: Codable {
     let value: Any
     
     init(_ value: Any) {
         self.value = value
     }
     
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self.value = NSNull()
@@ -292,7 +283,7 @@ struct AnyCodable: Codable {
         }
     }
     
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch value {
         case is NSNull:
@@ -315,10 +306,47 @@ struct AnyCodable: Codable {
     }
 }
 
-// 在 AnyCodable 之前添加这些结构体
-public struct RoleConfig: Codable {
-    public let voice: RoleVoice?
-    public let llm: RoleLLMHelper?
+// Replace the RoleConfig struct with this implementation
+public class RoleConfig: Codable {
+    @Published public var voice: [String: AnyCodable]
+    @Published public var llm: [String: AnyCodable]
+    
+    enum CodingKeys: String, CodingKey {
+        case voice
+        case llm
+    }
+    
+    public init(voice: [String: Any], llm: [String: Any]) {
+        self.voice = voice.mapValues { AnyCodable($0) }
+        self.llm = llm.mapValues { AnyCodable($0) }
+    }
+    
+    required public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.voice = try container.decode([String: AnyCodable].self, forKey: .voice)
+        self.llm = try container.decode([String: AnyCodable].self, forKey: .llm)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(voice, forKey: .voice)
+        try container.encode(llm, forKey: .llm)
+    }
+
+    public func updateLLM(model: String) {
+        DispatchQueue.main.async {
+            self.llm["model"] = AnyCodable(model)
+        }
+    }
+    
+    // Add computed properties to get the underlying dictionaries
+    public var voiceDict: [String: Any] {
+        return voice.mapValues { $0.value }
+    }
+    
+    public var llmDict: [String: Any] {
+        return llm.mapValues { $0.value }
+    }
 }
 
 public class RoleLLMHelper: Codable {
@@ -337,9 +365,9 @@ public class RoleLLMHelper: Codable {
     func build(config: Config) -> LLMValues? {
         let provider_name = self.provider
         let model_name = self.model
-        let values = config.languageProviderControllers.first { $0.name == provider_name }
+        let values = config.llmProviderControllers.first { $0.name == provider_name }
 
-        for v in config.languageProviderControllers {
+        for v in config.llmProviderControllers {
             print("[BIZ]RoleLLMHelper build provider: \(v.name) \(v.value.apiProxyAddress) \(v.provider.apiProxyAddress) \(v.value.apiKey)")
         }
 
@@ -368,10 +396,6 @@ public class RoleLLMHelper: Codable {
     }
 }
 
-
-
-public let defaultRoleVoice = RoleVoice(engine: "system", rate: 1, volume: 1, style: "normal", role: "")
-public let defaultRoleLLM = RoleLLMHelper(provider: "deepseek", model: "deepseek-chat")
 
 public class RoleVoice: ObservableObject, Codable {
     // 引擎，目前支持 QCloud、System
@@ -411,7 +435,7 @@ public class RoleVoice: ObservableObject, Codable {
         try container.encode(role, forKey: .role)
     }
 
-    static func GetDefault() -> RoleVoice {
+    static func GetDefault() -> [String:Any] {
         return defaultRoleVoice
     }
 
@@ -424,6 +448,8 @@ public class RoleVoice: ObservableObject, Codable {
     }
 }
 
+public let defaultRoleVoice = ["provider": "system", "rate": 1.0, "volume": 1.0, "style": "normal", "role": ""] as [String : Any]
+public let defaultRoleLLM = ["provider": "deepseek", "model": "deepseek-chat"] as [String : Any]
 public let DefaultRoles: [RoleBiz] = [
     RoleBiz(props: {
         var props = RoleProps(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
@@ -431,6 +457,10 @@ public let DefaultRoles: [RoleBiz] = [
         props.desc = "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。回复内容限制在100字以内。"
         props.avatar = "avatar7"
         props.prompt = "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。"
+        props.config = RoleConfig(
+            voice: defaultRoleVoice,
+            llm: defaultRoleLLM
+        )
         return props
     }()),
     RoleBiz(
@@ -456,7 +486,7 @@ public let DefaultRoles: [RoleBiz] = [
         created_at: Date(),
         config: RoleConfig(
             voice: defaultRoleVoice,
-            llm: RoleLLMHelper(provider: "deepseek", model: "deepseek-chat", stream: true)
+            llm: ["provider": "deepseek", "model": "deepseek-chat", "stream": true]
         )
     ),
     RoleBiz(

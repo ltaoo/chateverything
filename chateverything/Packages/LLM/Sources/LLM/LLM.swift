@@ -24,19 +24,19 @@ public struct ChatRequest: Codable {
     }
 }
 
-// 定义响应处理器类型
 public typealias ResponseHandler = (Data) throws -> String
 
-public struct LanguageProvider: Identifiable {
-    public var id: String { name }
+public struct LLMProvider: Identifiable, Hashable {
+    public var id: String
     public let name: String
     public let logo_uri: String
     public let apiKey: String
     public let apiProxyAddress: String
-    public var models: [LanguageModel]
+    public var models: [LLMProviderModel]
     public let responseHandler: (Data) throws -> String
     
-    public init(name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LanguageModel], responseHandler: @escaping (Data) throws -> String = DefaultHandler) {
+    public init(id: String, name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LLMProviderModel], responseHandler: @escaping (Data) throws -> String = DefaultHandler) {
+        self.id = id
         self.name = name
         self.logo_uri = logo_uri
         self.models = models
@@ -50,12 +50,12 @@ public struct LanguageProvider: Identifiable {
         hasher.combine(id)
         hasher.combine(name)
     }
-    public static func == (lhs: LanguageProvider, rhs: LanguageProvider) -> Bool {
+    public static func == (lhs: LLMProvider, rhs: LLMProvider) -> Bool {
         return lhs.id == rhs.id && lhs.name == rhs.name
     }
 }
 
-public struct LanguageModel: Identifiable, Hashable {
+public struct LLMProviderModel: Identifiable, Hashable {
     public let id: String
     public let name: String
     
@@ -71,7 +71,7 @@ public struct LanguageModel: Identifiable, Hashable {
     }
     
     // 实现 Equatable 协议（Hashable 需要）
-    public static func == (lhs: LanguageModel, rhs: LanguageModel) -> Bool {
+    public static func == (lhs: LLMProviderModel, rhs: LLMProviderModel) -> Bool {
         return lhs.id == rhs.id && lhs.name == rhs.name
     }
 }
@@ -95,8 +95,8 @@ public struct LLMValues {
 
 public class LLMService: ObservableObject {
     @Published public var value: LLMValues
-    private var provider: LanguageProvider
-    private var model: LanguageModel
+    private var provider: LLMProvider
+    private var model: LLMProviderModel
     private var prompt: String
     private var messages: [Message]
     
@@ -108,8 +108,8 @@ public class LLMService: ObservableObject {
     
     public init(value: LLMValues, prompt: String = "") {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(id: "", name: "")
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
         self.prompt = prompt
         self.messages = [Message(role: "system", content: prompt)]
 
@@ -118,8 +118,8 @@ public class LLMService: ObservableObject {
 
     public func update(value: LLMValues) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LanguageProvider(name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LanguageModel(id: "", name: "")
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
     }
 
     public func fakeChat(content: String) async throws -> String {
@@ -264,189 +264,6 @@ public class LLMService: ObservableObject {
     }
 }
 
-
-public struct DefaultChatResponse: Codable {
-    public let id: String
-    public let object: String
-    public let created: Int
-    public let model: String
-    public let choices: [Choice]
-    public let usage: Usage
-    public let systemFingerprint: String
-    
-    enum CodingKeys: String, CodingKey {
-        case id, object, created, model, choices, usage
-        case systemFingerprint = "system_fingerprint"
-    }
-    
-    public struct Choice: Codable {
-        public let index: Int
-        public let message: Message
-        public let logprobs: String?
-        public let finishReason: String
-        
-        enum CodingKeys: String, CodingKey {
-            case index, message, logprobs
-            case finishReason = "finish_reason"
-        }
-    }
-    
-    public struct Message: Codable {
-        public let role: String
-        public let content: String
-    }
-    
-    public struct Usage: Codable {
-        public let promptTokens: Int
-        public let completionTokens: Int
-        public let totalTokens: Int
-        public let promptTokensDetails: PromptTokensDetails
-        public let promptCacheHitTokens: Int
-        public let promptCacheMissTokens: Int
-        
-        enum CodingKeys: String, CodingKey {
-            case promptTokens = "prompt_tokens"
-            case completionTokens = "completion_tokens"
-            case totalTokens = "total_tokens"
-            case promptTokensDetails = "prompt_tokens_details"
-            case promptCacheHitTokens = "prompt_cache_hit_tokens"
-            case promptCacheMissTokens = "prompt_cache_miss_tokens"
-        }
-    }
-    
-    public struct PromptTokensDetails: Codable {
-        public let cachedTokens: Int
-        
-        enum CodingKeys: String, CodingKey {
-            case cachedTokens = "cached_tokens"
-        }
-    }
-}
-
-public struct DeepseekChatResponse: Codable {
-    public let id: String
-    public let object: String
-    public let created: Int
-    public let model: String
-    public let choices: [Choice]
-    public let usage: Usage
-    public let systemFingerprint: String
-    
-    enum CodingKeys: String, CodingKey {
-        case id, object, created, model, choices, usage
-        case systemFingerprint = "system_fingerprint"
-    }
-    
-    public struct Choice: Codable {
-        public let index: Int
-        public let message: Message
-        public let logprobs: String?
-        public let finishReason: String
-        
-        enum CodingKeys: String, CodingKey {
-            case index, message, logprobs
-            case finishReason = "finish_reason"
-        }
-    }
-    
-    public struct Message: Codable {
-        public let role: String
-        public let content: String
-    }
-    
-    public struct Usage: Codable {
-        public let promptTokens: Int
-        public let completionTokens: Int
-        public let totalTokens: Int
-        public let promptTokensDetails: PromptTokensDetails
-        public let promptCacheHitTokens: Int
-        public let promptCacheMissTokens: Int
-        
-        enum CodingKeys: String, CodingKey {
-            case promptTokens = "prompt_tokens"
-            case completionTokens = "completion_tokens"
-            case totalTokens = "total_tokens"
-            case promptTokensDetails = "prompt_tokens_details"
-            case promptCacheHitTokens = "prompt_cache_hit_tokens"
-            case promptCacheMissTokens = "prompt_cache_miss_tokens"
-        }
-    }
-    
-    public struct PromptTokensDetails: Codable {
-        public let cachedTokens: Int
-        
-        enum CodingKeys: String, CodingKey {
-            case cachedTokens = "cached_tokens"
-        }
-    }
-}
-
-public struct DoubaoChatResponse: Codable {
-    public let id: String
-    public let object: String
-    public let created: Int
-    public let model: String
-    public let choices: [Choice]
-    public let usage: Usage
-    
-    public struct Choice: Codable {
-        public let finishReason: String
-        public let index: Int
-        public let logprobs: String?
-        public let message: Message
-        
-        enum CodingKeys: String, CodingKey {
-            case finishReason = "finish_reason"
-            case index, logprobs, message
-        }
-    }
-    
-    public struct Message: Codable {
-        public let content: String
-        public let role: String
-    }
-    
-    public struct Usage: Codable {
-        public let completionTokens: Int
-        public let promptTokens: Int
-        public let totalTokens: Int
-        public let promptTokensDetails: PromptTokensDetails
-        public let completionTokensDetails: CompletionTokensDetails
-        
-        enum CodingKeys: String, CodingKey {
-            case completionTokens = "completion_tokens"
-            case promptTokens = "prompt_tokens"
-            case totalTokens = "total_tokens"
-            case promptTokensDetails = "prompt_tokens_details"
-            case completionTokensDetails = "completion_tokens_details"
-        }
-    }
-    
-    public struct PromptTokensDetails: Codable {
-        public let cachedTokens: Int
-        
-        enum CodingKeys: String, CodingKey {
-            case cachedTokens = "cached_tokens"
-        }
-    }
-    
-    public struct CompletionTokensDetails: Codable {
-        public let reasoningTokens: Int
-        
-        enum CodingKeys: String, CodingKey {
-            case reasoningTokens = "reasoning_tokens"
-        }
-    }
-}
-
-public struct ChatResponse: Codable {
-    public let reply: String
-    
-    public init(reply: String) {
-        self.reply = reply
-    }
-}
-
 public let DefaultHandler: ResponseHandler = { data in
     let decoder = JSONDecoder()
     let response = try decoder.decode(DefaultChatResponse.self, from: data)
@@ -454,17 +271,18 @@ public let DefaultHandler: ResponseHandler = { data in
 }
 
 public let LLMServiceProviders = [
-    LanguageProvider(
+    LLMProvider(
+        id: "openai",
         name: "openai",
         logo_uri: "provider_dark_openai",
         apiKey: "",
         apiProxyAddress: "https://api.openai.com/v1",
         models: [
-            LanguageModel(
+            LLMProviderModel(
                 id: "gpt-4o-mini",
                 name: "gpt-4o-mini"
             ),
-            LanguageModel(
+            LLMProviderModel(
                 id: "gpt-4o",
                 name: "gpt-4o"
             )
@@ -472,30 +290,32 @@ public let LLMServiceProviders = [
         responseHandler: DefaultHandler
 
     ),
-    LanguageProvider(
+    LLMProvider(
+        id: "deepseek",
         name: "deepseek",
         logo_uri: "provider_dark_deepseek",
         apiKey: "",
         apiProxyAddress: "https://api.deepseek.com/chat/completions",
         models: [
-            LanguageModel(
+            LLMProviderModel(
                 id: "deepseek-chat",
                 name: "deepseek-chat"
             ),
-            LanguageModel(
+            LLMProviderModel(
                 id: "deepseek-r1",
                 name: "deepseek-r1"
             )
         ],
         responseHandler: DefaultHandler
     ),
-    LanguageProvider(
+    LLMProvider(
+        id: "doubao",
         name: "doubao",
         logo_uri: "provider_dark_doubao",
         apiKey: "",
         apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
         models: [
-            LanguageModel(
+            LLMProviderModel(
                 id: "ep-20250205141518-nvl9p",
                 name: "ep-20250205141518-nvl9p"
             )

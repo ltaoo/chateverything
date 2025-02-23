@@ -127,12 +127,15 @@ struct SettingsList: View {
         VStack(spacing: 1) {
             Group {
                 NavigationLink {
-                    LanguageModelSettingsView()
+                    LLMProviderSettingsPage()
                 } label: {
                     SettingsRow(icon: "brain", title: "语言模型", showDivider: true)
                 }
-                
-                SettingsRow(icon: "waveform", title: "语音设置", showDivider: true)
+                NavigationLink {
+                    TTSProviderSettingsPage()
+                } label: {
+                    SettingsRow(icon: "waveform", title: "语音设置", showDivider: true)
+                }
                 SettingsRow(icon: "gear", title: "通用设置", showDivider: true)
             }
         }

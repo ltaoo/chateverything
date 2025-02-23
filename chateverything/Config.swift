@@ -7,77 +7,25 @@ public enum Route: Hashable {
     case RoleDetailView(roleId: UUID)
 }
 
-
-public class ProviderModelValue: Identifiable, Codable {
-    public var id: String { name }
-    var name: String
-    var enabled: Bool = true
-    
-    enum CodingKeys: String, CodingKey {
-        case name
-        case enabled
-    }
-
-    public init(name: String, enabled: Bool) {
-        self.name = name
-        self.enabled = enabled
-    }
-
-    public func toggle(value: Bool) {
-        enabled = value
-    }
-}
-
-public class ProviderValue: ObservableObject, Identifiable {
-    public var id: String { provider }
-    public var provider: String
-    @Published public var enabled: Bool
-    @Published public var apiProxyAddress: String?
-    @Published public var apiKey: String
-    // 用户添加的模型
-    @Published public var models1: [ProviderModelValue]
-    // 选中的默认模型
-    @Published public var models2: [String]
-
-    public init(provider: String, enabled: Bool, apiProxyAddress: String?, apiKey: String, models1: [ProviderModelValue], models2: [String]) {
-        self.provider = provider
-        self.enabled = enabled
-        self.apiProxyAddress = apiProxyAddress
-        self.apiKey = apiKey
-        self.models1 = models1
-        self.models2 = models2
-    }
-
-    public func update(enabled: Bool) {
-        self.enabled = enabled
-    }
-}
-
-public let DefaultProviderValue = ProviderValue(
-    provider: "deepseek",
-    enabled: true,
-    apiProxyAddress: nil,
-    apiKey: "sk-292831353cda4d1c9f59984067f24379",
-    models1: [],
-    models2: ["deepseek-chat"]
-)
-
 class Config: ObservableObject {
     let store: ChatStore
     // 系统固定角色
     var roles: [RoleBiz] = []
 
     var me: RoleBiz
-    var languageProviders: [LanguageProvider]
-    var languageProviderValues: [String:ProviderValue] = [:]
-    var languageProviderControllers: [LLMProviderController]
+    var llmProviders: [LLMProvider]
+    var llmProviderValues: [String:LLMProviderValue] = [:]
+    var llmProviderControllers: [LLMProviderController]
+    var ttsProviders: [TTSProvider]
+    var ttsProviderValues: [String:TTSProviderValue] = [:]
+    var ttsProviderControllers: [TTSProviderController]
 
-    public var enabledProviders: [LLMProviderController] {
-        return languageProviderControllers.filter { $0.value.enabled }
+    public var enabledLLMProviders: [LLMProviderController] {
+        return llmProviderControllers.filter { $0.value.enabled }
     }
-    
-    @Published var apiProxyAddress: String?
-    @Published var apiKey: String?
+    public var enabledTTSServiceProviders: [TTSProviderController] {
+        return ttsProviderControllers.filter { $0.value.enabled }
+    }
     
     init(store: ChatStore) {
         self.store = store
@@ -109,23 +57,22 @@ class Config: ObservableObject {
             )
         )
 
-        // print("[BIZ]Config.init: me: \(me.id) \(me.name)")
-
-        if let languageProviderValues: [String:Any] = UserDefaults.standard.object(forKey: "provider_values") as? [String:Any] {
-            var values: [String: ProviderValue] = [:]
-            for (name, data) in languageProviderValues {
+        self.llmProviders = LLMServiceProviders
+        if let llmProviderValues: [String:Any] = UserDefaults.standard.object(forKey: "provider_values") as? [String:Any] {
+            var values: [String: LLMProviderValue] = [:]
+            for (name, data) in llmProviderValues {
                 if let v = data as? [String: Any] {
-                    // 将字典数组转回 ProviderModelValue 数组
+                    // 将字典数组转回 LLMProviderModelValue 数组
                     let models1Data = v["models1"] as? [[String: Any]] ?? []
                     let models1 = models1Data.map { dict in
-                        ProviderModelValue(
+                        LLMProviderModelValue(
                             name: dict["name"] as? String ?? "",
                             enabled: dict["enabled"] as? Bool ?? true
                         )
                     }
                     
-                    values[name] = ProviderValue(
-                        provider: name,
+                    values[name] = LLMProviderValue(
+                        id: name,
                         enabled: v["enabled"] as? Bool ?? false,
                         apiProxyAddress: v["apiProxyAddress"]as? String == "" ? nil : v["apiProxyAddress"] as? String,
                         apiKey: v["apiKey"] as? String ?? "",
@@ -134,71 +81,74 @@ class Config: ObservableObject {
                     )
                 }
             }
-            self.languageProviderValues = values
+            self.llmProviderValues = values
         }
-        self.languageProviders = LLMServiceProviders
-        var controllers: [LLMProviderController] = []
-        for provider in self.languageProviders {
-            let value = self.languageProviderValues[provider.name]
+        var llmControllers: [LLMProviderController] = []
+        for llmProvider in LLMServiceProviders {
+            let value = self.llmProviderValues[llmProvider.id]
             if value != nil {
-                controllers.append(LLMProviderController(provider: provider, value: value!))
+                llmControllers.append(LLMProviderController(provider: llmProvider, value: value!))
             } else {
-                controllers.append(LLMProviderController(
-                    provider: provider,
-                    value: ProviderValue(
-                        provider: provider.name,
-                        enabled: provider.name == "openai" ? true : false,
+                llmControllers.append(LLMProviderController(
+                    provider: llmProvider,
+                    value: LLMProviderValue(
+                        id: llmProvider.id,
+                        enabled: llmProvider.id == "openai" ? true : false,
                         apiProxyAddress: nil,
                         apiKey: "",
                         models1: [],
-                        models2: provider.name == "openai" ? provider.models.map { $0.id } : []
+                        models2: llmProvider.id == "openai" ? llmProvider.models.map { $0.id } : []
                     )
                 ))
             }
         }
-        self.languageProviderControllers = controllers
-        
-        // self.languageProviderControllers = self.languageProviders.map { LLMProviderController(provider: $0, value: self.languageProviderValues[$0.name] ?? DefaultProviderValue) }
-        // self.languageProviderValues = [
-        //     DefaultProviderValue.provider: DefaultProviderValue,
-        //     "doubao": ProviderValue(
-        //         provider: "doubao",
-        //         enabled: true,
-        //         apiProxyAddress: nil,
-        //         apiKey: "",
-        //         models: [
-        //             ProviderModelValue(
-        //                 name: "ep-20250205141518-nvl9p",
-        //                 enabled: true
-        //             )
-        //         ]
-        //     )
-        // ]
-    }
-    
-    func updateProviders(_ providers: [LanguageProvider]) {
-        self.languageProviders = providers
-        // 这里可以添加持久化存储逻辑，比如保存到 UserDefaults 或文件中
-    }
-    
-    func updateProviderValues(_ values: [ProviderValue]) {
-//        self.languageProviderValues = values
-        // 这里可以添加持久化存储逻辑
+        self.llmProviderControllers = llmControllers
+
+        self.ttsProviders = TTSProviders
+        if let ttsProviderValues: [String:Any] = UserDefaults.standard.object(forKey: "tts_provider_values") as? [String:Any] {
+            var values: [String: TTSProviderValue] = [:]
+            for (id, data) in ttsProviderValues {
+                if let v = data as? [String: Any] {
+                    print("ttsProviderValues \(id) \(v["credential"])")
+                    values[id] = TTSProviderValue(
+                        id: id,
+                        enabled: v["enabled"] as? Bool ?? false,
+                        credential: v["credential"] as? [String:String] ?? [:]
+                    )
+                }
+            }
+            self.ttsProviderValues = values
+        }
+        var ttsControllers: [TTSProviderController] = []
+        for ttsProvider in TTSProviders {
+            let value = self.ttsProviderValues[ttsProvider.id]
+            if value != nil {
+                ttsControllers.append(TTSProviderController(provider: ttsProvider, value: value!))
+                ttsProvider.credential?.setValue(value: value!.credential)
+            } else {
+                ttsControllers.append(TTSProviderController(
+                    provider: ttsProvider,
+                    value: TTSProviderValue(
+                        id: ttsProvider.id,
+                        enabled: ttsProvider.id == "system" ? true : false,
+                        credential: [:]
+                    )
+                ))
+            }
+        }
+        self.ttsProviderControllers = ttsControllers
     }
 
-    func updateSingleProviderValue(name: String, value: ProviderValue) {
-        self.languageProviderValues[name] = value
-        
-        // 将 models1 转换为可序列化的字典数组
+    func updateSingleLLMProviderValue(id: String, value: LLMProviderValue) {
+        self.llmProviderValues[id] = value
         let models1Data = value.models1.map { model -> [String: Any] in
             return [
                 "name": model.name,
                 "enabled": model.enabled
             ]
         }
-        
         var existing: [String: Any] = UserDefaults.standard.object(forKey: "provider_values") as? [String: Any] ?? [:]
-        existing[name] = [
+        existing[id] = [
             "enabled": value.enabled,
             "apiProxyAddress": value.apiProxyAddress ?? "", // 处理可选值
             "apiKey": value.apiKey,
@@ -207,26 +157,15 @@ class Config: ObservableObject {
         ]
         UserDefaults.standard.set(existing, forKey: "provider_values")
     }
-    
-    func updateSettings(values: [String:ProviderValue]) {
-        var data: [String: Any] = [:]
-        for (name, value) in values {
-            // 将 models1 转换为可序列化的字典数组
-            let models1Data = value.models1.map { model -> [String: Any] in
-                return [
-                    "name": model.name,
-                    "enabled": model.enabled
-                ]
-            }
-            
-            data[name] = [
-                "enabled": value.enabled,
-                "apiProxyAddress": value.apiProxyAddress ?? "", // 处理可选值
-                "apiKey": value.apiKey,
-                "models1": models1Data,
-                "models2": value.models2
-            ]
-        }
-        UserDefaults.standard.set(data, forKey: "provider_values")
+
+    func updateSingleTTSProviderValue(id: String, value: TTSProviderValue) {
+        print("updateSingleTTSProviderValue \(id)")
+        self.ttsProviderValues[id] = value
+        var existing: [String: Any] = UserDefaults.standard.object(forKey: "tts_provider_values") as? [String: Any] ?? [:]
+        existing[id] = [
+            "enabled": value.enabled,
+            "credential": value.credential
+        ]
+        UserDefaults.standard.set(existing, forKey: "tts_provider_values")
     }
-} 
+}

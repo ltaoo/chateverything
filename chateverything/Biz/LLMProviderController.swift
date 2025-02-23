@@ -1,7 +1,7 @@
 import Foundation
 import LLM
 
-public class LLMProviderModelController: ObservableObject, Identifiable {
+public class LLMProviderModelController: ObservableObject, Identifiable, Hashable {
     public var id: String { name }
     // 默认模型
     let isDefault: Bool
@@ -13,22 +13,38 @@ public class LLMProviderModelController: ObservableObject, Identifiable {
         self.enabled = enabled
         self.name = name
     }
+
+    public static func == (lhs: LLMProviderModelController, rhs: LLMProviderModelController) -> Bool {
+        return lhs.id == rhs.id
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
 }
 
-public class LLMProviderController: ObservableObject, Identifiable {
-	public var id: String { provider.name }
+public class LLMProviderController: ObservableObject, Identifiable, Hashable {
+	public var id: String { provider.id }
     public var name: String { provider.name }
-    public var provider: LanguageProvider
-    @Published public var value: ProviderValue
+    public var provider: LLMProvider
+    @Published public var value: LLMProviderValue
 
     @Published public var models: [LLMProviderModelController]
 
-    public init(provider: LanguageProvider, value: ProviderValue) {
+    public init(provider: LLMProvider, value: LLMProviderValue) {
         self.provider = provider
         self.value = value
         let models1 = value.models1.map { LLMProviderModelController(isDefault: false, enabled: $0.enabled, name: $0.name) }
         let models2 = provider.models.map { LLMProviderModelController(isDefault: true, enabled: value.models2.contains($0.name), name: $0.name) }
         self.models = models2 + models1
+    }
+
+    public static func == (lhs: LLMProviderController, rhs: LLMProviderController) -> Bool {
+        return lhs.id == rhs.id
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 
     public func updateValueModels() {
@@ -37,7 +53,7 @@ public class LLMProviderController: ObservableObject, Identifiable {
                 return true
             }
             return false
-         }.map { ProviderModelValue(name: $0.name, enabled: $0.enabled) }
+         }.map { LLMProviderModelValue(name: $0.name, enabled: $0.enabled) }
         value.models2 = models.filter { 
             if $0.isDefault && $0.enabled {
                 return true

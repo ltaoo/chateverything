@@ -1,11 +1,38 @@
 import SwiftUI
 import LLM
 
+struct LLMProviderSettingsPage: View {
+    @EnvironmentObject var config: Config
+    @Environment(\.dismiss) private var dismiss
 
-struct ProviderSettingsView: View {
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("语言模型提供商")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                ) {
+                    ForEach(config.llmProviderControllers) { controller in
+                        LLMProviderSettingView(
+                            controller: controller,
+                            provider: controller.provider,
+                            value: controller.value,
+                            config: config
+                        )
+                    }
+                }
+            }
+            .background(DesignSystem.Colors.background)
+            .navigationTitle("模型设置")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+struct LLMProviderSettingView: View {
     @ObservedObject var controller: LLMProviderController
-    var provider: LanguageProvider
-    @ObservedObject var value: ProviderValue
+    var provider: LLMProvider
+    @ObservedObject var value: LLMProviderValue
     @ObservedObject var config: Config
     @State private var newModelName: String = ""
     @State private var showingAddModelDialog = false
@@ -26,7 +53,7 @@ struct ProviderSettingsView: View {
                     get: { value.enabled },
                     set: { enabled in
                         value.update(enabled: enabled)
-                        config.updateSingleProviderValue(name: provider.name, value: value)
+                        config.updateSingleLLMProviderValue(id: provider.id, value: value)
                     }
                 ))
                 .tint(DesignSystem.Colors.primary)
@@ -38,7 +65,7 @@ struct ProviderSettingsView: View {
                     get: { value.apiProxyAddress ?? "" },
                     set: { address in
                         value.apiProxyAddress = address
-                        config.updateSingleProviderValue(name: provider.name, value: value)
+                        config.updateSingleLLMProviderValue(id: provider.id, value: value)
                     }
                 ), prompt: Text(provider.apiProxyAddress)
                     .foregroundColor(DesignSystem.Colors.textSecondary))
@@ -50,7 +77,7 @@ struct ProviderSettingsView: View {
                     get: { value.apiKey },
                     set: { key in
                         value.apiKey = key
-                        config.updateSingleProviderValue(name: provider.name, value: value)
+                        config.updateSingleLLMProviderValue(id: provider.id, value: value)
                     }
                 ), prompt: Text("请输入您的 API Key")
                     .foregroundColor(DesignSystem.Colors.textSecondary))
@@ -67,7 +94,7 @@ struct ProviderSettingsView: View {
                 ForEach(Array(controller.models.enumerated()), id: \.element.id) { index, model in
                     ModelToggleRow(controller: controller, model: controller.models[index], config: config, onChange: {
                         controller.updateValueModels()
-                        config.updateSingleProviderValue(name: provider.name, value: value)
+                        config.updateSingleLLMProviderValue(id: provider.id, value: value)
                     })
                 }
                 
@@ -102,7 +129,7 @@ struct ProviderSettingsView: View {
                     trailing: Button("确定") {
                         if !newModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             controller.addCustomModel(name: newModelName)
-                            config.updateSingleProviderValue(name: provider.name, value: value)
+                            config.updateSingleLLMProviderValue(id: provider.id, value: value)
                         }
                         newModelName = ""
                         showingAddModelDialog = false
@@ -150,4 +177,9 @@ struct ModelToggleRow: View {
             .tint(DesignSystem.Colors.primary)
         }
     }
+} 
+
+
+#Preview {
+    LLMProviderSettingsPage()
 } 
