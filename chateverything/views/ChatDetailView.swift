@@ -300,6 +300,7 @@ private struct ChatDetailContentView: View {
                     onSpeakToggle: onSpeakToggle
                 )
             }
+            .background(DesignSystem.Colors.background)
             
             // Input bar overlay
             VStack {
@@ -307,7 +308,7 @@ private struct ChatDetailContentView: View {
                 InputBarView(recorder: recorder)
                     .background(
                         Rectangle()
-                            .fill(Color.white.opacity(0))
+                            .fill(DesignSystem.Colors.background.opacity(0))
                             .edgesIgnoringSafeArea(.bottom)
                     )
             }
@@ -504,26 +505,26 @@ private struct LoadingView: View {
     private let dotCount = 3
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DesignSystem.Spacing.xxSmall) {
             ForEach(0..<dotCount, id: \.self) { index in
                 Circle()
-                    .fill(Color.gray.opacity(0.6))
+                    .fill(DesignSystem.Colors.textSecondary.opacity(0.6))
                     .frame(width: 8, height: 8)
                     .scaleEffect(isAnimating ? 1.2 : 0.8)
                     .animation(
                         Animation
                             .easeInOut(duration: 0.6)
                             .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.2), // 每个圆点延迟0.2秒开始动画
+                            .delay(Double(index) * 0.2),
                         value: isAnimating
                     )
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.vertical, DesignSystem.Spacing.medium)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(UIColor.systemGray6))
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                .fill(DesignSystem.Colors.secondaryBackground)
         )
         .onAppear {
             isAnimating = true
@@ -539,29 +540,34 @@ private struct MessageContentView: View {
     var onSpeakToggle: (ChatBoxBiz) -> Void
 
     var body: some View {
-        VStack(alignment: box.isMe ? .trailing : .leading, spacing: 8) {
+        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.small) {
             HStack {
                 if box.isMe { Spacer() }
                 
                 if box.loading {
                     LoadingView()
                 } else {
-                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
+                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
                         if !data.ok {
                             Text(data.text)
+                                .font(DesignSystem.Typography.bodyMedium)
                         } else {
                             FlowLayout(spacing: 0) { 
                                 ForEach(data.nodes) { node in
-                                    TextNodeView(node: node, color: box.isMe ? .white : .black, onTap: { node in
-                                        print("node: \(node)")
-                                    })
+                                    TextNodeView(
+                                        node: node, 
+                                        color: box.isMe ? DesignSystem.Colors.background : DesignSystem.Colors.textPrimary,
+                                        onTap: { node in
+                                            print("node: \(node)")
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
-                    .padding(12)
-                    .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
-                    .cornerRadius(16)
+                    .padding(DesignSystem.Spacing.medium)
+                    .background(box.isMe ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)
+                    .cornerRadius(DesignSystem.Radius.large)
                 }
                 
                 if !box.isMe { Spacer() }
@@ -741,31 +747,31 @@ private struct ErrorContentView: View {
     let data: ChatErrorBiz
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignSystem.Spacing.medium) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.red)
+                .foregroundColor(DesignSystem.Colors.error)
                 .font(.system(size: 24))
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxSmall) {
                 Text("出错了")
-                    .font(.headline)
-                    .foregroundColor(.red)
+                    .font(DesignSystem.Typography.headingSmall)
+                    .foregroundColor(DesignSystem.Colors.error)
                 
                 Text(data.error)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
                     .multilineTextAlignment(.leading)
             }
         }
-        .padding()
+        .padding(DesignSystem.Spacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.red.opacity(0.1))
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                .fill(DesignSystem.Colors.error.opacity(0.1))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                .stroke(DesignSystem.Colors.error.opacity(0.3), lineWidth: 1)
         )
     }
 }
@@ -786,76 +792,73 @@ struct QuizContentView: View {
     private func getBackgroundColor(for option: ChatPuzzleOption) -> Color {
         if data.isSelected(option: option) {
             if data.isCorrect(option: option) {
-                return Color.green.opacity(0.1)
+                return DesignSystem.Colors.success.opacity(0.1)
             } else {
-                return Color.red.opacity(0.1)
+                return DesignSystem.Colors.error.opacity(0.1)
             }
         }
-        return Color(UIColor.systemBackground)
+        return DesignSystem.Colors.background
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // 问题部分
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
                 Text("评估")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
                 Text(data.title)
-                    .font(.headline)
+                    .font(DesignSystem.Typography.headingSmall)
             }
             
-            // 选项网格
-            LazyVGrid(columns: columns, spacing: 12) {
+            LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.medium) {
                 ForEach(data.options) { option in
                     Button(action: {
 //                        handleOptionSelection(option)
                     }) {
                         HStack {
                             Text(option.text)
-                                .font(.subheadline)
-                                .foregroundColor(.primary)
+                                .font(DesignSystem.Typography.bodySmall)
+                                .foregroundColor(DesignSystem.Colors.textPrimary)
                                 .multilineTextAlignment(.leading)
                                 .lineLimit(2)
                             Spacer()
                             if data.isSelected(option: option) {
                                 Image(systemName: data.isCorrect(option: option) ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundColor(data.isCorrect(option: option) ? .green : .red)
+                                    .foregroundColor(data.isCorrect(option: option) ? DesignSystem.Colors.success : DesignSystem.Colors.error)
                             }
                         }
-                        .padding()
+                        .padding(DesignSystem.Spacing.medium)
                         .frame(maxWidth: .infinity)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
                                 .fill(getBackgroundColor(for: option))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                                .stroke(DesignSystem.Colors.textSecondary.opacity(0.2), lineWidth: 1)
                         )
                     }
                     .disabled(data.isSelected(option: option) && !data.isCorrect(option: option))
                 }
             }
             
-            // 尝试次数提示
             if data.attempts > 0 {
                 HStack {
                     Image(systemName: "info.circle")
                     Text(data.attempts == 1 ? "第一次尝试" : "第 \(data.attempts) 次尝试")
                     if data.corrected {
                         Text("- 答对了！")
-                            .foregroundColor(.green)
+                            .foregroundColor(DesignSystem.Colors.success)
                     }
                 }
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.top, 4)
+                .font(DesignSystem.Typography.caption)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+                .padding(.top, DesignSystem.Spacing.xxSmall)
             }
         }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(16)
+        .padding(DesignSystem.Spacing.medium)
+        .background(DesignSystem.Colors.secondaryBackground)
+        .cornerRadius(DesignSystem.Radius.large)
     }
 }
 
@@ -868,43 +871,45 @@ struct RecordButton: View {
     
     var body: some View {
         ZStack(alignment: .center) {
-            // 录音状态显示
             if recorder.isRecording {
-                VStack(spacing: 8) {
+                VStack(spacing: DesignSystem.Spacing.small) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundColor(cancelHighlighted ? .red : .gray)
+                        .foregroundColor(cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.textSecondary)
                         .animation(.easeInOut, value: cancelHighlighted)
                     
                     Text("松开发送，上滑取消")
-                        .font(.system(size: 14))
-                        .foregroundColor(cancelHighlighted ? .red : .gray)
+                        .font(DesignSystem.Typography.bodySmall)
+                        .foregroundColor(cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.textSecondary)
                 }
                 .offset(y: -140)
             }
             
-            // 录音按钮
             ZStack {
-                // 外圈动画
                 Circle()
-                    .stroke(recorder.isRecording ? (cancelHighlighted ? Color.red : Color.green) : Color.clear, lineWidth: 4)
+                    .stroke(recorder.isRecording ? 
+                           (cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.success) : 
+                           Color.clear, lineWidth: 4)
                     .frame(width: 128, height: 128)
                     .scaleEffect(scale)
                 
-                // 主按钮
                 Circle()
-                    .fill(recorder.isRecording ? (cancelHighlighted ? Color.red.opacity(0.2) : Color.green.opacity(0.2)) : Color.blue.opacity(0.1))
+                    .fill(recorder.isRecording ? 
+                          (cancelHighlighted ? DesignSystem.Colors.error.opacity(0.2) : DesignSystem.Colors.success.opacity(0.2)) : 
+                          DesignSystem.Colors.primary.opacity(0.1))
                     .frame(width: 108, height: 108)
                     .overlay(
                         Group {
                             if isLoading {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: DesignSystem.Colors.primary))
                                     .scaleEffect(1.8)
                             } else {
                                 Image(systemName: recorder.isRecording ? "waveform" : "mic.circle.fill")
                                     .font(.system(size: 68))
-                                    .foregroundColor(recorder.isRecording ? (cancelHighlighted ? .red : .green) : .blue)
+                                    .foregroundColor(recorder.isRecording ? 
+                                                   (cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.success) : 
+                                                   DesignSystem.Colors.primary)
                             }
                         }
                     )
@@ -949,46 +954,43 @@ struct InputBarView: View {
     
     var body: some View {
         ZStack {
-            // Left buttons
-            HStack(spacing: 16) {
+            HStack(spacing: DesignSystem.Spacing.medium) {
                 Button(action: {}) {
                     Image(systemName: "lightbulb.fill")
-                        .foregroundColor(.yellow)
+                        .foregroundColor(DesignSystem.Colors.accent)
                         .font(.system(size: 24))
                 }
-                .frame(width: 50, height: 50) // 固定尺寸确保圆形
-                .background(Color.purple)
+                .frame(width: 50, height: 50)
+                .background(DesignSystem.Colors.primary)
                 .clipShape(Circle())
                 
                 Button(action: {}) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 24))
-                        .foregroundColor(.white)
+                        .foregroundColor(DesignSystem.Colors.background)
                 }
                 .frame(width: 50, height: 50)
-                .background(Color.purple)
+                .background(DesignSystem.Colors.primary)
                 .clipShape(Circle())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading)
+            .padding(.leading, DesignSystem.Spacing.medium)
             
-            // Centered RecordButton
             RecordButton(recorder: recorder)
                 .frame(maxWidth: .infinity)
             
-            // Right button
             HStack {
                 Button(action: {}) {
                     Image(systemName: "keyboard")
                         .font(.system(size: 24))
-                        .foregroundColor(.white)
+                        .foregroundColor(DesignSystem.Colors.background)
                 }
                 .frame(width: 50, height: 50)
-                .background(Color.purple)
+                .background(DesignSystem.Colors.primary)
                 .clipShape(Circle())
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing)
+            .padding(.trailing, DesignSystem.Spacing.medium)
         }
         .frame(height: 180)
     }
@@ -1008,29 +1010,29 @@ private struct UserMessageActions: View {
     }
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DesignSystem.Spacing.small) {
             if case let .audio(data) = box.payload {
                 Button(action: {
                     play()
                 }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
                         Image(systemName: box.playing ? "stop.circle.fill" : "play.circle.fill")
                             .frame(width: 16, height: 16)
                             .imageScale(.medium)
-                            .foregroundColor(.blue)
+                            .foregroundColor(DesignSystem.Colors.primary)
                         Text(box.playing ? "停止" : "回放")
-                            .font(.caption)
-                            .foregroundColor(.blue)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundColor(DesignSystem.Colors.primary)
                     }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(12)
+                    .padding(.vertical, DesignSystem.Spacing.xxSmall)
+                    .padding(.horizontal, DesignSystem.Spacing.small)
+                    .background(DesignSystem.Colors.primary.opacity(0.1))
+                    .cornerRadius(DesignSystem.Radius.medium)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, DesignSystem.Spacing.xxSmall)
     }
 }
 
@@ -1040,45 +1042,45 @@ private struct BotMessageActions: View {
     let onSpeakToggle: (ChatBoxBiz) -> Void
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DesignSystem.Spacing.small) {
             Button(action: {
                 box.blurred.toggle()
             }) {
-                HStack(spacing: 4) {
+                HStack(spacing: DesignSystem.Spacing.xxSmall) {
                     Image(systemName: box.blurred ? "eye.slash.fill" : "eye.fill")
                         .frame(width: 16, height: 16)
                         .imageScale(.medium)
                     Text(box.blurred ? "显示" : "隐藏")
-                        .font(.caption)
+                        .font(DesignSystem.Typography.caption)
                 }
-                .foregroundColor(.gray)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(12)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+                .padding(.vertical, DesignSystem.Spacing.xxSmall)
+                .padding(.horizontal, DesignSystem.Spacing.small)
+                .background(DesignSystem.Colors.textSecondary.opacity(0.1))
+                .cornerRadius(DesignSystem.Radius.medium)
             }
             
             Button(action: {
                 onSpeakToggle(box)
             }) {
-                HStack(spacing: 4) {
+                HStack(spacing: DesignSystem.Spacing.xxSmall) {
                     Image(systemName: box.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
                         .frame(width: 16, height: 16)
                         .imageScale(.medium)
                     Text(box.speaking ? "停止" : "朗读")
-                        .font(.caption)
+                        .font(DesignSystem.Typography.caption)
                 }
-                .foregroundColor(.gray)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(12)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
+                .padding(.vertical, DesignSystem.Spacing.xxSmall)
+                .padding(.horizontal, DesignSystem.Spacing.small)
+                .background(DesignSystem.Colors.textSecondary.opacity(0.1))
+                .cornerRadius(DesignSystem.Radius.medium)
             }
             
             Spacer()
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 4)
+        .padding(.horizontal, DesignSystem.Spacing.xxSmall)
+        .padding(.top, DesignSystem.Spacing.xxSmall)
     }
 }
 
