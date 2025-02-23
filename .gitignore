@@ -47,7 +47,6 @@ playground.xcworkspace
 .swiftpm
 
 .build/
-
 # CocoaPods
 #
 # We recommend against adding the Pods directory to your .gitignore. However
@@ -108,6 +107,12 @@ iOSInjectionProject/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/ 
 
+# Package Build
+**/**/.build
+**/**/.swiftpm
+
+
+.DS_Store
 
 # Resources
 **/dicts/*.json
