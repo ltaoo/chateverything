@@ -1,5 +1,4 @@
 import SwiftUI
-import LLM
 
 struct LLMProviderSettingsPage: View {
     @EnvironmentObject var config: Config

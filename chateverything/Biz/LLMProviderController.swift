@@ -1,5 +1,4 @@
 import Foundation
-import LLM
 
 public class LLMProviderModelController: ObservableObject, Identifiable, Hashable {
     public var id: String { name }

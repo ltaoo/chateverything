@@ -1,5 +1,4 @@
 import Foundation
-import LLM
 
 public enum Route: Hashable {
     case ChatDetailView(sessionId: UUID)

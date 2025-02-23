@@ -1,5 +1,4 @@
 import SwiftUI
-import LLM
 
 struct RoleDetailView: View {
     let roleId: UUID

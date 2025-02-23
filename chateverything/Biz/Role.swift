@@ -1,6 +1,5 @@
 import Foundation
 import CoreData
-import LLM
 
 public struct RoleProps {
     var id: UUID  // 必填
