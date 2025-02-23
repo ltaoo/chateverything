@@ -12,13 +12,15 @@ struct ProviderSettingsView: View {
     @State private var isShowingAlert = false
     
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
             HStack {
-                    Image(provider.logo_uri)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 30, height: 30)
+                Image(provider.logo_uri)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 30, height: 30)
                 Text(provider.name)
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
                 Spacer()
                 Toggle("", isOn: Binding(
                     get: { value.enabled },
@@ -27,6 +29,7 @@ struct ProviderSettingsView: View {
                         config.updateSingleProviderValue(name: provider.name, value: value)
                     }
                 ))
+                .tint(DesignSystem.Colors.primary)
             }
             
             if value.enabled {
@@ -37,9 +40,11 @@ struct ProviderSettingsView: View {
                         value.apiProxyAddress = address
                         config.updateSingleProviderValue(name: provider.name, value: value)
                     }
-                ), prompt: Text(provider.apiProxyAddress))
+                ), prompt: Text(provider.apiProxyAddress)
+                    .foregroundColor(DesignSystem.Colors.textSecondary))
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.leading, 40)
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .padding(.leading, DesignSystem.Spacing.xxLarge)
                 
                 SecureField("API Key", text: Binding(
                     get: { value.apiKey },
@@ -47,28 +52,21 @@ struct ProviderSettingsView: View {
                         value.apiKey = key
                         config.updateSingleProviderValue(name: provider.name, value: value)
                     }
-                ), prompt: Text("请输入您的 API Key"))
+                ), prompt: Text("请输入您的 API Key")
+                    .foregroundColor(DesignSystem.Colors.textSecondary))
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.leading, 40)
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .padding(.leading, DesignSystem.Spacing.xxLarge)
                 
-                // 默认模型列表
                 Text("模型")
-                    .font(.headline)
-                    .padding(.top)
-                    .padding(.leading, 40)
+                    .font(DesignSystem.Typography.headingSmall)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
+                    .padding(.top, DesignSystem.Spacing.medium)
+                    .padding(.leading, DesignSystem.Spacing.xxLarge)
                 
                 ForEach(Array(controller.models.enumerated()), id: \.element.id) { index, model in
                     ModelToggleRow(controller: controller, model: controller.models[index], config: config, onChange: {
                         controller.updateValueModels()
-                        for model in controller.models {
-                            print("model: \(model.isDefault) \(model.name) \(model.enabled)")
-                        }
-                        for model in value.models1 {
-                            print("model1: \(model.name) \(model.enabled)")
-                        }
-                        for model in value.models2 {
-                            print("model2: \(model)")
-                        }
                         config.updateSingleProviderValue(name: provider.name, value: value)
                     })
                 }
@@ -78,28 +76,30 @@ struct ProviderSettingsView: View {
                         showingAddModelDialog = true
                     }) {
                         Label("添加自定义模型", systemImage: "plus.circle")
-                            .font(.system(size: 14))
+                            .font(DesignSystem.Typography.bodySmall)
+                            .foregroundColor(DesignSystem.Colors.primary)
                     }
                     .buttonStyle(.borderless)
                     Spacer()
                 }
-                .padding(.leading, 40)
-                .padding(.top, 8)
+                .padding(.leading, DesignSystem.Spacing.xxLarge)
+                .padding(.top, DesignSystem.Spacing.xSmall)
             }
         }
         .sheet(isPresented: $showingAddModelDialog) {
             NavigationView {
                 Form {
                     TextField("模型名称", text: $newModelName)
+                        .font(DesignSystem.Typography.bodyMedium)
                 }
                 .navigationTitle("添加自定义模型")
                 .navigationBarItems(
                     leading: Button("取消") {
                         newModelName = ""
                         showingAddModelDialog = false
-                    },
+                    }
+                    .foregroundColor(DesignSystem.Colors.primary),
                     trailing: Button("确定") {
-                        print("click ok: \(newModelName)")
                         if !newModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             controller.addCustomModel(name: newModelName)
                             config.updateSingleProviderValue(name: provider.name, value: value)
@@ -107,6 +107,7 @@ struct ProviderSettingsView: View {
                         newModelName = ""
                         showingAddModelDialog = false
                     }
+                    .foregroundColor(DesignSystem.Colors.primary)
                 )
             }
             .presentationDetents([.height(200)])
@@ -124,7 +125,9 @@ struct ModelToggleRow: View {
     var body: some View {
         HStack {
             Text(model.name)
-                .padding(.leading, 40)
+                .font(DesignSystem.Typography.bodyMedium)
+                .foregroundColor(DesignSystem.Colors.textPrimary)
+                .padding(.leading, DesignSystem.Spacing.xxLarge)
             Spacer()
             if !model.isDefault {
                 Button(action: {
@@ -132,10 +135,10 @@ struct ModelToggleRow: View {
                     onChange()
                 }) {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
+                        .foregroundColor(DesignSystem.Colors.error)
                 }
                 .buttonStyle(.borderless)
-                .padding(.trailing, 8)
+                .padding(.trailing, DesignSystem.Spacing.xSmall)
             }
             Toggle("", isOn: Binding(
                 get: { model.enabled },
@@ -144,6 +147,7 @@ struct ModelToggleRow: View {
                     onChange()
                 }
             ))
+            .tint(DesignSystem.Colors.primary)
         }
     }
 } 

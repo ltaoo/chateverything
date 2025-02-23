@@ -30,7 +30,7 @@ struct RoleListPage: View {
             )
             
             ScrollView {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(roles) { role in
                         RoleCardInListPage(role: role) {
                             let session = ChatSessionBiz.create(role: role, in: config.store)
@@ -40,16 +40,16 @@ struct RoleListPage: View {
                         }
                     }
                 }
-                .padding()
+                .padding(DesignSystem.Spacing.medium)
             }
             .background(
                 LinearGradient(
                     gradient: Gradient(colors: [
-                        Color.accentColor.opacity(0.1),
-                        Color.accentColor.opacity(0.2),
+                        DesignSystem.Colors.accent.opacity(0.1),
+                        DesignSystem.Colors.accent.opacity(0.2),
                         colorScheme == .dark 
                             ? Color.black.opacity(0.6) 
-                            : Color.accentColor.opacity(0.4)
+                            : DesignSystem.Colors.accent.opacity(0.4)
                     ]),
                     startPoint: .top,
                     endPoint: .bottom
@@ -67,23 +67,22 @@ struct RoleListHeader: View {
     var body: some View {
         HStack {
             Text("角色列表")
-                .font(.title2)
-                .bold()
+                .font(DesignSystem.Typography.headingMedium)
             
             Spacer()
             
             Button(action: onScanQRCode) {
                 Image(systemName: "qrcode.viewfinder")
-                    .font(.system(size: 20))
+                    .font(.system(size: DesignSystem.Spacing.large))
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, DesignSystem.Spacing.xSmall)
             
             Button(action: onAddRole) {
                 Image(systemName: "plus")
-                    .font(.system(size: 20))
+                    .font(.system(size: DesignSystem.Spacing.large))
             }
         }
-        .padding()
+        .padding(DesignSystem.Spacing.medium)
     }
 } 
 
@@ -95,32 +94,33 @@ struct RoleCardInListPage: View {
     @State private var isLoading = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+            HStack(spacing: DesignSystem.Spacing.medium) {
                 AsyncImage(url: URL(string: role.avatar)) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 56, height: 56)
+                        .frame(width: DesignSystem.AvatarSize.large, 
+                               height: DesignSystem.AvatarSize.large)
                 } placeholder: {
                     Image(systemName: "person.circle.fill")
                         .resizable()
-                        .foregroundColor(.gray)
-                        .frame(width: 56, height: 56)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                        .frame(width: DesignSystem.AvatarSize.large, 
+                               height: DesignSystem.AvatarSize.large)
                 }
                 .clipShape(Circle())
                 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxSmall) {
                     Text(role.name)
-                        .font(.title3)
-                        .bold()
+                        .font(DesignSystem.Typography.headingSmall)
                     
                     Text(role.language)
-                        .font(.subheadline)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.2))
-                        .cornerRadius(8)
+                        .font(DesignSystem.Typography.bodySmall)
+                        .padding(.horizontal, DesignSystem.Spacing.small)
+                        .padding(.vertical, DesignSystem.Spacing.xxSmall)
+                        .background(DesignSystem.Colors.secondary.opacity(0.2))
+                        .cornerRadius(DesignSystem.Radius.small)
                 }
                 
                 Spacer()
@@ -132,18 +132,23 @@ struct RoleCardInListPage: View {
             }
             
             Text(role.desc)
-                .font(.body)
-                .foregroundColor(.secondary)
+                .font(DesignSystem.Typography.bodyMedium)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
                 .lineLimit(3)
-                .padding(.leading, 2)
+                .padding(.leading, DesignSystem.Spacing.xxxSmall)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .padding(.horizontal, 24)
+        .padding(.vertical, DesignSystem.Spacing.large)
+        .padding(.horizontal, DesignSystem.Spacing.large)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                .fill(DesignSystem.Colors.background)
+                .shadow(
+                    color: DesignSystem.Shadows.medium.color,
+                    radius: DesignSystem.Shadows.medium.radius,
+                    x: DesignSystem.Shadows.medium.x,
+                    y: DesignSystem.Shadows.medium.y
+                )
         )
         .scaleEffect(isPressed ? 0.98 : 1.0)
         .animation(.spring(response: 0.3), value: isPressed)
@@ -153,10 +158,6 @@ struct RoleCardInListPage: View {
                 isPressed = true
                 isLoading = true
             }
-            
-            // 添加触觉反馈
-            let impactMed = UIImpactFeedbackGenerator(style: .medium)
-            impactMed.impactOccurred()
             
             // 延迟重置按压状态
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

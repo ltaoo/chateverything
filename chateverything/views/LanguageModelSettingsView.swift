@@ -7,17 +7,25 @@ struct LanguageModelSettingsView: View {
     @EnvironmentObject var config: Config
 
     var body: some View {
-        Form {
-            Section(header: Text("语言模型提供商")) {
-                ForEach(config.languageProviderControllers) { controller in
-                    ProviderSettingsView(
-                        controller: controller,
-                        provider: controller.provider,
-                        value: controller.value,
-                        config: config
-                    )
+        NavigationView {
+            Form {
+                Section(header: Text("语言模型提供商")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                ) {
+                    ForEach(config.languageProviderControllers) { controller in
+                        ProviderSettingsView(
+                            controller: controller,
+                            provider: controller.provider,
+                            value: controller.value,
+                            config: config
+                        )
+                    }
                 }
             }
+            .background(DesignSystem.Colors.background)
+            .navigationTitle("模型设置")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

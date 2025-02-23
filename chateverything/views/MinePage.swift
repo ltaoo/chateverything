@@ -1,21 +1,20 @@
 import SwiftUI
 
-
 struct MineView: View {
     var body: some View {
         NavigationView {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 16) {
+                VStack(spacing: DesignSystem.Spacing.medium) {
                     // 个人信息卡片
                     ProfileCard()
                     
                     // 设置列表
                     SettingsList()
                 }
-                .padding(.horizontal)
-                .padding(.bottom)
+                .padding(.horizontal, DesignSystem.Spacing.medium)
+                .padding(.bottom, DesignSystem.Spacing.medium)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(DesignSystem.Gradients.backgroundGradient)
             .navigationBarHidden(true)
         }
     }
@@ -33,72 +32,53 @@ struct ProfileCard: View {
     }
     
     var body: some View {
-        VStack(spacing: 20) {
-            HStack(alignment: .top, spacing: 16) {
+        VStack(spacing: DesignSystem.Spacing.large) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.medium) {
                 // 头像
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.blue.opacity(0.2), .purple.opacity(0.2)]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 80, height: 80)
+                        .fill(DesignSystem.Gradients.avatarBackgroundGradient)
+                        .frame(width: DesignSystem.AvatarSize.large, height: DesignSystem.AvatarSize.large)
                     
                     Image(systemName: "person.circle.fill")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 70, height: 70)
-                        .foregroundStyle(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.blue, .purple]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .frame(width: DesignSystem.AvatarSize.large - 10, height: DesignSystem.AvatarSize.large - 10)
+                        .foregroundStyle(DesignSystem.Gradients.avatarForegroundGradient)
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xSmall) {
                     // 昵称和认证标识
-                    HStack(spacing: 6) {
+                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
                         Text("用户昵称")
-                            .font(.title3)
-                            .bold()
+                            .font(DesignSystem.Typography.headingSmall)
                         Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(.blue)
-                            .font(.system(size: 14))
+                            .foregroundStyle(DesignSystem.Colors.primary)
+                            .font(DesignSystem.Typography.bodySmall)
                     }
                     
                     // 会员标识
                     if isPremium {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DesignSystem.Spacing.xxxSmall) {
                             Image(systemName: "crown.fill")
                                 .foregroundStyle(.yellow)
                             Text("Premium")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [.orange, .yellow]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
+                                .font(DesignSystem.Typography.bodySmall)
+                                .foregroundStyle(DesignSystem.Gradients.premiumGradient)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, DesignSystem.Spacing.xSmall)
+                        .padding(.vertical, DesignSystem.Spacing.xxxSmall)
                         .background(Color.yellow.opacity(0.15))
-                        .cornerRadius(6)
+                        .cornerRadius(DesignSystem.Radius.small)
                     }
                 }
                 
                 Spacer()
             }
-            .padding(.horizontal)
+            .padding(.horizontal, DesignSystem.Spacing.medium)
             
             // 经验条
-            VStack(spacing: 6) {
+            VStack(spacing: DesignSystem.Spacing.xxSmall) {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         // 背景条
@@ -108,21 +88,15 @@ struct ProfileCard: View {
                         
                         // 进度条
                         Capsule()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [.blue, .purple]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .fill(DesignSystem.Gradients.primaryGradient)
                             .frame(width: geometry.size.width * expPercentage, height: 12)
                     }
                     .overlay(
                         HStack {
                             Text("Lv.\(level)")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(DesignSystem.Typography.small)
                             Text("\(currentExp)/\(maxExp)")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(DesignSystem.Typography.small)
                         }
                         .foregroundColor(.white)
                         .shadow(radius: 1)
@@ -130,12 +104,20 @@ struct ProfileCard: View {
                 }
             }
             .frame(height: 12)
-            .padding(.horizontal)
+            .padding(.horizontal, DesignSystem.Spacing.medium)
         }
-        .padding(.vertical, 20)
+        .padding(.vertical, DesignSystem.Spacing.large)
         .frame(maxWidth: .infinity)
-        .background(Color(uiColor: .systemBackground))
-        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                .fill(DesignSystem.Colors.background)
+                .shadow(
+                    color: DesignSystem.Shadows.medium.color,
+                    radius: DesignSystem.Shadows.medium.radius,
+                    x: DesignSystem.Shadows.medium.x,
+                    y: DesignSystem.Shadows.medium.y
+                )
+        )
     }
 }
 
@@ -154,9 +136,16 @@ struct SettingsList: View {
                 SettingsRow(icon: "gear", title: "通用设置", showDivider: true)
             }
         }
-        .background(Color(uiColor: .systemBackground))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 2)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                .fill(DesignSystem.Colors.background)
+                .shadow(
+                    color: DesignSystem.Shadows.medium.color,
+                    radius: DesignSystem.Shadows.medium.radius,
+                    x: DesignSystem.Shadows.medium.x,
+                    y: DesignSystem.Shadows.medium.y
+                )
+        )
     }
 }
 
@@ -171,33 +160,28 @@ struct SettingsRow: View {
             HStack {
                 Image(systemName: icon)
                     .font(.system(size: 18))
-                    .foregroundStyle(
-                        LinearGradient(
-                            gradient: Gradient(colors: [.blue, .purple]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .foregroundStyle(DesignSystem.Gradients.iconGradient)
                     .frame(width: 30)
                 
                 Text(title)
-                    .foregroundColor(.primary)
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundColor(.gray.opacity(0.6))
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, DesignSystem.Spacing.medium)
+            .padding(.vertical, DesignSystem.Spacing.small)
             
             if showDivider {
                 Divider()
                     .padding(.leading, 46)
             }
         }
-        .background(Color(uiColor: .systemBackground))
+        .background(DesignSystem.Colors.background)
     }
 }
 
