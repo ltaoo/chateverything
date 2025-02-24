@@ -76,7 +76,7 @@ public struct LLMProviderModel: Identifiable, Hashable {
     }
 }
 
-public struct LLMValues {
+public struct LLMServiceConfig {
     public var provider: String
     public var model: String
     public var apiProxyAddress: String?
@@ -94,7 +94,7 @@ public struct LLMValues {
 }
 
 public class LLMService: ObservableObject {
-    @Published public var value: LLMValues
+    @Published public var value: LLMServiceConfig
     private var provider: LLMProvider
     private var model: LLMProviderModel
     private var prompt: String
@@ -106,7 +106,7 @@ public class LLMService: ObservableObject {
     // Add new callback type
     public typealias ChatCallback = (String) -> Void
     
-    public init(value: LLMValues, prompt: String = "") {
+    public init(value: LLMServiceConfig, prompt: String = "") {
         self.value = value
         self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
         self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
@@ -116,7 +116,7 @@ public class LLMService: ObservableObject {
         print("[Package]LLM init: \(value.provider) \(value.model) \(prompt)")
     }
 
-    public func update(value: LLMValues) {
+    public func update(value: LLMServiceConfig) {
         self.value = value
         self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
         self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")

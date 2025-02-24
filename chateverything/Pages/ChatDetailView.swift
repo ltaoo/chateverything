@@ -547,22 +547,24 @@ private struct MessageContentView: View {
                     LoadingView()
                 } else {
                     VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
-                        if !data.ok {
-                            Text(data.text)
-                                .font(DesignSystem.Typography.bodyMedium)
-                        } else {
-                            FlowLayout(spacing: 0) { 
-                                ForEach(data.nodes) { node in
-                                    TextNodeView(
-                                        node: node, 
-                                        color: box.isMe ? DesignSystem.Colors.background : DesignSystem.Colors.textPrimary,
-                                        onTap: { node in
-                                            print("node: \(node)")
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        Text(data.text)
+                            .font(DesignSystem.Typography.bodyMedium)
+                        // if !data.ok {
+                        //     Text(data.text)
+                        //         .font(DesignSystem.Typography.bodyMedium)
+                        // } else {
+                        //     FlowLayout(spacing: 0) { 
+                        //         ForEach(data.nodes) { node in
+                        //             TextNodeView(
+                        //                 node: node, 
+                        //                 color: box.isMe ? DesignSystem.Colors.background : DesignSystem.Colors.textPrimary,
+                        //                 onTap: { node in
+                        //                     print("node: \(node)")
+                        //                 }
+                        //             )
+                        //         }
+                        //     }
+                        // }
                     }
                     .padding(DesignSystem.Spacing.medium)
                     .background(box.isMe ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)

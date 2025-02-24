@@ -46,6 +46,16 @@ public class LLMProviderController: ObservableObject, Identifiable, Hashable {
         hasher.combine(id)
     }
 
+    public func build(config: RoleConfig) -> LLMServiceConfig {
+        let llmConfig = config.llmDict
+        return LLMServiceConfig(
+            provider: self.provider.id,
+            model: llmConfig["model"] as! String,
+            apiProxyAddress: value.apiProxyAddress,
+            apiKey: value.apiKey
+        )
+    }
+
     public func updateValueModels() {
         value.models1 = models.filter { 
             if !$0.isDefault {

@@ -108,7 +108,6 @@ class Config: ObservableObject {
             var values: [String: TTSProviderValue] = [:]
             for (id, data) in ttsProviderValues {
                 if let v = data as? [String: Any] {
-                    print("ttsProviderValues \(id) \(v["credential"])")
                     values[id] = TTSProviderValue(
                         id: id,
                         enabled: v["enabled"] as? Bool ?? false,
@@ -158,7 +157,7 @@ class Config: ObservableObject {
     }
 
     func updateSingleTTSProviderValue(id: String, value: TTSProviderValue) {
-        print("updateSingleTTSProviderValue \(id)")
+        // print("updateSingleTTSProviderValue \(id)")
         self.ttsProviderValues[id] = value
         var existing: [String: Any] = UserDefaults.standard.object(forKey: "tts_provider_values") as? [String: Any] ?? [:]
         existing[id] = [

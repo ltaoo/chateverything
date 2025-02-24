@@ -73,19 +73,19 @@ public class RoleBiz: ObservableObject, Identifiable {
     }
     func updateLLM(config: Config) {
         print("[BIZ]RoleBiz updateLLM")
-//        self.noLLM = false
-//        var llm: LLMService? = nil
-//        if let helper = self.config.llm {
-//            let value = helper.build(config: config)
-//            print("[BIZ]RoleBiz updateLLM value: \(value?.provider) \(value?.model) \(value?.apiProxyAddress) \(value?.apiKey)")
-//            if let value = value {
-//                llm = LLMService(value: value, prompt: prompt)
-//            }
-//        }
-//        if llm == nil {
-//            self.noLLM = true
-//        }
-//        self.llm = llm
+        self.noLLM = false
+        var llm: LLMService? = nil
+
+        let llmConfig = self.config.llmDict
+        let llmProviderController = config.llmProviderControllers.first { $0.name == llmConfig["provider"] as! String }
+        if let llmProviderController = llmProviderController {
+            let value = llmProviderController.build(config: self.config)
+            llm = LLMService(value: value, prompt: prompt)
+        }
+        if llm == nil {
+            self.noLLM = true
+        }
+        self.llm = llm
     }
     
     // mutating func saveSettings(_ settings: RoleSettingsV2) throws {
@@ -361,7 +361,7 @@ public class RoleLLMHelper: Codable {
         self.json = json
     }
 
-    func build(config: Config) -> LLMValues? {
+    func build(config: Config) -> LLMServiceConfig? {
         let provider_name = self.provider
         let model_name = self.model
         let values = config.llmProviderControllers.first { $0.name == provider_name }
@@ -382,7 +382,7 @@ public class RoleLLMHelper: Codable {
             return nil
         }
 
-        return LLMValues(
+        return LLMServiceConfig(
             provider: values.name,
             model: model.name,
             apiProxyAddress: values.value.apiProxyAddress ?? values.provider.apiProxyAddress,
