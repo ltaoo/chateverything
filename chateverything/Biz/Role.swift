@@ -84,20 +84,20 @@ public class RoleBiz: ObservableObject, Identifiable {
         var voice = defaultRoleVoice
         var llmHelper = defaultRoleLLM
 
-        if let config_data = config_str.data(using: .utf8) {
-            do {
-                let roleConfig = try JSONDecoder().decode(RoleConfig.self, from: config_data)
-                voice["provider"] = roleConfig.voice["provider"] ?? "system"
-                voice["rate"] = roleConfig.voice["rate"] ?? 1
-                voice["volume"] = roleConfig.voice["volume"] ?? 1
-                voice["style"] = roleConfig.voice["style"] ?? "normal"
-                voice["role"] = roleConfig.voice["role"] ?? ""
-                llmHelper["provider"] = roleConfig.llm["provider"] as! String ?? "deepseek"
-                llmHelper["model"] = roleConfig.llm["model"] as! String ?? "deepseek-chat"
-            } catch {
-                print("Error parsing role config: \(error)")
-            }
-        }
+        // if let config_data = config_str.data(using: .utf8) {
+        //     do {
+        //         let roleConfig = try JSONDecoder().decode(RoleConfig.self, from: config_data)
+        //         voice["provider"] = roleConfig.voice["provider"] ?? "system"
+        //         voice["rate"] = roleConfig.voice["rate"] ?? 1
+        //         voice["volume"] = roleConfig.voice["volume"] ?? 1
+        //         voice["style"] = roleConfig.voice["style"] ?? "normal"
+        //         voice["role"] = roleConfig.voice["role"] ?? ""
+        //         llmHelper["provider"] = roleConfig.llm["provider"] as! String ?? "deepseek"
+        //         llmHelper["model"] = roleConfig.llm["model"] as! String ?? "deepseek-chat"
+        //     } catch {
+        //         print("Error parsing role config: \(error)")
+        //     }
+        // }
         
         props.config = RoleConfig(voice: voice, llm: llmHelper)
         
@@ -109,8 +109,8 @@ public class RoleBiz: ObservableObject, Identifiable {
         self.noLLM = false
         var llm: LLMService? = nil
 
-        let llmConfig = self.config.llmDict
-        let llmProviderController = config.llmProviderControllers.first { $0.name == llmConfig["provider"] as! String }
+        let llmConfig = self.config.llm
+        let llmProviderController = config.llmProviderControllers.first { $0.name == llmConfig["provider"] as? String }
         if let llmProviderController = llmProviderController {
             let value = llmProviderController.build(config: self.config)
             llm = LLMService(value: value, prompt: prompt)
@@ -284,68 +284,84 @@ public struct AnyCodable: Codable {
     }
 }
 
+public enum SwiftValueType {
+    case string(String)
+    case int(Int)
+    case double(Double)
+    case bool(Bool)
+    case array([SwiftValueType])
+    case dictionary([String: SwiftValueType])
+}
+
 // Replace the RoleConfig struct with this implementation
-public class RoleConfig: Codable {
-    @Published public var voice: [String: AnyCodable]
-    @Published public var llm: [String: AnyCodable]
+public class RoleConfig {
+    public var voice: [String: Any]
+    public var llm: [String: Any]
     
-    enum CodingKeys: String, CodingKey {
-        case voice
-        case llm
-    }
+    // enum CodingKeys: String, CodingKey {
+    //     case voice
+    //     case llm
+    // }
     
     public init(voice: [String: Any], llm: [String: Any]) {
-        self.voice = voice.mapValues { AnyCodable($0) }
-        self.llm = llm.mapValues { AnyCodable($0) }
+        self.voice = voice
+        self.llm = llm
     }
     
-    required public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.voice = try container.decode([String: AnyCodable].self, forKey: .voice)
-        self.llm = try container.decode([String: AnyCodable].self, forKey: .llm)
-    }
+    // required public init(from decoder: Decoder) throws {
+    //     let container = try decoder.container(keyedBy: CodingKeys.self)
+    //     self.voice = try container.decode([String: Any].self, forKey: .voice)
+    //     self.llm = try container.decode([String: Any].self, forKey: .llm)
+    // }
     
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(voice, forKey: .voice)
-        try container.encode(llm, forKey: .llm)
-    }
+    // public func encode(to encoder: Encoder) throws {
+    //     var container = encoder.container(keyedBy: CodingKeys.self)
+    //     try container.encode(voice, forKey: .voice)
+    //     try container.encode(llm, forKey: .llm)
+    // }
 
     public func updateLLM(model: String) {
-        DispatchQueue.main.async {
-            self.llm["model"] = AnyCodable(model)
-        }
+        self.llm["model"] = model
     }
     public func updateVoice(value: [String: Any]) {
-        DispatchQueue.main.async {
-            self.voice = value.mapValues { AnyCodable($0) }
-        }
+        self.voice = value
     }
-    
     // Add computed properties to get the underlying dictionaries
-    public var voiceDict: [String: Any] {
-        return voice.mapValues { $0.value }
-    }
-    public var llmDict: [String: Any] {
-        return llm.mapValues { $0.value }
-    }
-
-    public func toDict() -> [String: Any] {
-        return [
-            "voice": voiceDict,
-            "llm": llmDict
-        ]
-    }
-    public static func fromDict(dict: [String: Any]) -> RoleConfig? {
-        let config = RoleConfig(voice: [:], llm: [:])
-        if let voice = dict["voice"] as? [String: Any] {
-            config.voice = voice.mapValues { AnyCodable($0) }
-        }
-        if let llm = dict["llm"] as? [String: Any] {
-            config.llm = llm.mapValues { AnyCodable($0) }
-        }
-        return config
-    }
+    // public var voiceDict: [String: Any] {
+    //     return voice.mapValues { $0.value }
+    // }
+    // public var llmDict: [String: Any] {
+    //     return llm.mapValues { $0.value }
+    // }
+    // public func toDict() -> [String: Any] {
+    //     return [
+    //         "voice": voiceDict,
+    //         "llm": llmDict
+    //     ]
+    // }
+    // Add computed properties to get the underlying dictionaries
+    // public var voiceDict: [String: Any] {
+    //     return voice.mapValues { $0.value }
+    // }
+    // public var llmDict: [String: Any] {
+    //     return llm.mapValues { $0.value }
+    // }
+    // public func toDict() -> [String: Any] {
+    //     return [
+    //         "voice": voiceDict,
+    //         "llm": llmDict
+    //     ]
+    // }
+    // public static func fromDict(dict: [String: Any]) -> RoleConfig? {
+    //     let config = RoleConfig(voice: defaultRoleVoice, llm: defaultRoleLLM)
+    //     if let voice = dict["voice"] as? [String: Any] {
+    //         config.voice = voice
+    //     }
+    //     if let llm = dict["llm"] as? [String: Any] {
+    //         config.llm = llm
+    //     }
+    //     return config
+    // }
 }
 
 public class RoleLLMHelper: Codable {
@@ -447,7 +463,7 @@ public class RoleVoice: ObservableObject, Codable {
     }
 }
 
-public let defaultRoleVoice = ["provider": "system", "rate": 1.0, "volume": 1.0, "style": "normal", "role": ""] as [String : Any]
+public let defaultRoleVoice = ["provider": "system", "language": "en-US", "speed": 1.0, "volume": 1.0, "pitch": 1.0] as [String : Any]
 public let defaultRoleLLM = ["provider": "deepseek", "model": "deepseek-chat"] as [String : Any]
 public let DefaultRoles: [RoleBiz] = [
     RoleBiz(props: {
@@ -528,3 +544,44 @@ public let DefaultRoles: [RoleBiz] = [
         )
     )
 ]
+
+extension Dictionary where Key == String, Value == Any {
+    func toSwiftValueType() -> [String: SwiftValueType] {
+        var result: [String: SwiftValueType] = [:]
+        
+        for (key, value) in self {
+            if let stringValue = value as? String {
+                result[key] = .string(stringValue)
+            } else if let intValue = value as? Int {
+                result[key] = .int(intValue)
+            } else if let doubleValue = value as? Double {
+                result[key] = .double(doubleValue)
+            } else if let boolValue = value as? Bool {
+                result[key] = .bool(boolValue)
+            } else if let arrayValue = value as? [Any] {
+                result[key] = .array(arrayValue.compactMap { convertToSwiftValueType($0) })
+            } else if let dictValue = value as? [String: Any] {
+                result[key] = .dictionary(dictValue.toSwiftValueType())
+            }
+        }
+        
+        return result
+    }
+}
+
+private func convertToSwiftValueType(_ value: Any) -> SwiftValueType? {
+    if let stringValue = value as? String {
+        return .string(stringValue)
+    } else if let intValue = value as? Int {
+        return .int(intValue)
+    } else if let doubleValue = value as? Double {
+        return .double(doubleValue)
+    } else if let boolValue = value as? Bool {
+        return .bool(boolValue)
+    } else if let arrayValue = value as? [Any] {
+        return .array(arrayValue.compactMap { convertToSwiftValueType($0) })
+    } else if let dictValue = value as? [String: Any] {
+        return .dictionary(dictValue.toSwiftValueType())
+    }
+    return nil
+}

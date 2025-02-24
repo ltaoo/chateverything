@@ -180,20 +180,16 @@ public class TencentTTSEngine: NSObject, TTSEngine {
     }
     
     public func stop() {
-        print("[TTSEngine] Stop called - current controller: \(ttsController != nil)")
         ttsController?.cancel()
         callback?.onCancel?()
     }
     fileprivate func handleAudioData(_ data: Data) {
-        print("[TTSEngine] Received audio data chunk: \(data.count) bytes")
         callback?.onData?(data)
     }
     fileprivate func handleCompletion() {
-        print("[TTSEngine] TTS synthesis completed")
         callback?.onComplete?()
     }
     fileprivate func handleError(_ error: Error) {
-        print("[TTSEngine] Error occurred: \(error.localizedDescription)")
         callback?.onError?(error)
     }
     deinit {
@@ -207,23 +203,19 @@ public class TencentTTSListener: NSObject, QCloudRealTTSListener {
     private weak var engine: TencentTTSEngine?
     
     init(engine: TencentTTSEngine) {
-        print("[TTSListener] Initializing with engine")
         super.init()
         self.engine = engine
     }
     
     public func onFinish() {
-        print("[TTSListener] onFinish called")
         engine?.handleCompletion()
     }
     
     public func onError(_ error: Error) {
-        print("[TTSListener] onError called: \(error.localizedDescription)")
         engine?.handleError(error)
     }
     
     public func onData(_ data: Data) {
-        print("[TTSListener] onData called with \(data.count) bytes")
         engine?.handleAudioData(data)
     }
 }
@@ -303,7 +295,8 @@ public let TTSProviders = [
                         id: "volume",
                         defaultValue: 1.0,
                         min: 0.0,
-                        max: 1.0
+                        max: 1.0,
+                        step: 0.1
                     ))
                 )),
                 "speed": .single(FormField(
@@ -315,7 +308,8 @@ public let TTSProviders = [
                         id: "speed",
                         defaultValue: 1.0,
                         min: 0.0,
-                        max: 1.0
+                        max: 1.0,
+                        step: 0.1
                     ))
                 )),
                 "pitch": .single(FormField(
@@ -327,10 +321,12 @@ public let TTSProviders = [
                         id: "pitch",
                         defaultValue: 1.0,
                         min: 0.0,
-                        max: 1.0
+                        max: 1.0,
+                        step: 0.1
                     ))
                 ))
-            ]
+            ],
+            orders: ["language", "volume", "speed", "pitch"]
         )
     ),
     // https://cloud.tencent.com/document/product/1073/37995
@@ -374,7 +370,8 @@ public let TTSProviders = [
                         defaultValue: nil
                     ))
                 )),
-            ]
+            ],
+            orders: ["appId", "secretId", "secretKey"]
         ),
         schema: FormObjectField(
             id: "tts",
@@ -382,13 +379,13 @@ public let TTSProviders = [
             label: "TTS",
             required: true,
             fields: [
-                "role": .single(FormField(
-                    id: "role",
-                    key: "role",
+                "voiceType": .single(FormField(
+                    id: "voiceType",
+                    key: "voiceType",
                     label: "角色",
                     required: true,
                     input: .InputSelect(SelectInput(
-                        id: "role",
+                        id: "voiceType",
                         defaultValue: "502001",
                         // https://cloud.tencent.com/document/product/1073/92668
                         options: [
@@ -429,8 +426,8 @@ public let TTSProviders = [
                     input: .InputSlider(SliderInput(
                         id: "volume",
                         defaultValue: 1.0,
-                        min: 0.0,
-                        max: 1.0
+                        min: -10.0,
+                        max: 10.0
                     ))
                 )),
                 "speed": .single(FormField(
@@ -442,7 +439,8 @@ public let TTSProviders = [
                         id: "speed",
                         defaultValue: 1.0,
                         min: 0.0,
-                        max: 1.0
+                        max: 1.0,
+                        step: 0.1
                     ))
                 )),
                 "codec": .single(FormField(
@@ -468,7 +466,8 @@ public let TTSProviders = [
                         defaultValue: false
                     ))
                 ))
-            ]
+            ],
+            orders: ["voiceType", "language", "volume", "speed", "codec", "stream"]
         )
     )
 ]

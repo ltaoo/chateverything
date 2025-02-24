@@ -157,7 +157,6 @@
 			);
 			name = chateverything;
 			packageProductDependencies = (
-				A63811822D64C949003EA4C9 /* LLM */,
 			);
 			productName = chateverything;
 			productReference = A6778D6D2D5352EC00447C17 /* chateverything.app */;
@@ -242,9 +241,6 @@
 			mainGroup = A6778D642D5352EC00447C17;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A63811812D64C949003EA4C9 /* XCLocalSwiftPackageReference "chateverything/Packages/LLM" */,
-				A60A90892D6B78E9001430FB /* XCLocalSwiftPackageReference "chateverything/Packages/TTS" */,
-				A60A908E2D6B7AA7001430FB /* XCLocalSwiftPackageReference "chateverything/Packages/FromField" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A6778D6E2D5352EC00447C17 /* Products */;
@@ -636,26 +632,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A60A90892D6B78E9001430FB /* XCLocalSwiftPackageReference "chateverything/Packages/TTS" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = chateverything/Packages/TTS;
-		};
-		A60A908E2D6B7AA7001430FB /* XCLocalSwiftPackageReference "chateverything/Packages/FromField" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = chateverything/Packages/FromField;
-		};
-		A63811812D64C949003EA4C9 /* XCLocalSwiftPackageReference "chateverything/Packages/LLM" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = chateverything/Packages/LLM;
-		};
 /* End XCLocalSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		A63811822D64C949003EA4C9 /* LLM */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = LLM;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCVersionGroup section */
 		A6D735832D6637D500ABAAC9 /* Model.xcdatamodeld */ = {

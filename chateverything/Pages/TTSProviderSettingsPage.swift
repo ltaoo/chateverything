@@ -74,9 +74,10 @@ struct TTSProviderSettingView: View {
     @ViewBuilder
     private var credentialFieldsView: some View {
         if let credential = provider.credential {
-            ForEach(credential.fields.sorted(by: { $0.key < $1.key }), id: \.key) { key, field in
-                switch field {
-                case .single(let formField):
+            ForEach(credential.orders, id: \.self) { key in
+                if let field = credential.fields[key] {
+                    switch field {
+                    case .single(let formField):
                     if case .InputString(let input) = formField.input {
                         TextField(
                             formField.label,
@@ -94,7 +95,8 @@ struct TTSProviderSettingView: View {
                 case .array(_):
                     EmptyView() // Handle array fields if needed
                 case .object(_):
-                    EmptyView() // Handle object fields if needed
+                        EmptyView() // Handle object fields if needed
+                    }
                 }
             }
         }

@@ -6,6 +6,7 @@ public enum Route: Hashable {
     case RoleDetailView(roleId: UUID)
 }
 
+
 class Config: ObservableObject {
     let store: ChatStore
     let permissionManager: PermissionManager
@@ -68,22 +69,48 @@ class Config: ObservableObject {
             }
 
 
+                // if let configs = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] {
+                //     for (id, config) in configs {
+                //         if let config = config as? [String: Any] {
+                //             print("get config of role: \(id) \(config)")
+                //         }
+                //     }
+                // }
 // loadRoles
-            var roles: [RoleBiz] = []
+//            var roles: [RoleBiz] = []
             for role in DefaultRoles {
-                if let configs = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any],
-                let config = configs[role.id.uuidString] as? [String: Any],
-                let roleConfig = RoleConfig.fromDict(dict: config) {
-                    role.config = roleConfig
+                if let configs = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] {
+                    if let config = configs[role.id.uuidString] as? [String: Any] {
+                        var voice = config["voice"] as? [String: Any]
+                        var llm = config["llm"] as? [String: Any]
+                        if var v = voice {
+                            if v["provider"] == nil {
+                                voice!["provider"] = "system"
+                            }
+                        } else {
+                            voice = defaultRoleVoice
+                        }
+                        if var l = llm {
+                            if l["provider"] == nil {
+                                llm!["provider"] = "deepseek"
+                            }
+                        } else {
+                            llm = defaultRoleLLM
+                        }
+                        role.config = RoleConfig(
+                            voice: voice ?? defaultRoleVoice,
+                            llm: llm ?? defaultRoleLLM
+                        )
+                        print("role: \(role.name) voice: \(voice) llm: \(llm)")
+                    }
                 }
-                roles.append(role)
             }
-            self.roles = roles
+            self.roles = DefaultRoles
             print("roles: \(roles.count)")
 
 // loadLLMProviders
             self.llmProviders = LLMServiceProviders
-            if let llmProviderValues: [String:Any] = UserDefaults.standard.object(forKey: "llm_provider_values") as? [String:Any] {
+            if var llmProviderValues: [String:Any] = UserDefaults.standard.object(forKey: "llm_provider_values") as? [String:Any] {
                 var values: [String: LLMProviderValue] = [:]
                 for (name, data) in llmProviderValues {
                     if let v = data as? [String: Any] {
@@ -118,11 +145,11 @@ class Config: ObservableObject {
                         provider: llmProvider,
                         value: LLMProviderValue(
                             id: llmProvider.id,
-                            enabled: llmProvider.id == "openai" ? true : false,
+                            enabled: (llmProvider.id == "openai" || llmProvider.id == "deepseek") ? true : false,
                             apiProxyAddress: nil,
                             apiKey: "",
                             models1: [],
-                            models2: llmProvider.id == "openai" ? llmProvider.models.map { $0.id } : []
+                            models2: (llmProvider.id == "openai" || llmProvider.id == "deepseek") ? llmProvider.models.map { $0.id } : []
                         )
                     ))
                 }
@@ -155,7 +182,7 @@ class Config: ObservableObject {
                         provider: ttsProvider,
                         value: TTSProviderValue(
                             id: ttsProvider.id,
-                            enabled: ttsProvider.id == "system" ? true : false,
+                            enabled: (ttsProvider.id == "system") ? true : false,
                             credential: [:]
                         )
                     ))
@@ -196,8 +223,50 @@ class Config: ObservableObject {
 
     func updateRoleConfig(roleId: UUID, config: RoleConfig) {
         var existing: [String: Any] = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] ?? [:]
-        existing[roleId.uuidString] = config.toDict()
+        existing[roleId.uuidString] = config
         UserDefaults.standard.set(existing, forKey: "role_configs")
     }
+    func updateRoleLLMConfig(roleId: UUID, value: [String: Any]) {
+        var configs: [String: Any] = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] ?? [:]
+        if var existing = configs[roleId.uuidString] as? [String: Any] {
+            existing["llm"] = value
+            configs[roleId.uuidString] = existing
+        } else {
+            configs[roleId.uuidString] = ["voice": RoleVoice.GetDefault(), "llm": value]
+        }
+        UserDefaults.standard.set(configs, forKey: "role_configs")
+    }
+    func updateRoleVoiceConfig(roleId: UUID, value: [String: Any]) {
+        var configs: [String: Any] = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] ?? [:]
+        if var existing = configs[roleId.uuidString] as? [String: Any] {
+            existing["voice"] = value
+            configs[roleId.uuidString] = existing
+        } else {
+            configs[roleId.uuidString] = ["voice": value, "llm": defaultRoleLLM]
+        }
+        UserDefaults.standard.set(configs, forKey: "role_configs")
+    }
+}
+
+// Add this extension before the Config class
+extension Dictionary {
+    static func assign(_ target: [Key: Value], _ sources: [Key: Value]...) -> [Key: Value] {
+        var result = target
+        
+        for source in sources {
+            for (key, value) in source {
+                result[key] = value
+            }
+        }
+        
+        return result
+    }
     
+    mutating func assign(_ sources: [Key: Value]...) {
+        for source in sources {
+            for (key, value) in source {
+                self[key] = value
+            }
+        }
+    }
 }

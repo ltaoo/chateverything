@@ -47,7 +47,7 @@ public class LLMProviderController: ObservableObject, Identifiable, Hashable {
     }
 
     public func build(config: RoleConfig) -> LLMServiceConfig {
-        let llmConfig = config.llmDict
+        let llmConfig = config.llm
         return LLMServiceConfig(
             provider: self.provider.id,
             model: llmConfig["model"] as! String,

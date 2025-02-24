@@ -221,17 +221,18 @@ public class NumberInput: FormInput<Double> {
     }
 
     public override func setValue(value: Double?) {
-	self.value = value
-	if let value = value {
-		if let min = min, value < min {
-			self.value = min
-		}
-		if let max = max, value > max {
-			self.value = max
-		}
-	}
-	print("setValue: \(self.id) \(self.value) \(value)")
-	super.setValue(value: self.value)
+        self.value = value
+        if let value = value {
+            if let min = min, value < min {
+                self.value = min
+            }
+            if let max = max, value > max {
+                self.value = max
+            }
+        }
+        print("setValue: \(self.id) \(self.value) \(value)")
+        print("setValue: \(self.id) \(self.value) \(value)")
+        super.setValue(value: self.value)
     }
 }
 
@@ -271,6 +272,11 @@ public class SelectInput: FormInput<String> {
     required init(from decoder: Decoder) throws {
         fatalError("init(from:) has not been implemented")
     }
+
+    // public override func setValue(value: String?) {
+    //     self.value = value
+    //     onChange?(value)
+    // }
 }
 
 // 多选输入
@@ -298,6 +304,11 @@ public class MultiSelectInput: FormInput<[String]> {
     required init(from decoder: Decoder) throws {
         fatalError("init(from:) has not been implemented")
     }
+
+    // public override func setValue(value: [String]?) {
+    //     self.value = value
+    //     onChange?(value)
+    // }
 }
 
 // 滑块输入
@@ -330,6 +341,17 @@ public class SliderInput: FormInput<Double> {
     
     required init(from decoder: Decoder) throws {
         fatalError("init(from:) has not been implemented")
+    }
+
+    public override func setValue(value: Double?) {
+        if let value = value {
+            // 根据 step 来处理精度
+            let multiplier = 1.0 / step
+            let roundedValue = round(value * multiplier) / multiplier
+            super.setValue(value: roundedValue)
+        } else {
+            super.setValue(value: nil)
+        }
     }
 }
 
@@ -426,13 +448,15 @@ public class FormObjectField: Identifiable {
     public let required: Bool
     public let fields: [String:AnyFormField]
     public let errors: [FieldError] = []
+    var orders: [String] = []
 
-    init(id: String, key: String, label: String, required: Bool, fields: [String:AnyFormField]) {
+    init(id: String, key: String, label: String, required: Bool, fields: [String:AnyFormField], orders: [String] = []) {
         self.id = id
         self.key = key
         self.label = label
         self.required = required
         self.fields = fields
+        self.orders = orders
     }
 
     var values: [String: Any] {

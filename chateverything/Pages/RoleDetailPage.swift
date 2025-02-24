@@ -11,7 +11,9 @@ struct RoleDetailView: View {
         self.roleId = roleId
         self.path = path
         self.config = config
-        _role = StateObject(wrappedValue: RoleBiz(props: RoleProps(id: roleId)))
+
+        let role = config.roles.first { $0.id == roleId } ?? RoleBiz(props: RoleProps(id: roleId))
+        _role = StateObject(wrappedValue: role)
     }
 
     var body: some View {
@@ -58,14 +60,24 @@ struct RoleTTSProviderSettingView: View {
     let config: Config
     
     @State var selectedProviderController: TTSProviderController?
+    @State var count = 0
+    private let debouncer = Debouncer(delay: 0.8)
     
     init(role: RoleBiz, config: Config) {
         self.role = role
         self.config = config
 
         print("[VIEW]RoleTTSProviderSettingView init \(role.config.voice)")
-        if let providerId = role.config.voiceDict["provider"] as? String {
-            _selectedProviderController = State(initialValue: config.ttsProviderControllers.first { $0.provider.id == providerId })
+        if let v = role.config.voice["provider"] {
+            if v is String {
+                let controller = config.ttsProviderControllers.first { $0.provider.id == v as! String }
+                _selectedProviderController = State(initialValue: controller)
+                if let controller = controller {
+                    let schema = controller.provider.schema
+                    schema.setValue(value: role.config.voice)
+                    print("[VIEW]RoleTTSProviderSettingView init schema \(schema)")
+                }
+            }
         }
     }
 
@@ -95,7 +107,7 @@ struct RoleTTSProviderSettingView: View {
                     print("[VIEW]RoleTTSProviderSettingView there is values? \(r.isValid)")
                     if r.isValid {
                     print("[VIEW]RoleTTSProviderSettingView selectedProviderController \(r.value)")
-                        role.config.updateVoice(value: r.value)
+                        role.config.updateVoice(value: (r.value))
                     }
                 }
             }
@@ -109,7 +121,22 @@ struct RoleTTSProviderSettingView: View {
     }
 
     func handleChange() {
-        print("[VIEW]RoleTTSProviderSettingView handleChange")
+        debouncer.debounce {
+            guard let provider = selectedProvider else {
+                print("[VIEW]RoleTTSProviderSettingView handleChange provider is nil")
+                return
+            }
+            let r = provider.schema.validate()
+            if r.isValid == false {
+                return
+            }
+            var v = r.value as! [String:Any]
+            v["provider"] = selectedProviderController?.provider.id
+            print("[VIEW]RoleTTSProviderSettingView handleChange \(v)")
+            role.config.updateVoice(value: v)
+            config.updateRoleVoiceConfig(roleId: role.id, value: v)
+            self.count += 1
+        }
     }
 
 
@@ -121,104 +148,86 @@ struct RoleTTSProviderSettingView: View {
     @ViewBuilder
     private var form: some View {
         if let schema = selectedProvider?.schema {
-            let fields = schema.fields.map { (key: String, field: AnyFormField) in
-                TmpFormField(id: key, field: field)
-            }
-            
-            ForEach(fields) { pair in
-                let key = pair.id
-                let field = pair.field
-                
-                switch field {
-                case .single(let formField):
-                    switch formField.input {
-                    case .InputString(let input):
-                        TextField(
-                            formField.label,
-                            text: Binding(
-                                get: { input.value ?? "" },
-                                set: { newValue in
-                                    input.setValue(value: newValue)
-                                    self.handleChange()
-                                }
-                            )
-                        )
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.vertical, 4)
-                        
-                    case .InputNumber(let input):
-                        TextField(
-                            formField.label,
-                            text: Binding(
-                                get: { String(input.value ?? 0) },
-                                set: { newValue in
-                                    input.setValue(value: Double(newValue))
-                                    self.handleChange()
-                                }
-                            )
-                        )
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.vertical, 4)
-                        
-                    case .InputBoolean(let input):
-                        Toggle(formField.label, isOn: Binding(
-                            get: { input.value ?? false },
-                            set: { newValue in
-                                input.setValue(value: newValue)
-                                self.handleChange()
-                            }
-                        ))
-                        
-                    case .InputSelect(let input):
-                        Picker(formField.label, selection: Binding(
-                            get: { input.value ?? "" },
-                            set: { newValue in
-                                input.setValue(value: newValue)
-                                self.handleChange()
-                            }
-                        )) {
-                            ForEach(input.options) { option in
-                                Text(option.label).tag(option.value)
-                            }
-                        }
-                        
-                    case .InputMultiSelect(let input):
-                        // MultiSelect 需要特殊处理，这里暂时用普通的 Picker
-                        Text("multi select")
-                        // Picker(formField.label, selection: Binding(
-                        //     get: { input.value?.first ?? "" },
-                        //     set: { newValue in
-                        //         input.setValue(value: [newValue])
-                        //         self.handleChange()
-                        //     }
-                        // )) {
-                        //     ForEach(input.options) { option in
-                        //         Text(option.label).tag(option.value)
-                        //     }
-                        // }
-                        
-                    case .InputSlider(let input):
-                        VStack(alignment: .leading) {
-                            Text(formField.label)
-                            Slider(
-                                value: Binding(
-                                    get: { input.value ?? input.min },
+            ForEach(schema.orders, id: \.self) { key in
+                if let field = schema.fields[key] {
+                    switch field {
+                    case .single(let formField):
+                        switch formField.input {
+                        case .InputString(let input):
+                            TextField(
+                                formField.label,
+                                text: Binding(
+                                    get: { input.value as? String ?? "" },
                                     set: { newValue in
                                         input.setValue(value: newValue)
                                         self.handleChange()
                                     }
-                                ),
-                                in: input.min...input.max,
-                                step: input.step
+                                )
                             )
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.vertical, 4)
+                            
+                        case .InputNumber(let input):
+                            TextField(
+                                formField.label,
+                                text: Binding(
+                                    get: { String(input.value ?? 0) },
+                                    set: { newValue in
+                                        print("[VIEW]InputNumber \(formField.label) \(newValue)")
+                                        input.setValue(value: Double(newValue))
+                                        self.handleChange()
+                                    }
+                                )
+                            )
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.vertical, 4)
+                            
+                        case .InputBoolean(let input):
+                            Toggle(formField.label, isOn: Binding(
+                                get: { input.value ?? false },
+                                set: { newValue in
+                                    print("[VIEW]formField \(formField.label) \(newValue)")
+                                    input.setValue(value: newValue)
+                                    self.handleChange()
+                                }
+                            ))
+                            
+                        case .InputSelect(let input):
+                            ObservablePicker(field: formField, onChange: { newValue in
+                                print("[VIEW]formField \(formField.label) \(newValue)")
+                                self.handleChange()
+                            })
+                            
+                        case .InputMultiSelect(let input):
+                            // MultiSelect 需要特殊处理，这里暂时用普通的 Picker
+                            Text("multi select")
+                            // Picker(formField.label, selection: Binding(
+                            //     get: { input.value?.first ?? "" },
+                            //     set: { newValue in
+                            //         input.setValue(value: [newValue])
+                            //         self.handleChange()
+                            //     }
+                            // )) {
+                            //     ForEach(input.options) { option in
+                            //         Text(option.label).tag(option.value)
+                            //     }
+                            // }
+                            
+                        case .InputSlider(let input):
+                            VStack(alignment: .leading) {
+                                Text(formField.label)
+                                ObservableSlider(field: formField, onChange: { newValue in
+                                    print("[VIEW]formField \(formField.label) \(newValue)")
+                                    self.handleChange()
+                                })
+                            }
                         }
+                        
+                    case .array(_):
+                        EmptyView()
+                    case .object(_):
+                        EmptyView()
                     }
-                    
-                case .array(_):
-                    EmptyView() // Handle array fields if needed
-                    
-                case .object(_):
-                    EmptyView() // Handle object fields if needed
                 }
             }
         }
@@ -230,12 +239,14 @@ struct RoleLLMProviderSettingView: View {
     @ObservedObject var role: RoleBiz
     let config: Config
     @State var selectedProviderController: LLMProviderController?
+    private let debouncer = Debouncer(delay: 0.8)
+    @State var count: Int = 0
 
     init(role: RoleBiz, config: Config) {
         self.role = role
         self.config = config
 
-        if let providerId = role.config.llmDict["provider"] as? String {
+        if let providerId = role.config.llm["provider"] as? String {
             _selectedProviderController = State(initialValue: config.llmProviderControllers.first { $0.provider.id == providerId })
         }
     }
@@ -247,6 +258,13 @@ struct RoleLLMProviderSettingView: View {
         config.llmProviders.first { $0.id == selectedProviderController?.id }
     }
 
+    func handleChange(controller: LLMProviderController, model: LLMProviderModelController) {
+        let v = ["provider": controller.provider.id, "model": model.name] as [String: Any]
+        print("[VIEW]RoleLLMProviderSettingView handleChange \(v)")
+        config.updateRoleLLMConfig(roleId: role.id, value: v)
+        role.config.updateLLM(model: model.name)
+        role.updateLLM(config: config)
+    }
     var body: some View {
         ForEach(enabledProvidersControllers, id: \.id) { (controller: LLMProviderController) in
             Section {
@@ -258,10 +276,7 @@ struct RoleLLMProviderSettingView: View {
                     Text(controller.provider.name)
                 }
                 ModelListView(role: role, controller: controller, onTap: { model in
-                    role.config.updateLLM(model: model.name)
-                    DispatchQueue.main.async {
-                        role.count += 1
-                    }
+                    self.handleChange(controller: controller, model: model)
                 })
             }
         }
@@ -279,9 +294,13 @@ struct ModelListView: View {
             HStack {
                 Text(sub.name)
                 Spacer()
-                if sub.name == role.config.llmDict["model"] as? String {
-                    Image(systemName: "checkmark")
-                        .foregroundColor(.blue)
+                if let v = role.config.llm["model"] {
+                    if v is String {
+                        if sub.name == v as! String {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
+                        }
+                    }
                 }
             }
             .contentShape(Rectangle())
@@ -304,7 +323,9 @@ struct VoiceTestButton: View {
             let text1 = "Hello! The weather is beautiful today. Would you like to go for a walk?"
             let text2 = "你好！今天天气真好。要不要一起去散步？"
             let text3 = "こんにちは！今日は天気が良いですね。一緒に散歩しませんか？"
-            let lang = role.config.voiceDict["language"] as? String ?? "en-US"
+            // let lang = role.config.voiceDict["language"] as? String ?? "en-US"
+            let r = provider.schema.validate()
+            let lang = r.value["language"] as? String ?? "en-US"
             let text = {
                 switch lang {
                 case "en-US":
@@ -328,7 +349,7 @@ struct VoiceTestButton: View {
                 }
             }()
             let credential = controller.value.credential
-            var config = role.config.voiceDict
+            var config = role.config.voice
             for (key, value) in credential {
                 config[key] = value
             }
@@ -351,6 +372,7 @@ struct VoiceTestButton: View {
                     print("[VIEW]VoiceTestButton onError \(error)")
                 }
             ))
+            print("[VIEW]VoiceTestButton speak \(text)")
             tts!.speak(text)
         }) {
             Text("测试")
@@ -358,18 +380,84 @@ struct VoiceTestButton: View {
     }
 }
 
-//class RealListener: NSObject, QCloudRealTTSListener {
-//    func onFinish() {
-//        print("[VIEW]RealListener onFinish")
-//    }
-//    
-//    func onError(_ error: Error) {
-//        print("[VIEW]RealListener onError \(error)")
-//    }
-//    
-//    func onData(_ data: Data) {
-//        print("[VIEW]RealListener onData \(data)")
-//    }
-//
-//}
-//
+struct ObservablePicker: View {
+    let field: FormField
+    let onChange: (String) -> Void
+    @State var v: String
+
+    init(field: FormField, onChange: @escaping (String) -> Void) {
+        self.field = field
+        self.onChange = onChange
+
+        _v = State(initialValue: "")
+        if case .InputSelect(let input) = field.input {
+            if let v = input.value as? String {
+                _v = State(initialValue: v)
+            } else {
+                let v = input.options.first?.value ?? ""
+                _v = State(initialValue: v)
+            }
+        }
+    }
+
+    var body: some View {
+        if case .InputSelect(let input) = field.input {
+            Picker(field.label, selection: Binding(
+                get: {
+                    print("[VIEW]InputSelect in getter \(field.label) \(v)")
+                    return v
+                },
+                set: { (newValue: String) in
+                    print("[VIEW]formField \(field.label) \(newValue)")
+                    v = newValue
+                    input.setValue(value: newValue)
+                    onChange(newValue)
+                }
+            )) {
+                ForEach(input.options) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
+        }
+    }
+}
+
+
+struct ObservableSlider: View {
+    let field: FormField
+    let onChange: (Double) -> Void
+
+    @State var v: Double
+
+    init(field: FormField, onChange: @escaping (Double) -> Void) {
+        self.field = field
+        self.onChange = onChange
+
+        _v = State(initialValue: 0)
+        if case .InputSlider(let input) = field.input {
+            if let v = input.value as? Double {
+                _v = State(initialValue: v)
+            } else {
+                let v = input.min
+                _v = State(initialValue: v)
+            }
+        }
+    }
+
+    var body: some View {
+        if case .InputSlider(let input) = field.input {
+            Slider(value: Binding(
+                get: {
+                    print("[VIEW]InputSlider in getter \(field.label) \(v)")
+                    return v
+                },
+                set: { (newValue: Double) in
+                    print("[VIEW]formField \(field.label) \(newValue)")
+                    v = newValue
+                    input.setValue(value: newValue)
+                    onChange(newValue)
+                }
+            ), in: input.min...input.max, step: input.step)
+        }
+    }
+}
