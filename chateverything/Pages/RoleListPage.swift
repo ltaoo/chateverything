@@ -1,5 +1,12 @@
 import SwiftUI
 
+enum RoleCategory: String, CaseIterable {
+    case daily = "日常生活"
+    case business = "商务职场"
+    case travel = "旅游出行"
+    case study = "学习教育"
+}
+
 struct RoleListPage: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
@@ -8,27 +15,39 @@ struct RoleListPage: View {
     @Binding var path: NavigationPath
     var config: Config
 
-    @State private var roles: [RoleBiz] = DefaultRoles
+    @State private var roles: [RoleBiz] = []
     @State private var gradientStart = UnitPoint(x: 0, y: 0)
     @State private var gradientEnd = UnitPoint(x: 1, y: 1)
     @State private var selectedChat: ChatSessionBiz?
+    @State private var selectedCategory: RoleCategory = .daily
 
     init(path: Binding<NavigationPath>, config: Config) {
         self.config = config
         _path = path
+        _roles = State(initialValue: config.roles)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            RoleListHeader(
-                onScanQRCode: {
-                    // TODO: 处理扫码动作
-                },
-                onAddRole: {
-                    // TODO: 处理新增动作
+//            HStack {
+//                Text("角色列表")
+//                    .font(DesignSystem.Typography.headingMedium)
+//                Spacer()
+//            }
+//            .padding(DesignSystem.Spacing.medium)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DesignSystem.Spacing.medium) {
+                    ForEach(RoleCategory.allCases, id: \.self) { category in
+                        RoleCategoryButton(
+                            category: category,
+                            isSelected: selectedCategory == category,
+                            action: { selectedCategory = category }
+                        )
+                    }
                 }
-            )
-            
+                .padding(DesignSystem.Spacing.medium)
+            }
+
             ScrollView {
                 LazyVStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(roles) { role in
@@ -62,31 +81,31 @@ struct RoleListPage: View {
     }
 }
 
-struct RoleListHeader: View {
-    var onScanQRCode: () -> Void
-    var onAddRole: () -> Void
+
+struct RoleCategoryButton: View {
+    let category: RoleCategory
+    let isSelected: Bool
+    let action: () -> Void
     
     var body: some View {
-        HStack {
-            Text("角色列表")
-                .font(DesignSystem.Typography.headingMedium)
-            
-            Spacer()
-            
-            Button(action: onScanQRCode) {
-                Image(systemName: "qrcode.viewfinder")
-                    .font(.system(size: DesignSystem.Spacing.large))
-            }
-            .padding(.horizontal, DesignSystem.Spacing.xSmall)
-            
-            Button(action: onAddRole) {
-                Image(systemName: "plus")
-                    .font(.system(size: DesignSystem.Spacing.large))
-            }
+        Button(action: action) {
+            Text(category.rawValue)
+                .font(DesignSystem.Typography.bodyMedium)
+                .padding(.horizontal, DesignSystem.Spacing.medium)
+                .padding(.vertical, DesignSystem.Spacing.small)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                            .fill(DesignSystem.Colors.primaryGradient)
+                    } else {
+                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                            .fill(DesignSystem.Colors.secondary.opacity(0.2))
+                    }
+                }
+                .foregroundColor(isSelected ? .white : DesignSystem.Colors.textPrimary)
         }
-        .padding(DesignSystem.Spacing.medium)
     }
-} 
+}
 
 struct RoleCardInListPage: View {
     let role: RoleBiz

@@ -231,6 +231,12 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                 tip.content = tipBiz.content
                 tip.type = tipBiz.type
                 
+            case .time(let timeBiz):
+                let time = ChatTimeBiz(time: timeBiz.time)
+                let timeEntity = ChatMsgTime(context: context)
+                timeEntity.id = self.payload_id
+                timeEntity.time = time.time
+                
             case .unknown:
                 break
             }
@@ -357,6 +363,14 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                         error.id = self.payload_id
                         error.error = errorBiz.error
                     }
+                case .time(let timeBiz):
+                    let timeCheck = NSFetchRequest<ChatMsgTime>(entityName: "ChatMsgTime")
+                    timeCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
+                    if try context.fetch(timeCheck).isEmpty {
+                        let time = ChatMsgTime(context: context)
+                        time.id = self.payload_id
+                        time.time = timeBiz.time
+                    }
                 default:
                     break
                 }
@@ -416,6 +430,10 @@ struct ChatTipStruct: Codable {
     let type: String
 }
 
+struct ChatTimeStruct: Codable {
+    let time: Date
+}
+
 // MARK: - 消息载荷类型
 enum ChatPayload: Encodable {
     case message(ChatMessageBiz2)
@@ -426,6 +444,7 @@ enum ChatPayload: Encodable {
     case estimate(ChatStatsBiz)
     case error(ChatErrorBiz)
     case tip(ChatTipBiz)
+    case time(ChatTimeBiz)
     case unknown(type: String)
     
     // 自定义解码逻辑（关键部分）
@@ -458,6 +477,9 @@ enum ChatPayload: Encodable {
         case "tip":
             let tip = try ChatTipStruct(from: decoder)
             self = .tip(ChatTipBiz.from(data: tip))
+        case "time":
+            let time = try ChatTimeStruct(from: decoder)
+            self = .time(ChatTimeBiz.from(data: time))
         default:
             self = .unknown(type: type)
         }
@@ -491,6 +513,9 @@ enum ChatPayload: Encodable {
         case .tip(let tip):
             try container.encode("tip", forKey: .type)
             try tip.encode(to: encoder)
+        case .time(let time):
+            try container.encode("time", forKey: .type)
+            try time.encode(to: encoder)
         case .unknown(let type):
             try container.encode(type, forKey: .type)
         }
@@ -514,6 +539,8 @@ enum ChatPayload: Encodable {
             return (text: error.error, type: "error")
         case .tip(let tip):
             return (text: tip.title, type: "tip")
+        case .time(let time):
+            return (text: time.time.description, type: "time")
         case .unknown(let type):
             return (text: "Unknown content", type: type)
         }
@@ -908,5 +935,29 @@ class ChatTipBiz: Encodable {
         try container.encode(title, forKey: .title)
         try container.encode(content, forKey: .content)
         try container.encode(type, forKey: .type)
+    }
+}
+
+class ChatTimeBiz: Encodable {
+    static func from(data: ChatTimeStruct) -> ChatTimeBiz {
+        return ChatTimeBiz(time: data.time)
+    }
+    
+    let contentType = "time"
+    let time: Date
+    
+    init(time: Date) {
+        self.time = time
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case contentType
+        case time
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(contentType, forKey: .contentType)
+        try container.encode(time, forKey: .time)
     }
 }

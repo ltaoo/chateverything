@@ -2,115 +2,169 @@ import Foundation
 import AVFoundation
 import Speech
 import QCloudRealTTS
-
 // TTS 引擎协议
-protocol TTSEngine {
-    func speak(_ text: String, completion: @escaping () -> Void)
-    func stop()
+public struct TTSCallback {
+    let onStart: (() -> Void)?
+    let onData: ((Data) -> Void)?
+    let onComplete: (() -> Void)?
+    let onCancel: (() -> Void)?
+    let onError: ((Error) -> Void)?
+    
+    public init(
+        onStart: @escaping () -> Void = {},
+        onData: @escaping (Data) -> Void = { _ in },
+        onComplete: @escaping () -> Void = {},
+        onCancel: @escaping () -> Void = {},
+        onError: @escaping (Error) -> Void = { _ in }
+    ) {
+        self.onStart = onStart
+        self.onData = onData
+        self.onCancel = onCancel
+        self.onError = onError
+        self.onComplete = onComplete
+    }
 }
 
-// 系统内置 TTS 引擎
-class SystemTTSEngine: NSObject, TTSEngine, AVSpeechSynthesizerDelegate {
-    private let synthesizer: AVSpeechSynthesizer
-    private var completionHandler: (() -> Void)?
-    var config: [String: String] = [:]
+public protocol TTSEngine {
+    func speak(_ text: String)
+    func stop()
+    func setConfig(config: [String: Any])
+    func setEvents(callback: TTSCallback)
+}
+
+struct SystemTTSEngineConfig {
+    var rate: Float = 0.5
+    var pitch: Float = 1.0
+    var volume: Float = 1.0
+    var language: String = "en-US"
+}
+public class SystemTTSEngine: NSObject, TTSEngine, AVSpeechSynthesizerDelegate {
+    private var synthesizer: AVSpeechSynthesizer
+    private var callback: TTSCallback?
+    var config: SystemTTSEngineConfig = SystemTTSEngineConfig()
     
     override init() {
         synthesizer = AVSpeechSynthesizer()
-        
         super.init()
-//        language = lang
         synthesizer.delegate = self
     }
-    func setConfig(config: [String: String]) {
-        self.config = config
+    public func setConfig(config: [String: Any]) {
+        if let v = config["speed"] as? Float {
+            self.config.rate = v
+        }
+        if let v = config["pitch"] as? Float {
+            self.config.pitch = v
+        }
+        if let v = config["volume"] as? Float {
+            self.config.volume = v
+        }
+        if let v = config["language"] as? String {
+            self.config.language = v
+        }
     }
-    func speak(_ text: String, completion: @escaping () -> Void) {
-        let language = config["language"] ?? "en-US"
-        completionHandler = completion
+    public func setEvents(callback: TTSCallback) {
+        self.callback = callback
+    }
+    public func speak(_ text: String) {
+        self.callback?.onStart?()
+        
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: language)
-        utterance.rate = 0.5
-        if let rate = Float(config["speed"] ?? "0.5") {
-            utterance.rate = rate
-        }
-        utterance.pitchMultiplier = 1.0
-        if let pitchMultiplier = Float(config["pitch"] ?? "1.0") {
-            utterance.pitchMultiplier = pitchMultiplier
-        }
-        utterance.volume = 1.0
-        if let volume = Float(config["volume"] ?? "1.0") {
-            utterance.volume = volume
-        }
-
+        utterance.voice = AVSpeechSynthesisVoice(language: config.language)
+        utterance.rate = config.rate
+        utterance.pitchMultiplier = config.pitch
+        utterance.volume = config.volume
         synthesizer.speak(utterance)
     }
-    func stop() {
+    public func stop() {
         synthesizer.stopSpeaking(at: .immediate)
-        completionHandler?()
-        completionHandler = nil
+        callback?.onCancel?()
+        callback = nil
     }
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        completionHandler?()
-        completionHandler = nil
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        callback?.onComplete?()
+        callback = nil
     }
 }
 
+struct TencentTTSEngineConfig {
+    var appId: String = ""
+    var secretId: String = ""
+    var secretKey: String = ""
+    var token: String = ""
+    var voiceType: Int = 1001
+    var volume: Float = 1.0
+    var speed: Float = 1.0
+    var codec: String = "pcm"
+}
+struct TencentTTSEngineCredential {
+    var appId: String = ""
+    var secretId: String = ""
+    var secretKey: String = ""
+    var token: String = ""
+}
 
 // QCloud TTS 引擎
-class QCloudTTSEngine: NSObject, TTSEngine {
+public class TencentTTSEngine: NSObject, TTSEngine {
 //    private var language: String
     
     private var ttsConfig: QCloudRealTTSConfig?
     private var ttsController: QCloudRealTTSController?
-    private var ttsListener: QCloudTTSListener?
-    private var completionHandler: (() -> Void)?
-    private var player: PCMStreamPlayer?
-    var credential: [String: String] = [:]
-    var config: [String: String] = [:]
+    private var ttsListener: TencentTTSListener?
+    private var callback: TTSCallback?
+    var config: TencentTTSEngineConfig = TencentTTSEngineConfig()
 
     override init() {
         super.init()
-        player = PCMStreamPlayer()
-        setupEngine()
     }
     
-    private func setupEngine() {
-        let config = QCloudRealTTSConfig()
-        // 配置必要的参数
-        config.appID = credential["appId"] ?? ""
-        config.secretID = credential["secretId"] ?? ""
-        config.secretKey = credential["secretKey"] ?? ""
-        config.token = ""
-        config.connectTimeout = 20000
-        // 设置基本参数
-        if let volume = Float(self.config["volume"] ?? "1.0") {
-            config.setApiParam("Volume", fvalue: volume)
+    public func setConfig(config: [String:Any]) {
+        if let v = config["appId"] as? String {
+            self.config.appId = v
         }
-        if let speed = Float(self.config["speed"] ?? "1.0") {
-            config.setApiParam("Speed", fvalue: speed)
+        if let v = config["secretId"] as? String {
+            self.config.secretId = v
         }
-        if let codec = self.config["codec"] {
-            config.setApiParam("Codec", value: codec)
+        if let v = config["secretKey"] as? String {
+            self.config.secretKey = v
         }
-        if let role = Int(self.config["role"] ?? "501008") {
-            config.setApiParam("VoiceType", ivalue: role)
+        if let v = config["token"] as? String {
+            self.config.token = v
         }
-        self.ttsConfig = config
+        if let v = config["volume"] as? String,
+           let volume = Float(v) {
+            self.config.volume = volume
+        }
+        if let v = config["speed"] as? String,
+           let speed = Float(v) {
+            self.config.speed = speed
+        }
+        if let v = config["codec"] as? String {
+            self.config.codec = v
+        }
+        if let v = config["role"] as? String,
+           let voiceType = Int(v) {
+            self.config.voiceType = voiceType
+        }
+    }
+
+    public func setEvents(callback: TTSCallback) {
+        self.callback = callback
     }
     
-    func setVoice(_ voiceId: String) {
-        if let voiceIdInt = Int(voiceId) {
-            ttsConfig?.setApiParam("VoiceType", ivalue: voiceIdInt)
-        }
-    }
-    
-    func speak(_ text: String, completion: @escaping () -> Void) {
-        print("[TTSEngine]QCloudTTSEngine speak: \(text)")
-        completionHandler = completion
+    public func speak(_ text: String) {
+        self.callback?.onStart?()
         
-        // 重新初始化 player
-        player = PCMStreamPlayer()
+        let builder = QCloudRealTTSConfig()
+        builder.appID = config.appId
+        builder.secretID = config.secretId
+        builder.secretKey = config.secretKey
+        builder.token = config.token
+        // https://cloud.tencent.com/document/product/1073/92668
+        builder.setApiParam("VoiceType", ivalue: config.voiceType) // 默认音色
+        builder.setApiParam("Volume", fvalue: config.volume)
+        builder.setApiParam("Speed", fvalue: config.speed)
+        builder.setApiParam("Codec", value: config.codec)
+        builder.setApiParam("Text", value: text)
         
         // 根据文本长度计算超时时间
         let baseTimeout = 5000 // 基础超时时间 5 秒
@@ -118,164 +172,59 @@ class QCloudTTSEngine: NSObject, TTSEngine {
         let timeout = baseTimeout + (text.count * timePerChar)
         let maxTimeout = 60000 // 最大超时时间 60 秒
         
-        ttsConfig?.connectTimeout = Int32(min(timeout, maxTimeout))
-        ttsConfig?.setApiParam("Text", value: text)
+        builder.connectTimeout = Int32(min(timeout, maxTimeout))
         
-        // 创建新的监听器
-        ttsListener = QCloudTTSListener(engine: self)
+        ttsListener = TencentTTSListener(engine: self)
+        ttsController = builder.build(ttsListener!)
         
-        // 构建控制器
-        if let config = ttsConfig, let listener = ttsListener {
-            ttsController = config.build(listener)
-        }
     }
     
-    func stop() {
-        print("[TTSEngine] Stopping speech")
+    public func stop() {
+        print("[TTSEngine] Stop called - current controller: \(ttsController != nil)")
         ttsController?.cancel()
-        // 先停止播放器
-        if let player = player {
-            player.player_node.stop()
-            player.engine.stop()
-        }
-        player = nil
-        // 重置音频会话
-        do {
-            try AVAudioSession.sharedInstance().setActive(
-                false, 
-                options: .notifyOthersOnDeactivation
-            )
-        } catch {
-            print("[TTSEngine] Failed to deactivate audio session: \(error)")
-        }
-        completionHandler?()
-        completionHandler = nil
+        callback?.onCancel?()
     }
     fileprivate func handleAudioData(_ data: Data) {
         print("[TTSEngine] Received audio data chunk: \(data.count) bytes")
-        player?.put(data: data)
+        callback?.onData?(data)
     }
     fileprivate func handleCompletion() {
         print("[TTSEngine] TTS synthesis completed")
-        // 延长等待时间，确保音频完全播放
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            guard let self = self else { return }
-            
-            // 先停止播放器
-            if let player = self.player {
-                player.player_node.stop()
-                player.engine.stop()
-            }
-            
-            print("[TTSEngine] Attempting to reset audio session")
-            do {
-                // 先设置为非活动
-                try AVAudioSession.sharedInstance().setActive(false, 
-                                                            options: .notifyOthersOnDeactivation)
-                // 短暂延迟后重新激活
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    do {
-                        try AVAudioSession.sharedInstance().setActive(true)
-                        print("[TTSEngine] Successfully reset audio session")
-                    } catch {
-                        print("[TTSEngine] Failed to reactivate audio session: \(error)")
-                    }
-                }
-            } catch {
-                print("[TTSEngine] Failed to deactivate audio session: \(error)")
-            }
-            
-            self.completionHandler?()
-            self.completionHandler = nil
-            self.player = nil
-        }
+        callback?.onComplete?()
     }
     fileprivate func handleError(_ error: Error) {
         print("[TTSEngine] Error occurred: \(error.localizedDescription)")
-        completionHandler?()
-        completionHandler = nil
+        callback?.onError?(error)
     }
     deinit {
         ttsController?.cancel()
+        callback = nil
     }
 }
 
-// QCloud TTS 监听器
-private class QCloudTTSListener: NSObject, QCloudRealTTSListener {
-    private weak var engine: QCloudTTSEngine?
+// // QCloud TTS 监听器
+public class TencentTTSListener: NSObject, QCloudRealTTSListener {
+    private weak var engine: TencentTTSEngine?
     
-    init(engine: QCloudTTSEngine) {
+    init(engine: TencentTTSEngine) {
+        print("[TTSListener] Initializing with engine")
         super.init()
-
         self.engine = engine
     }
     
-    func onFinish() {
+    public func onFinish() {
+        print("[TTSListener] onFinish called")
         engine?.handleCompletion()
     }
     
-    func onError(_ error: Error) {
+    public func onError(_ error: Error) {
+        print("[TTSListener] onError called: \(error.localizedDescription)")
         engine?.handleError(error)
     }
     
-    func onData(_ data: Data) {
+    public func onData(_ data: Data) {
+        print("[TTSListener] onData called with \(data.count) bytes")
         engine?.handleAudioData(data)
-    }
-}
-
-// TTS 引擎管理器
-class TTSManager {
-    static let shared = TTSManager()
-    
-    enum EngineType: String, CaseIterable {
-        case system
-        case qcloud
-    }
-    
-    private var currentEngine: TTSEngine
-    
-    private init() {
-        // 默认使用系统引擎
-        // currentEngine = SystemTTSEngine()
-        currentEngine = QCloudTTSEngine()
-    }
-    
-    func switchEngine(_ type: EngineType) {
-        switch type {
-        case .system:
-            currentEngine = SystemTTSEngine()
-        case .qcloud:
-            currentEngine = QCloudTTSEngine()
-        }
-    }
-    
-    func speak(_ text: String, completion: @escaping () -> Void) {
-        currentEngine.speak(text, completion: completion)
-    }
-    
-    func stop() {
-        currentEngine.stop()
-    }
-    
-    func requestSpeechPermission(completion: @escaping (Bool) -> Void) {
-        SFSpeechRecognizer.requestAuthorization { status in
-            DispatchQueue.main.async {
-                switch status {
-                case .authorized:
-                    completion(true)
-                default:
-                    completion(false)
-                }
-            }
-        }
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
-            // 麦克风权限请求
-            DispatchQueue.main.async {
-                if !granted {
-                    completion(false)
-                }
-            }
-        }
     }
 }
 
@@ -341,6 +290,7 @@ public let TTSProviders = [
                         options: [
                             FormSelectOption(id: "en-US", label: "英文", value: "en-US", description: "英文"),
                             FormSelectOption(id: "zh-CN", label: "中文", value: "zh-CN", description: "中文"),
+                            FormSelectOption(id: "jp-JP", label: "日文", value: "jp-JP", description: "日文"),
                         ]
                     ))
                 )),
@@ -383,6 +333,7 @@ public let TTSProviders = [
             ]
         )
     ),
+    // https://cloud.tencent.com/document/product/1073/37995
     TTSProvider(
         id: "tencent",
         name: "腾讯云",
@@ -439,6 +390,7 @@ public let TTSProviders = [
                     input: .InputSelect(SelectInput(
                         id: "role",
                         defaultValue: "502001",
+                        // https://cloud.tencent.com/document/product/1073/92668
                         options: [
                             FormSelectOption(id: "WeJames", label: "WeJames", value: "501008", description: "英文男声"),
                             FormSelectOption(id: "WeWinny", label: "WeWinny", value: "501009", description: "英文女声"),
@@ -465,6 +417,7 @@ public let TTSProviders = [
                         options: [
                             FormSelectOption(id: "en-US", label: "英文", value: "en-US", description: "英文"),
                             FormSelectOption(id: "zh-CN", label: "中文", value: "zh-CN", description: "中文"),
+                            FormSelectOption(id: "jp-JP", label: "日文", value: "jp-JP", description: "日文"),
                         ]
                     ))
                 )),

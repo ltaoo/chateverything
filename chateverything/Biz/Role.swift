@@ -26,6 +26,7 @@ public class RoleBiz: ObservableObject, Identifiable {
     @Published public var created_at: Date
     @Published public var config: RoleConfig
     public var llm: LLMService?
+    public var tts: TTSEngine?
 
     @Published var noLLM = true
     @Published var loading = false
@@ -53,6 +54,7 @@ public class RoleBiz: ObservableObject, Identifiable {
         self.created_at = props.created_at
         self.config = props.config
         self.llm = nil
+        self.tts = nil
     }
 
     // Add convenience init that uses the old parameter list but creates RoleProps internally
@@ -66,60 +68,6 @@ public class RoleBiz: ObservableObject, Identifiable {
         props.created_at = created_at
         props.config = config
         self.init(props: props)
-    }
-
-    func updateConfig() {
-
-    }
-    func updateLLM(config: Config) {
-        print("[BIZ]RoleBiz updateLLM")
-        self.noLLM = false
-        var llm: LLMService? = nil
-
-        let llmConfig = self.config.llmDict
-        let llmProviderController = config.llmProviderControllers.first { $0.name == llmConfig["provider"] as! String }
-        if let llmProviderController = llmProviderController {
-            let value = llmProviderController.build(config: self.config)
-            llm = LLMService(value: value, prompt: prompt)
-        }
-        if llm == nil {
-            self.noLLM = true
-        }
-        self.llm = llm
-    }
-    
-    // mutating func saveSettings(_ settings: RoleSettingsV2) throws {
-    //     let encoder = JSONEncoder()
-    //     let data = try encoder.encode(settings)
-    //     if let jsonString = String(data: data, encoding: .utf8) {
-    //         self._settings = jsonString
-    //     }
-    // }
-
-    func load(config: Config) {
-        let m = DefaultRoles.first { $0.id == id }
-        guard let m = m else {
-            print("[BIZ]RoleBiz load error: role not found")
-            DispatchQueue.main.async {
-                self.loading = false
-            }
-            return
-        }
-        
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            print("[BIZ]RoleBiz refresh UI")
-            self.name = m.name
-            self.desc = m.desc
-            self.avatar = m.avatar
-            self.prompt = m.prompt
-            self.language = m.language
-            self.created_at = m.created_at
-            self.config = m.config
-            self.updateConfig()
-            self.updateLLM(config: config)
-            self.loading = false  // 移到最后，确保所有数据都加载完成
-        }
     }
     
     static func from(_ entity: Role, config: Config) -> RoleBiz? {
@@ -156,15 +104,46 @@ public class RoleBiz: ObservableObject, Identifiable {
         return RoleBiz(props: props)
     }
 
-    func updateSettings(provider: LLMProvider, modelId: String) {
-        // print("updateSettings \(provider.name) \(modelId)")
-        // self.settings.update(model: RoleModelV2(
-        //     name: modelId,
-        //     apiProxyAddress: provider.apiProxyAddress,
-        //     apiKey: provider.apiKey
-        // ),
-        // speaker: RoleSpeakerV2(id: "", engine: "system"),
-        // extra: [:])
+    func updateLLM(config: Config) {
+        print("[BIZ]RoleBiz updateLLM")
+        self.noLLM = false
+        var llm: LLMService? = nil
+
+        let llmConfig = self.config.llmDict
+        let llmProviderController = config.llmProviderControllers.first { $0.name == llmConfig["provider"] as! String }
+        if let llmProviderController = llmProviderController {
+            let value = llmProviderController.build(config: self.config)
+            llm = LLMService(value: value, prompt: prompt)
+        }
+        if llm == nil {
+            self.noLLM = true
+        }
+        self.llm = llm
+    }
+
+    func load(config: Config) {
+        let m = DefaultRoles.first { $0.id == id }
+        guard let m = m else {
+            print("[BIZ]RoleBiz load error: role not found")
+            DispatchQueue.main.async {
+                self.loading = false
+            }
+            return
+        }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            print("[BIZ]RoleBiz refresh UI")
+            self.name = m.name
+            self.desc = m.desc
+            self.avatar = m.avatar
+            self.prompt = m.prompt
+            self.language = m.language
+            self.created_at = m.created_at
+            self.config = m.config
+            self.updateLLM(config: config)
+            self.loading = false  // 移到最后，确保所有数据都加载完成
+        }
     }
 
     func cancel() {
@@ -337,14 +316,35 @@ public class RoleConfig: Codable {
             self.llm["model"] = AnyCodable(model)
         }
     }
+    public func updateVoice(value: [String: Any]) {
+        DispatchQueue.main.async {
+            self.voice = value.mapValues { AnyCodable($0) }
+        }
+    }
     
     // Add computed properties to get the underlying dictionaries
     public var voiceDict: [String: Any] {
         return voice.mapValues { $0.value }
     }
-    
     public var llmDict: [String: Any] {
         return llm.mapValues { $0.value }
+    }
+
+    public func toDict() -> [String: Any] {
+        return [
+            "voice": voiceDict,
+            "llm": llmDict
+        ]
+    }
+    public static func fromDict(dict: [String: Any]) -> RoleConfig? {
+        let config = RoleConfig(voice: [:], llm: [:])
+        if let voice = dict["voice"] as? [String: Any] {
+            config.voice = voice.mapValues { AnyCodable($0) }
+        }
+        if let llm = dict["llm"] as? [String: Any] {
+            config.llm = llm.mapValues { AnyCodable($0) }
+        }
+        return config
     }
 }
 

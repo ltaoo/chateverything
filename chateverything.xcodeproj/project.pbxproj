@@ -7,10 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A63811942D64EE67003EA4C9 /* QCloudTTS.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */; };
-		A63811952D64EE67003EA4C9 /* QCloudTTS.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		A63811C02D64F7D8003EA4C9 /* QCloudRealTTS.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */; };
-		A63811C12D64F803003EA4C9 /* QCloudRealTTS.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A60A99E62D6CA5FD001430FB /* QCloudRealTTS.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A60A99E52D6CA5FD001430FB /* QCloudRealTTS.xcframework */; };
 		A6D735852D6637D500ABAAC9 /* Model.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A6D735832D6637D500ABAAC9 /* Model.xcdatamodeld */; };
 /* End PBXBuildFile section */
 
@@ -38,8 +35,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				A63811C12D64F803003EA4C9 /* QCloudRealTTS.xcframework in Embed Frameworks */,
-				A63811952D64EE67003EA4C9 /* QCloudTTS.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -47,8 +42,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = QCloudTTS.xcframework; sourceTree = "<group>"; };
-		A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = QCloudRealTTS.xcframework; sourceTree = "<group>"; };
+		A60A99E52D6CA5FD001430FB /* QCloudRealTTS.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = QCloudRealTTS.xcframework; sourceTree = "<group>"; };
 		A6778D6D2D5352EC00447C17 /* chateverything.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = chateverything.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6778D7D2D5352ED00447C17 /* chateverythingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chateverythingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6778D872D5352ED00447C17 /* chateverythingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = chateverythingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -91,8 +85,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A63811C02D64F7D8003EA4C9 /* QCloudRealTTS.xcframework in Frameworks */,
-				A63811942D64EE67003EA4C9 /* QCloudTTS.xcframework in Frameworks */,
+				A60A99E62D6CA5FD001430FB /* QCloudRealTTS.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -116,6 +109,7 @@
 		A60A908A2D6B79E4001430FB /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A60A99E52D6CA5FD001430FB /* QCloudRealTTS.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -128,8 +122,6 @@
 				A6778D802D5352ED00447C17 /* chateverythingTests */,
 				A6778D8A2D5352ED00447C17 /* chateverythingUITests */,
 				A6778D6E2D5352EC00447C17 /* Products */,
-				A63811922D64EE32003EA4C9 /* QCloudTTS.xcframework */,
-				A63811BF2D64F7D8003EA4C9 /* QCloudRealTTS.xcframework */,
 				A60A908A2D6B79E4001430FB /* Frameworks */,
 			);
 			sourceTree = "<group>";

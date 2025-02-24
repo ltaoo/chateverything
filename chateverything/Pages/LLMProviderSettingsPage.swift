@@ -5,7 +5,6 @@ struct LLMProviderSettingsPage: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
             Form {
                 Section(header: Text("语言模型提供商")
                     .font(DesignSystem.Typography.bodySmall)
@@ -24,7 +23,6 @@ struct LLMProviderSettingsPage: View {
             .background(DesignSystem.Colors.background)
             .navigationTitle("模型设置")
             .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }
 

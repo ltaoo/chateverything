@@ -17,7 +17,8 @@ struct LearningScenario: Identifiable {
 }
 
 struct SceneView: View {
-    
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var selectedCategory: SceneCategory = .daily
     
     
@@ -45,13 +46,46 @@ struct SceneView: View {
     ]
     
     var body: some View {
-        NavigationView {
-            VStack {
-                CategoryTabBar(selectedCategory: $selectedCategory)
-                ScenarioList(scenarios: scenarios.filter { $0.category == selectedCategory })
+        VStack(spacing: 0) {
+//            HStack {
+//                Text("英语学习场景")
+//                    .font(DesignSystem.Typography.headingMedium)
+//                Spacer()
+//            }
+//            .padding(DesignSystem.Spacing.medium) 
+
+            CategoryTabBar(selectedCategory: $selectedCategory)
+            
+            #if os(iOS)
+            TabView(selection: $selectedCategory) {
+                ForEach(SceneCategory.allCases, id: \.self) { category in
+                    ScenarioList(scenarios: scenarios.filter { $0.category == category })
+                        .tag(category)
+                }
             }
-            .navigationTitle("英语学习场景")
-            .background(DesignSystem.Gradients.backgroundGradient)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        DesignSystem.Colors.accent.opacity(0.1),
+                        DesignSystem.Colors.accent.opacity(0.2),
+                        colorScheme == .dark 
+                            ? Color.black.opacity(0.6) 
+                            : DesignSystem.Colors.accent.opacity(0.4)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+            #else
+            // For macOS, use a simple view switch
+            ForEach(SceneCategory.allCases, id: \.self) { category in
+                if category == selectedCategory {
+                    ScenarioList(scenarios: scenarios.filter { $0.category == category })
+                }
+            }
+            #endif
         }
     }
 }
@@ -59,24 +93,37 @@ struct SceneView: View {
 // MARK: - 子视图组件
 struct CategoryTabBar: View {
     @Binding var selectedCategory: SceneCategory
+    @State private var scrollViewProxy: ScrollViewProxy?
     
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DesignSystem.Spacing.medium) {
-                ForEach(SceneCategory.allCases, id: \.self) { category in
-                    CategoryButton(
-                        category: category,
-                        isSelected: selectedCategory == category,
-                        action: { selectedCategory = category }
-                    )
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DesignSystem.Spacing.medium) {
+                    ForEach(SceneCategory.allCases, id: \.self) { category in
+                        SceneCategoryButton(
+                            category: category,
+                            isSelected: selectedCategory == category,
+                            action: { 
+                                withAnimation {
+                                    selectedCategory = category
+                                }
+                            }
+                        )
+                        .id(category) // Add id for ScrollViewReader
+                    }
+                }
+                .padding(DesignSystem.Spacing.medium)
+            }
+            .onChange(of: selectedCategory) { newCategory in
+                withAnimation {
+                    proxy.scrollTo(newCategory, anchor: .center)
                 }
             }
-            .padding(DesignSystem.Spacing.medium)
         }
     }
 }
 
-struct CategoryButton: View {
+struct SceneCategoryButton: View {
     let category: SceneCategory
     let isSelected: Bool
     let action: () -> Void
@@ -105,19 +152,17 @@ struct ScenarioList: View {
     let scenarios: [LearningScenario]
     
     var body: some View {
-        List {
-            ForEach(scenarios) { scenario in
-                NavigationLink(destination: Text("场景详情页面待开发")) {
-                    ScenarioRow(scenario: scenario)
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(scenarios) { scenario in
+                    NavigationLink(destination: Text("场景详情页面待开发")) {
+                        ScenarioRow(scenario: scenario)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .listRowBackground(DesignSystem.Colors.background)
             }
+            .padding()
         }
-        .listStyle(PlainListStyle())
-        .background(
-            DesignSystem.Gradients.backgroundGradient
-                .ignoresSafeArea()
-        )
     }
 }
 

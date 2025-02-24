@@ -63,7 +63,6 @@ struct ChatDetailView: View {
 
     @StateObject private var model: ChatDetailViewModel
     @StateObject private var recorder: AudioRecorder
-    private var speaker = TTSManager.shared
 
     @State private var toastMessage: String?
     

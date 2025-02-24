@@ -136,7 +136,6 @@ struct ContentView: View {
                         .tag(0)
                     
                     SceneView()
-                    // SearchView()
                     .tabItem {
                         Image(systemName: "safari.fill")
                         Text("探索")

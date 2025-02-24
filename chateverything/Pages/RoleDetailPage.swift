@@ -1,4 +1,5 @@
 import SwiftUI
+import QCloudRealTTS
 
 struct RoleDetailView: View {
     let roleId: UUID
@@ -79,17 +80,31 @@ struct RoleTTSProviderSettingView: View {
        Section(header: Text("语音设置")
            .font(DesignSystem.Typography.bodyMedium)
            .foregroundColor(DesignSystem.Colors.textSecondary)) {
-           Picker("语音引擎", selection: $selectedProviderController) {
+            Picker("语音引擎", selection: $selectedProviderController) {
                ForEach(enabledTTSProviders, id: \.id) { provider in
                    Text(provider.name)
                        .font(DesignSystem.Typography.bodyMedium)
                        .tag(provider)
                }
-           }
+            }
+            .onChange(of: selectedProviderController) { controller in
+                print("[VIEW]RoleTTSProviderSettingView selectedProviderController is changed \(controller)")
+                if let c = controller {
+                    let provider = c.provider
+                    let r = provider.schema.validate()
+                    print("[VIEW]RoleTTSProviderSettingView there is values? \(r.isValid)")
+                    if r.isValid {
+                    print("[VIEW]RoleTTSProviderSettingView selectedProviderController \(r.value)")
+                        role.config.updateVoice(value: r.value)
+                    }
+                }
+            }
 
-           if let provider = selectedProvider {
+            if let provider = selectedProvider {
                 form
-           }
+
+                VoiceTestButton(role: role, controller: selectedProviderController!, provider: provider)
+            }
        }
     }
 
@@ -276,3 +291,85 @@ struct ModelListView: View {
         }
     }
 }
+
+struct VoiceTestButton: View {
+    @ObservedObject var role: RoleBiz
+    let controller: TTSProviderController
+    let provider: TTSProvider
+    @State var tts: TTSEngine?
+    @State var player: PCMStreamPlayer?
+
+    var body: some View {
+        Button(action: {
+            let text1 = "Hello! The weather is beautiful today. Would you like to go for a walk?"
+            let text2 = "你好！今天天气真好。要不要一起去散步？"
+            let text3 = "こんにちは！今日は天気が良いですね。一緒に散歩しませんか？"
+            let lang = role.config.voiceDict["language"] as? String ?? "en-US"
+            let text = {
+                switch lang {
+                case "en-US":
+                    return text1
+                case "zh-CN":
+                    return text2
+                case "jp-JP":
+                    return text3
+                default:
+                    return text2
+                }
+            }()
+            tts = {
+                switch provider.id {
+                case "tencent":
+                    return TencentTTSEngine()
+                case "system":
+                    return SystemTTSEngine()
+                default:
+                    return SystemTTSEngine()
+                }
+            }()
+            let credential = controller.value.credential
+            var config = role.config.voiceDict
+            for (key, value) in credential {
+                config[key] = value
+            }
+            tts!.setConfig(config: config)
+            tts!.setEvents(callback: TTSCallback(
+                onStart: {
+                    print("[VIEW]VoiceTestButton onStart")
+                    player = PCMStreamPlayer()
+                },
+                onData: { data in
+                    player?.put(data: data)
+                },
+                onComplete: {
+                    print("[VIEW]VoiceTestButton onComplete")
+                },
+                onCancel: {
+                    print("[VIEW]VoiceTestButton onCancel")
+                },
+                onError: { error in
+                    print("[VIEW]VoiceTestButton onError \(error)")
+                }
+            ))
+            tts!.speak(text)
+        }) {
+            Text("测试")
+        }
+    }
+}
+
+//class RealListener: NSObject, QCloudRealTTSListener {
+//    func onFinish() {
+//        print("[VIEW]RealListener onFinish")
+//    }
+//    
+//    func onError(_ error: Error) {
+//        print("[VIEW]RealListener onError \(error)")
+//    }
+//    
+//    func onData(_ data: Data) {
+//        print("[VIEW]RealListener onData \(data)")
+//    }
+//
+//}
+//

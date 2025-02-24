@@ -13,7 +13,6 @@ struct StreamVoiceInputExample: View {
 
     @StateObject private var model: ChatDetailViewModel
     @StateObject private var recorder: AudioRecorder
-    private var speaker = TTSManager.shared
 
     @State private var toastMessage: String?
     @State private var currentRecognizedText: String = ""
