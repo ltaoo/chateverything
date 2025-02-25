@@ -70,8 +70,11 @@ struct ChatDetailView: View {
         self.sessionId = sessionId
         self.config = config
         self.store = config.store
-        _model = StateObject(wrappedValue: ChatDetailViewModel(id: sessionId, config: config, store: config.store))
-        _recorder = StateObject(wrappedValue: AudioRecorder())
+        let model = ChatDetailViewModel(id: sessionId, config: config, store: config.store)
+        _model = StateObject(wrappedValue: model)
+        let recorder = AudioRecorder()
+        _recorder = StateObject(wrappedValue: recorder)
+       
     }
 
     // 将回调设置移到 onAppear
@@ -79,7 +82,12 @@ struct ChatDetailView: View {
         // 设置录音完成的回调
         self.recorder.onCompleted = { url in
             print("complete audio recording, the url: \(url)")
-            
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setActive(false)
+            } catch {
+                print("error: \(error)")
+            }
             // 开始语音识别
             let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
             
@@ -246,6 +254,7 @@ struct ChatDetailView: View {
     var body: some View {
         ChatDetailContentView(
             model: model,
+            config: config,
             recorder: recorder,
             onDismiss: { dismiss() },
             onSpeakToggle: toggleSpeaking
@@ -284,6 +293,7 @@ struct ChatDetailView: View {
 // 拆分出主要内容视图
 private struct ChatDetailContentView: View {
     let model: ChatDetailViewModel
+    let config: Config
     let recorder: AudioRecorder
     let onDismiss: () -> Void
     let onSpeakToggle: (ChatBoxBiz) -> Void
@@ -303,7 +313,7 @@ private struct ChatDetailContentView: View {
             // Input bar overlay
             VStack {
                 Spacer()
-                InputBarView(recorder: recorder)
+                InputBarView(config: config, model: model, recorder: recorder)
                     .background(
                         Rectangle()
                             .fill(DesignSystem.Colors.background.opacity(0))
@@ -950,6 +960,8 @@ struct RecordButton: View {
 
 // 更新 InputBarView 以移除重复的录音状态显示
 struct InputBarView: View {
+    let config: Config
+    let model: ChatDetailViewModel
     @ObservedObject var recorder: AudioRecorder
     
     var body: some View {
@@ -980,7 +992,14 @@ struct InputBarView: View {
                 .frame(maxWidth: .infinity)
             
             HStack {
-                Button(action: {}) {
+                Button(action: {
+                    for member in model.session.members {
+                        if let role = member.role {
+                            role.tts?.speak("hello")
+//                            let box = role.response(text: recognizedText, session: model.session, config: config)
+                        }
+                    }
+                }) {
                     Image(systemName: "keyboard")
                         .font(.system(size: 24))
                         .foregroundColor(DesignSystem.Colors.background)

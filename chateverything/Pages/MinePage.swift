@@ -1,8 +1,16 @@
 import SwiftUI
 
 struct MineView: View {
+    @Environment(\.colorScheme) var colorScheme
+
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            HStack {
+                Text("")
+                Spacer()
+            }
+            .padding(.horizontal, DesignSystem.Spacing.medium)
+            
             ScrollView(showsIndicators: false) {
                 VStack(spacing: DesignSystem.Spacing.medium) {
                     // 个人信息卡片
@@ -11,17 +19,29 @@ struct MineView: View {
                     // 设置列表
                     SettingsList()
                 }
-                .padding(.horizontal, DesignSystem.Spacing.medium)
                 .padding(.bottom, DesignSystem.Spacing.medium)
             }
-            .background(DesignSystem.Gradients.backgroundGradient)
-            .navigationBarHidden(true)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        DesignSystem.Colors.accent.opacity(0.1),
+                        DesignSystem.Colors.accent.opacity(0.2),
+                        colorScheme == .dark 
+                            ? Color.black.opacity(0.6) 
+                            : DesignSystem.Colors.accent.opacity(0.4)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
         }
     }
 }
 
 // 个人信息卡片视图
 struct ProfileCard: View {
+
     let level: Int = 5
     let currentExp: Int = 720
     let maxExp: Int = 1000
@@ -108,16 +128,6 @@ struct ProfileCard: View {
         }
         .padding(.vertical, DesignSystem.Spacing.large)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                .fill(DesignSystem.Colors.background)
-                .shadow(
-                    color: DesignSystem.Shadows.medium.color,
-                    radius: DesignSystem.Shadows.medium.radius,
-                    x: DesignSystem.Shadows.medium.x,
-                    y: DesignSystem.Shadows.medium.y
-                )
-        )
     }
 }
 
@@ -139,16 +149,6 @@ struct SettingsList: View {
                 SettingsRow(icon: "gear", title: "通用设置", showDivider: true)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                .fill(DesignSystem.Colors.background)
-                .shadow(
-                    color: DesignSystem.Shadows.medium.color,
-                    radius: DesignSystem.Shadows.medium.radius,
-                    x: DesignSystem.Shadows.medium.x,
-                    y: DesignSystem.Shadows.medium.y
-                )
-        )
     }
 }
 

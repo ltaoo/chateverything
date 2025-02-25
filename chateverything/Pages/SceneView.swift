@@ -155,10 +155,7 @@ struct ScenarioList: View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 ForEach(scenarios) { scenario in
-                    NavigationLink(destination: Text("场景详情页面待开发")) {
-                        ScenarioRow(scenario: scenario)
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                    ScenarioRow(scenario: scenario)
                 }
             }
             .padding()
@@ -170,7 +167,8 @@ struct ScenarioRow: View {
     let scenario: LearningScenario
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xSmall) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+            // 标题和描述部分
             HStack(spacing: DesignSystem.Spacing.medium) {
                 // 场景图标
                 Circle()
@@ -190,6 +188,46 @@ struct ScenarioRow: View {
                     Text(scenario.description)
                         .font(DesignSystem.Typography.bodySmall)
                         .foregroundColor(DesignSystem.Colors.textSecondary)
+                }
+                
+                Spacer()
+            }
+            
+            Divider()
+                .padding(.horizontal, -DesignSystem.Spacing.medium)
+            
+            // AI角色部分
+            HStack {
+                HStack(spacing: DesignSystem.Spacing.small) {
+                    Circle()
+                        .fill(DesignSystem.Colors.secondary.opacity(0.2))
+                        .frame(width: 24, height: 24)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundColor(DesignSystem.Colors.textSecondary)
+                        )
+                    
+                    Text("Native Teacher")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                }
+                
+                Spacer()
+                
+                // 开始按钮
+                Button(action: {
+                    // 开始对话
+                }) {
+                    Text("开始对话")
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, DesignSystem.Spacing.medium)
+                        .padding(.vertical, DesignSystem.Spacing.small)
+                        .background(
+                            RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
+                                .fill(DesignSystem.Colors.primaryGradient)
+                        )
                 }
             }
         }

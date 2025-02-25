@@ -1,4 +1,3 @@
-
 import Foundation
 import AVFoundation
 
@@ -9,10 +8,14 @@ class PCMStreamPlayer {
     private var player_node: AVAudioPlayerNode
     private var converter: AVAudioConverter
     private var tail = Data()
+    var onPlayComplete: (() -> Void)?
     
     init() {
         do {
-            try AVAudioSession().setCategory(.playback)
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true)
+
             self.engine = AVAudioEngine()
             player_node = AVAudioPlayerNode()
             in_format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: false)!
@@ -23,6 +26,7 @@ class PCMStreamPlayer {
             try engine.start()
             player_node.play()
         }catch {
+            print("[PCMStreamPlayer]error: \(error)")
             exit(-1)
         }
     }
@@ -56,6 +60,10 @@ class PCMStreamPlayer {
         }catch {
             exit(-1)
         }
-        player_node.scheduleBuffer(out_buffer)
+        player_node.scheduleBuffer(out_buffer) {
+            DispatchQueue.main.async { [weak self] in
+                self?.onPlayComplete?()
+            }
+        }
     }
 }

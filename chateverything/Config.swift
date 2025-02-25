@@ -221,12 +221,12 @@ class Config: ObservableObject {
         UserDefaults.standard.set(existing, forKey: "tts_provider_values")
     }
 
-    func updateRoleConfig(roleId: UUID, config: RoleConfig) {
-        var existing: [String: Any] = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] ?? [:]
-        existing[roleId.uuidString] = config
-        UserDefaults.standard.set(existing, forKey: "role_configs")
-    }
     func updateRoleLLMConfig(roleId: UUID, value: [String: Any]) {
+        let role = self.roles.first { $0.id == roleId }
+        guard let role = role else {
+            return
+        }
+        role.config.llm = value
         var configs: [String: Any] = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] ?? [:]
         if var existing = configs[roleId.uuidString] as? [String: Any] {
             existing["llm"] = value
@@ -237,6 +237,11 @@ class Config: ObservableObject {
         UserDefaults.standard.set(configs, forKey: "role_configs")
     }
     func updateRoleVoiceConfig(roleId: UUID, value: [String: Any]) {
+        let role = self.roles.first { $0.id == roleId }
+        guard let role = role else {
+            return
+        }
+        role.config.voice = value
         var configs: [String: Any] = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] ?? [:]
         if var existing = configs[roleId.uuidString] as? [String: Any] {
             existing["voice"] = value

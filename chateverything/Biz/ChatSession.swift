@@ -99,7 +99,11 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         let role_records = try! ctx.fetch(role_req)
         let members: [ChatSessionMemberBiz] = role_records.map {
             let r = ChatSessionMemberBiz.from($0, store: store)
-            r.role = RoleBiz.Get(id: $0.role_id!, store: store)
+            let role = RoleBiz.Get(id: $0.role_id!, store: store)
+            r.role = role
+            if let r = role {
+                r.load(config: config)
+            }
             return r
         }
          let fetchBatchSize = 20

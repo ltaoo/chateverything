@@ -105,12 +105,12 @@ public class RoleBiz: ObservableObject, Identifiable {
     }
 
     func updateLLM(config: Config) {
-        print("[BIZ]RoleBiz updateLLM")
         self.noLLM = false
         var llm: LLMService? = nil
 
         let llmConfig = self.config.llm
-        let llmProviderController = config.llmProviderControllers.first { $0.name == llmConfig["provider"] as? String }
+        print("[BIZ]RoleBiz updateLLM \(llmConfig["provider"])")
+        let llmProviderController = config.llmProviderControllers.first { $0.id == llmConfig["provider"] as? String }
         if let llmProviderController = llmProviderController {
             let value = llmProviderController.build(config: self.config)
             llm = LLMService(value: value, prompt: prompt)
@@ -120,14 +120,35 @@ public class RoleBiz: ObservableObject, Identifiable {
         }
         self.llm = llm
     }
+    func updateTTS(config: Config) {
+        var ttsConfig = self.config.voice
+        print("[BIZ]RoleBiz updateTTS \(ttsConfig["provider"])")
+        let controller = config.ttsProviderControllers.first { $0.id == ttsConfig["provider"] as? String }
+        guard let controller = controller else {
+            return
+        }
+        let tts: TTSEngine = {
+            switch ttsConfig["provider"] as? String {
+            case "tencent":
+                return TencentTTSEngine()
+            case "system":
+                return SystemTTSEngine()
+            default:
+                return SystemTTSEngine()
+            }
+        }()
+        for (k, v) in controller.value.credential {
+            ttsConfig[k] = v
+        }
+        tts.setConfig(config: ttsConfig)
+        self.tts = tts
+    }
 
     func load(config: Config) {
         let m = DefaultRoles.first { $0.id == id }
         guard let m = m else {
             print("[BIZ]RoleBiz load error: role not found")
-            DispatchQueue.main.async {
-                self.loading = false
-            }
+            self.loading = false
             return
         }
         
@@ -142,6 +163,7 @@ public class RoleBiz: ObservableObject, Identifiable {
             self.created_at = m.created_at
             self.config = m.config
             self.updateLLM(config: config)
+            self.updateTTS(config: config)
             self.loading = false  // 移到最后，确保所有数据都加载完成
         }
     }
@@ -193,6 +215,9 @@ public class RoleBiz: ObservableObject, Identifiable {
                         loadingMessage.updatePayload(payload: loadingMessage.payload!, store: config.store)
                         loadingMessage.loading = false
                         loadingMessage.blurred = true
+                    }
+                    if let tts = self.tts {
+                        tts.speak(chunk)
                     }
                 }
                 // let response = try await llm.chat(content: text, callback: { content in

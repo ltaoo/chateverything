@@ -28,6 +28,7 @@ public struct TTSCallback {
 public protocol TTSEngine {
     func speak(_ text: String)
     func stop()
+    func clear()
     func setConfig(config: [String: Any])
     func setEvents(callback: TTSCallback)
 }
@@ -80,6 +81,8 @@ public class SystemTTSEngine: NSObject, TTSEngine, AVSpeechSynthesizerDelegate {
         callback?.onCancel?()
         callback = nil
     }
+    public func clear() {
+    }
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         callback?.onComplete?()
         callback = nil
@@ -107,11 +110,19 @@ struct TencentTTSEngineCredential {
 public class TencentTTSEngine: NSObject, TTSEngine {
 //    private var language: String
     
+    private var builder = QCloudRealTTSConfig()
     private var ttsConfig: QCloudRealTTSConfig?
     private var ttsController: QCloudRealTTSController?
     private var ttsListener: TencentTTSListener?
     private var callback: TTSCallback?
     var config: TencentTTSEngineConfig = TencentTTSEngineConfig()
+    var player: PCMStreamPlayer?
+    var state: Int = 0 {
+        didSet {
+            print("[TTS]TencentTTSEngine state: \(state)")
+        }
+    }
+    var msg: String = ""
 
     override init() {
         super.init()
@@ -153,18 +164,26 @@ public class TencentTTSEngine: NSObject, TTSEngine {
     
     public func speak(_ text: String) {
         self.callback?.onStart?()
-        
-        let builder = QCloudRealTTSConfig()
-        builder.appID = config.appId
-        builder.secretID = config.secretId
-        builder.secretKey = config.secretKey
-        builder.token = config.token
+        state = 1
+
+        if self.player != nil {
+            self.player = nil
+        }
+        self.player = PCMStreamPlayer()
+
+        self.builder = QCloudRealTTSConfig()
+        self.builder.appID = self.config.appId
+        self.builder.secretID = self.config.secretId
+        self.builder.secretKey = self.config.secretKey
+        self.builder.token = self.config.token
+        print("[TTS]TencentTTSEngine credential: \(self.config.appId) \(self.config.secretId) \(self.config.secretKey) \(self.config.token)")
+        print("[TTS]TencentTTSEngine config: \(self.config.voiceType) \(self.config.volume) \(self.config.speed) \(self.config.codec)")
         // https://cloud.tencent.com/document/product/1073/92668
-        builder.setApiParam("VoiceType", ivalue: config.voiceType) // 默认音色
-        builder.setApiParam("Volume", fvalue: config.volume)
-        builder.setApiParam("Speed", fvalue: config.speed)
-        builder.setApiParam("Codec", value: config.codec)
-        builder.setApiParam("Text", value: text)
+        self.builder.setApiParam("VoiceType", ivalue: self.config.voiceType)
+        self.builder.setApiParam("Volume", fvalue: self.config.volume)
+        self.builder.setApiParam("Speed", fvalue: self.config.speed)
+        self.builder.setApiParam("Codec", value: self.config.codec)
+        self.builder.setApiParam("Text", value: text)
         
         // 根据文本长度计算超时时间
         let baseTimeout = 5000 // 基础超时时间 5 秒
@@ -172,29 +191,40 @@ public class TencentTTSEngine: NSObject, TTSEngine {
         let timeout = baseTimeout + (text.count * timePerChar)
         let maxTimeout = 60000 // 最大超时时间 60 秒
         
-        builder.connectTimeout = Int32(min(timeout, maxTimeout))
+        self.builder.connectTimeout = Int32(min(timeout, maxTimeout))
         
-        ttsListener = TencentTTSListener(engine: self)
-        ttsController = builder.build(ttsListener!)
-        
+        self.ttsListener = TencentTTSListener(engine: self)
+        self.ttsController = self.builder.build(self.ttsListener!)
+        self.state = 2
     }
-    
+    public func clear() {
+        print("[TTS]TencentTTSEngine clear")
+        player = nil
+    }
     public func stop() {
         ttsController?.cancel()
         callback?.onCancel?()
+        state = 5
     }
     fileprivate func handleAudioData(_ data: Data) {
+        player?.put(data: data)
+        state = 3
         callback?.onData?(data)
     }
     fileprivate func handleCompletion() {
+        state = 4
         callback?.onComplete?()
     }
     fileprivate func handleError(_ error: Error) {
         callback?.onError?(error)
+        print("[TTS]TencentTTSEngine handleError: \(error)")
+        state = 6
+        player = nil
     }
     deinit {
         ttsController?.cancel()
         callback = nil
+        player = nil
     }
 }
 
