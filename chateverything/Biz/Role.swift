@@ -1,6 +1,138 @@
 import Foundation
 import CoreData
 
+protocol RoleResponseHandler {
+    func start(
+        role: RoleBiz,
+        session: ChatSessionBiz,
+        config: Config
+    )
+    func handle(
+        text: String,
+        role: RoleBiz,
+        session: ChatSessionBiz,
+        config: Config,
+        completion: (([ChatBoxBiz]) -> Void)?
+    )
+}
+
+class DefaultRoleResponseHandler: RoleResponseHandler {
+    public func start(
+        role: RoleBiz,
+        session: ChatSessionBiz, 
+        config: Config
+    ) {
+    }
+    public func handle(
+        text: String,
+        role: RoleBiz,
+        session: ChatSessionBiz, 
+        config: Config,
+        completion: (([ChatBoxBiz]) -> Void)?
+    ) {
+        let loadingMessage = ChatBoxBiz(
+            id: UUID(),
+            type: "message", 
+            created_at: Date(),
+            isMe: false,
+            payload_id: UUID(),
+            session_id: session.id,
+            sender_id: role.id,
+            payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
+            loading: true
+        )
+        
+        session.appendTmpBox(box: loadingMessage)
+        
+        Task {
+            do {
+                guard let stream = role.llm?.chat(content: text) else { return }
+                
+                for try await chunk in stream {
+                    print("[BIZ]RoleBiz response chunk: \(chunk)")
+                    
+                    session.removeLastBox()
+                    let box = ChatBoxBiz(
+                        id: UUID(),
+                        type: "message", 
+                        created_at: Date(),
+                        isMe: false,
+                        payload_id: UUID(),
+                        session_id: session.id,
+                        sender_id: role.id,
+                        payload: ChatPayload.message(ChatMessageBiz2(text: chunk, nodes: [])),
+                        loading: false,
+                        blurred: role.config.autoBlur
+                    )
+                    session.appendBox(box: box)
+                    
+                    if let tts = role.tts, role.config.autoSpeak {
+                        tts.speak(chunk)
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    session.removeLastBox()
+                    let box = ChatBoxBiz(
+                        id: UUID(),
+                        type: "error",
+                        created_at: Date(),
+                        isMe: false,
+                        payload_id: UUID(),
+                        session_id: session.id,
+                        sender_id: role.id,
+                        payload: ChatPayload.error(ChatErrorBiz(error: error.localizedDescription)),
+                        loading: false
+                    )
+                    session.appendBox(box: box)
+                }
+            }
+        }
+    }
+} 
+
+protocol RolePayloadBuilder {
+    func build(
+        record: BoxPayloadTypes,
+        role: RoleBiz,
+        session: ChatSessionBiz,
+        config: Config
+    ) -> ChatPayload?
+}
+
+class DefaultRolePayloadBuilder: RolePayloadBuilder {
+    func build(
+        record: BoxPayloadTypes,
+        role: RoleBiz,
+        session: ChatSessionBiz,
+        config: Config
+    ) -> ChatPayload? {
+        switch record {
+        case .message(let message):
+            return ChatPayload.message(ChatMessageBiz2(text: message.text!, nodes: []))
+        case .audio(let audio):
+            return ChatPayload.audio(ChatAudioBiz(text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
+        case .puzzle(let puzzle):
+            let opts = puzzle.opts
+            let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map { ChatPuzzleOption(id: $0.id, text: $0.text) }
+            let selected = options.first { $0.id == puzzle.answer }
+            return ChatPayload.puzzle(ChatPuzzleBiz(title: puzzle.title!, options: options, answer: puzzle.answer ?? "", selected: selected, corrected: false))
+        case .image(let image):
+            return ChatPayload.image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
+        case .video(let video):
+            return ChatPayload.video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
+        case .error(let error):
+            return ChatPayload.error(ChatErrorBiz(error: error.error!))
+        case .tipText(let tipText):
+            return ChatPayload.tipText(ChatTipTextBiz(content: tipText.content!))
+        case .time(let time):
+            return ChatPayload.time(ChatTimeBiz(time: time.time!))
+        default:
+            return nil
+        }
+    }
+}
+
 public struct RoleProps {
     var id: UUID  // 必填
     var name: String = ""
@@ -10,6 +142,8 @@ public struct RoleProps {
     var language: String = "en-US"
     var created_at: Date = Date()
     var config: RoleConfig = RoleConfig(voice: defaultRoleVoice, llm: defaultRoleLLM)
+    var responseHandler: RoleResponseHandler = DefaultRoleResponseHandler()
+    var payloadBuilder: RolePayloadBuilder = DefaultRolePayloadBuilder()
     
     public init(id: UUID) {
         self.id = id
@@ -31,6 +165,9 @@ public class RoleBiz: ObservableObject, Identifiable {
     @Published var noLLM = true
     @Published var loading = false
     @Published var count: Int = 0
+
+    var responseHandler: RoleResponseHandler
+    var payloadBuilder: RolePayloadBuilder = DefaultRolePayloadBuilder()
 
     static func Get(id: UUID, store: ChatStore) -> RoleBiz? {
         // let ctx = store.container.viewContext
@@ -55,6 +192,8 @@ public class RoleBiz: ObservableObject, Identifiable {
         self.config = props.config
         self.llm = nil
         self.tts = nil
+        self.responseHandler = props.responseHandler
+        self.payloadBuilder = props.payloadBuilder
     }
 
     // Add convenience init that uses the old parameter list but creates RoleProps internally
@@ -172,12 +311,19 @@ public class RoleBiz: ObservableObject, Identifiable {
         self.llm?.cancel()
     }
 
-    func response(text: String, session: ChatSessionBiz, config: Config) -> ChatBoxBiz {
+    func start(session: ChatSessionBiz, config: Config) {
         if self.llm == nil {
             self.updateLLM(config: config)
         }
-        guard let llm = self.llm else {
-            return ChatBoxBiz(
+        responseHandler.start(role: self, session: session, config: config)
+    }
+    func response(text: String, session: ChatSessionBiz, config: Config, completion: (([ChatBoxBiz]) -> Void)? = nil) {
+        if self.llm == nil {
+            self.updateLLM(config: config)
+        }
+        
+        guard let _ = self.llm else {
+            let box = ChatBoxBiz(
                 id: UUID(),
                 type: "error",
                 created_at: Date(),
@@ -189,64 +335,11 @@ public class RoleBiz: ObservableObject, Identifiable {
                 loading: false,
                 blurred: false
             )
-        }
-        let loadingMessage = ChatBoxBiz(
-            id: UUID(),
-            type: "message",
-            created_at: Date(),
-            isMe: false,
-            payload_id: UUID(),
-            session_id: session.id,
-            sender_id: self.id,
-            payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
-            loading: true
-        )
-
-        Task {
-            do {
-                let stream = llm.chat(content: text)
-                for try await chunk in stream {
-                    // 处理每个响应片段
-                    print("[BIZ]RoleBiz response chunk: \(chunk)")
-                    DispatchQueue.main.async {
-                        if case .message(let message) = loadingMessage.payload {
-                            message.updateText(text: chunk, config: config)
-                        }
-                        loadingMessage.updatePayload(payload: loadingMessage.payload!, store: config.store)
-                        loadingMessage.loading = false
-                        loadingMessage.blurred = true
-                    }
-                    if let tts = self.tts {
-                        tts.speak(chunk)
-                    }
-                }
-                // let response = try await llm.chat(content: text, callback: { content in
-                //     print("[BIZ]RoleBiz response callback: \(content)")
-                //     // @todo 这部分要根据 Role 来支持自定义，等于说，系统 Role 还要带一个 ResponseHandler 函数
-                //     // 比如[OneQuestion]，提示词要求返回 JSON，那么这个机器人就要解析对应JSON，并且给出不一样的对话气泡
-                //     // 那么等于说这个机器人就是「插件」了
-                //     // ok，OneQuestion 只进行一次对话，即接受用户的输入，对用户输入和问题进行评价，并给出评分，然后结束对话
-                //     DispatchQueue.main.async {
-                //         if case .message(let message) = loadingMessage.payload {
-                //             message.updateText(text: content, config: config)
-                //         }
-                //         loadingMessage.updatePayload(payload: loadingMessage.payload!, store: config.store)
-                //         loadingMessage.loading = false
-                //         loadingMessage.blurred = true
-                //     }
-                // })
-                // toggleSpeaking(message: loadingMessage)
-            } catch {
-                DispatchQueue.main.async {
-                    loadingMessage.loading = false
-                    loadingMessage.type = "error"
-                    loadingMessage.payload = ChatPayload.error(ChatErrorBiz(error: error.localizedDescription))
-                    loadingMessage.changePayload(payload: loadingMessage.payload!, store: config.store)
-                }
-            }
+            completion?([box])
+            return
         }
 
-        return loadingMessage
+        responseHandler.handle(text: text, role: self, session: session, config: config, completion: completion)
     }
 }
 
@@ -322,28 +415,15 @@ public enum SwiftValueType {
 public class RoleConfig {
     public var voice: [String: Any]
     public var llm: [String: Any]
+    public var autoSpeak: Bool = true
+    public var autoBlur: Bool = true
     
-    // enum CodingKeys: String, CodingKey {
-    //     case voice
-    //     case llm
-    // }
-    
-    public init(voice: [String: Any], llm: [String: Any]) {
+    public init(voice: [String: Any], llm: [String: Any], autoSpeak: Bool = true, autoBlur: Bool = true) {
         self.voice = voice
         self.llm = llm
+        self.autoSpeak = autoSpeak
+        self.autoBlur = autoBlur
     }
-    
-    // required public init(from decoder: Decoder) throws {
-    //     let container = try decoder.container(keyedBy: CodingKeys.self)
-    //     self.voice = try container.decode([String: Any].self, forKey: .voice)
-    //     self.llm = try container.decode([String: Any].self, forKey: .llm)
-    // }
-    
-    // public func encode(to encoder: Encoder) throws {
-    //     var container = encoder.container(keyedBy: CodingKeys.self)
-    //     try container.encode(voice, forKey: .voice)
-    //     try container.encode(llm, forKey: .llm)
-    // }
 
     public func updateLLM(model: String) {
         self.llm["model"] = model
@@ -351,42 +431,12 @@ public class RoleConfig {
     public func updateVoice(value: [String: Any]) {
         self.voice = value
     }
-    // Add computed properties to get the underlying dictionaries
-    // public var voiceDict: [String: Any] {
-    //     return voice.mapValues { $0.value }
-    // }
-    // public var llmDict: [String: Any] {
-    //     return llm.mapValues { $0.value }
-    // }
-    // public func toDict() -> [String: Any] {
-    //     return [
-    //         "voice": voiceDict,
-    //         "llm": llmDict
-    //     ]
-    // }
-    // Add computed properties to get the underlying dictionaries
-    // public var voiceDict: [String: Any] {
-    //     return voice.mapValues { $0.value }
-    // }
-    // public var llmDict: [String: Any] {
-    //     return llm.mapValues { $0.value }
-    // }
-    // public func toDict() -> [String: Any] {
-    //     return [
-    //         "voice": voiceDict,
-    //         "llm": llmDict
-    //     ]
-    // }
-    // public static func fromDict(dict: [String: Any]) -> RoleConfig? {
-    //     let config = RoleConfig(voice: defaultRoleVoice, llm: defaultRoleLLM)
-    //     if let voice = dict["voice"] as? [String: Any] {
-    //         config.voice = voice
-    //     }
-    //     if let llm = dict["llm"] as? [String: Any] {
-    //         config.llm = llm
-    //     }
-    //     return config
-    // }
+    public func updateAutoSpeak(value: Bool) {
+        self.autoSpeak = value
+    }
+    public func updateAutoBlur(value: Bool) {
+        self.autoBlur = value
+    }
 }
 
 public class RoleLLMHelper: Codable {
@@ -487,88 +537,6 @@ public class RoleVoice: ObservableObject, Codable {
         self.role = role
     }
 }
-
-public let defaultRoleVoice = ["provider": "system", "language": "en-US", "speed": 1.0, "volume": 1.0, "pitch": 1.0] as [String : Any]
-public let defaultRoleLLM = ["provider": "deepseek", "model": "deepseek-chat"] as [String : Any]
-public let DefaultRoles: [RoleBiz] = [
-    RoleBiz(props: {
-        var props = RoleProps(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
-        props.name = "雅思助教"
-        props.desc = "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。回复内容限制在100字以内。"
-        props.avatar = "avatar7"
-        props.prompt = "你是一个雅思助教，请根据学生的需求，给出相应的雅思学习建议。"
-        props.config = RoleConfig(
-            voice: defaultRoleVoice,
-            llm: defaultRoleLLM
-        )
-        return props
-    }()),
-    RoleBiz(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
-        name: "AI助手",
-        desc: "你是一个AI助手，请回答用户的问题。回复内容限制在100字以内。",
-        avatar: "avatar6",
-        prompt: "你是一个AI助手，请回答用户的问题。",
-        language: "en-US",
-        created_at: Date(),
-        config: RoleConfig(
-            voice: defaultRoleVoice,
-            llm: defaultRoleLLM
-        )
-    ),
-    RoleBiz(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
-        name: "英语口语教练",
-        desc: "专业的英语口语教练，帮助你提升口语表达能力，纠正发音问题，提供地道的表达方式。",
-        avatar: "avatar1",
-        prompt: "你是一位经验丰富的英语口语教练。你需要：1. 帮助学生提升口语表达能力 2. 纠正发音错误 3. 教授地道的英语表达方式 4. 模拟真实对话场景 5. 给出详细的改进建议。请用简单友好的方式与学生交流。",
-        language: "en-US",
-        created_at: Date(),
-        config: RoleConfig(
-            voice: defaultRoleVoice,
-            llm: ["provider": "deepseek", "model": "deepseek-chat", "stream": true]
-        )
-    ),
-    RoleBiz(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
-        name: "日语会话伙伴",
-        desc: "友好的日语会话伙伴，帮助你练习日常对话，学习日本文化，提高日语水平。",
-        avatar: "avatar2",
-        prompt: "あなたは親切な日本語会話パートナーです。学習者の日本語レベルに合わせて、簡単な日常会話から高度な議論まで対応できます。日本の文化や習慣についても説明し、自然な日本語の使い方を教えてください。",
-        language: "ja-JP",
-        created_at: Date(),
-        config: RoleConfig(
-            voice: defaultRoleVoice,
-            llm: defaultRoleLLM
-        )
-    ),
-    RoleBiz(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!,
-        name: "托福备考指导",
-        desc: "专业的托福考试指导老师，提供备考策略，讲解考试技巧，助你获得理想分数。",
-        avatar: "avatar3",
-        prompt: "你是一位经验丰富的托福考试指导老师。你需要：1. 根据学生的目标分数制定学习计划 2. 讲解各个科目的考试技巧 3. 分析真题并提供详细解答 4. 指出常见错误并给出改进建议 5. 提供高效的备考方法。请用专业且易懂的方式回答问题。",
-        language: "en-US",
-        created_at: Date(),
-        config: RoleConfig(
-            voice: defaultRoleVoice,
-            llm: defaultRoleLLM
-        )
-    ),
-    RoleBiz(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!,
-        name: "西班牙语老师",
-        desc: "热情的西班牙语教师，教授地道的西班牙语，带你了解西语国家的文化。",
-        avatar: "avatar4",
-        prompt: "Eres un profesor de español entusiasta y paciente. Tu objetivo es: 1. Enseñar español de manera natural y efectiva 2. Explicar la gramática de forma clara 3. Compartir conocimientos sobre la cultura hispana 4. Practicar conversación 5. Corregir errores con amabilidad. Por favor, adapta tu nivel de español según el estudiante.",
-        language: "es-ES",
-        created_at: Date(),
-        config: RoleConfig(
-            voice: defaultRoleVoice,
-            llm: defaultRoleLLM
-        )
-    )
-]
 
 extension Dictionary where Key == String, Value == Any {
     func toSwiftValueType() -> [String: SwiftValueType] {

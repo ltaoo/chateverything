@@ -11,124 +11,100 @@ import Speech
 import Foundation
 import UIKit
 import Network
+import CoreData
 
-// 在 ChatSession struct 后添加以下模型
-struct Season: Codable, Identifiable {
-    let id: String
-    let name: String
-    let cover: String
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case name
-        case cover = "poster_path"
+
+class ContentViewModel: ObservableObject {
+    @Published var path = NavigationPath()
+    @Published var store: ChatStore
+    @Published var config: Config
+    @Published var showingChatConfig = false
+    @Published var showingCalendar = false
+    @Published var sessions: [ChatSessionBiz] = []
+    @ObservedObject var capsuleVM = CapsuleButtonViewModel()
+
+    init(store: ChatStore, config: Config) {
+        self.store = store
+        self.config = config
+        // 在初始化时就获取数据
+        Task {
+            await MainActor.run {
+                fetchSessions()
+            }
+        }
     }
-}
 
-struct ListResponseWithCursor<T: Codable>: Codable {
-    let list: [T]
-    let marker: String
-    let pageSize: Int
-    let total: Int
-    enum CodingKeys: String, CodingKey {
-        case list
-        case marker = "next_marker"
-        case pageSize = "page_size"
-        case total
+    func fetchSessions() {
+        print("[Sessions] Starting fetchSessions...")
+        let ctx = store.container.viewContext
+        let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
+        request.sortDescriptors = [NSSortDescriptor(key: "updated_at", ascending: false)]
+        request.fetchBatchSize = 20
+
+        do {
+            let fetchedSessions = try ctx.fetch(request)
+            print("[Sessions] Fetched \(fetchedSessions.count) sessions from CoreData")
+            
+            var result: [ChatSessionBiz] = []
+
+            for session in fetchedSessions {
+                let biz = ChatSessionBiz.from(session, in: store)
+
+                let request = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+                request.predicate = NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id])
+                request.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: false)]
+                request.fetchBatchSize = 1
+                
+                if let boxes = try? ctx.fetch(request) {
+                    let boxes2: [ChatBoxBiz] = boxes.map {
+                        let b = ChatBoxBiz.from($0, store: store)
+                        b.load(session: biz, config: self.config)
+                        return b
+                    }
+                    biz.setBoxes(boxes: boxes2)
+                }
+                
+                result.append(biz)
+            }
+
+            DispatchQueue.main.async {
+                if !result.isEmpty {
+                    print("[Sessions] About to update sessions with \(result.count) items")
+                    withAnimation {
+                        self.sessions = result
+                    }
+                    print("[Sessions] Updated sessions array")
+                } else {
+                    print("[Sessions] Warning: Processed result is empty, keeping existing sessions")
+                }
+            }
+        } catch {
+            print("[Sessions] Error fetching sessions: \(error)")
+        }
     }
-}
 
-struct BizResponse<T: Codable>: Codable {
-    let code: Int
-    let msg: String
-    let data: T
-}
-
-struct FetchParams: Codable {
-    let page: Int
-    let pageSize: Int
-    let name: String
-
-    enum CodingKeys: String, CodingKey {
-        case page
-        case pageSize = "page_size"
-        case name
+    func pushChatDetailView(sessionId: UUID) {
+        path.append(Route.ChatDetailView(sessionId: sessionId))
     }
-}
 
-// 添加 NavigationStateManager 类
-// class NavigationStateManager: ObservableObject {
-//     @Published var path = NavigationPath()
-// }
+}
 
 struct ContentView: View {
-    @EnvironmentObject var store: ChatStore
-    @EnvironmentObject var config: Config
     @EnvironmentObject var networkManager: NetworkManager
-    @StateObject private var capsuleVM = CapsuleButtonViewModel()
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
-    @State private var path = NavigationPath()
-    
-    @State private var showingChatConfig = false
     @State private var isLoading = false // 添加加载状态
-    @State private var showingCalendar = false
-    
-    func loadSeasons() {
-        let hostname = "https://media.funzm.com"
-        let endpoint = "/api/v2/wechat/season/list"
-        let token = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..hygHZsl86_hlWWsa.BRdG-tcb2YWwx3O9GSpD9AoEnyWi-NVMBVVlrU7rAsOA-pgc3MsbJeiym-h51yZiHCJznyewuW0dDnKyxypgPFDEnX2M20sotUbLEyapUBISA2YRQt0.ZFIfKHxLJpNBALOuXFU6PQ"
-        
-        let params = FetchParams(page: 1, pageSize: 20, name: "")
-        
-        guard let url = URL(string: hostname + endpoint) else { return }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(token, forHTTPHeaderField: "Authorization")
-        request.setValue("2.3.0", forHTTPHeaderField: "client-version")
-        
-        do {
-            request.httpBody = try JSONEncoder().encode(params)
-        } catch {
-            print("Error encoding params: \(error)")
-            return
-        }
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error: \(error)")
-                return
-            }
-            
-            guard let data = data else {
-                print("No data received")
-                return
-            }
-        //    dump(data) 
-        //    dump(response)
-        if let jsonString = String(data: data, encoding: .utf8) {
-    print("收到的 JSON 数据：")
-    print(jsonString)
-}
-            do {
-                let response = try JSONDecoder().decode(BizResponse<ListResponseWithCursor<Season>>.self, from: data)
-                dump(response)
-                // DispatchQueue.main.async {
-                //     self.seasons = response.data.list
-                // }
-            } catch {
-                print("Error decoding response: \(error)")
-            }
-        }.resume()
+    @StateObject var model: ContentViewModel  // 改用 @StateObject
+
+    init(model: ContentViewModel) {
+        _model = StateObject(wrappedValue: model)
     }
     
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: $model.path) {
             ZStack {
                 TabView(selection: $selectedTab) {
                     // 聊天标签页
-                    ChatListView(capsuleVM: capsuleVM, path: $path, showingChatConfig: $showingChatConfig, showingCalendar: $showingCalendar)
+                    ChatListView(model: model)
                         .tabItem {
                             Image(systemName: "message.fill")
                             Text("聊天")
@@ -142,7 +118,7 @@ struct ContentView: View {
                     }
                     .tag(1)
                     
-                    RoleListPage(path: $path, config: self.config)
+                    RoleListPage(path: $model.path, config: model.config)
                     .tabItem {
                         Image(systemName: "sparkles")
                         Text("角色")
@@ -171,13 +147,13 @@ struct ContentView: View {
                 // 修改胶囊按钮部分
                 VStack {
                     Spacer()
-                    if capsuleVM.isVisible {
+                    if model.capsuleVM.isVisible {
                         CapsuleButton(
-                            text: capsuleVM.buttonText,
-                            icon: capsuleVM.buttonIcon
+                            text: model.capsuleVM.buttonText,
+                            icon: model.capsuleVM.buttonIcon
                         ) {
                             print("Capsule button tapped")
-                            capsuleVM.toggleVisibility()
+                            model.capsuleVM.toggleVisibility()
                         }
                         .padding(.bottom, UIScreen.main.bounds.height / 6)
                         .transition(
@@ -186,38 +162,108 @@ struct ContentView: View {
                         )
                     }
                 }
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: capsuleVM.isVisible)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.capsuleVM.isVisible)
             }
-            .sheet(isPresented: $showingCalendar) {
-                CalendarPopupView(isPresented: $showingCalendar)
+            .sheet(isPresented: $model.showingCalendar) {
+                CalendarPopupView(isPresented: $model.showingCalendar)
                     .presentationDetents([.medium])  // 只允许中等高度，移除 .large 选项
                     .presentationDragIndicator(.visible)
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
                     case .ChatDetailView(let sessionId):
-                        ChatDetailView(sessionId: sessionId, config: self.config).environmentObject(self.config)
+                        ChatDetailView(sessionId: sessionId, config: model.config).environmentObject(model.config)
                     case .VocabularyView(let filepath):
-                        Vocabulary(filepath: filepath, path: self.path, store: self.store).environmentObject(self.store)
+                        Vocabulary(filepath: filepath, path: model.path, store: model.store).environmentObject(model.store)
                     case .RoleDetailView(let roleId):
-                        RoleDetailView(roleId: roleId, path: self.path, config: self.config).environmentObject(self.config)
+                        RoleDetailView(roleId: roleId, path: model.path, config: model.config).environmentObject(model.config)
                 }
             }
-            .onAppear {
-                store.fetchSessions()
-            }
-            .environmentObject(self.store)
-        }.environmentObject(self.store)
+            .environmentObject(model.store)
+        }.environmentObject(model.store)
     }
-    
-    private func loadChatSessions() {
-        isLoading = true
-        
-        // 使用异步操作来模拟网络延迟
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            store.loadInitialSessions(limit: 20)
-            isLoading = false
+}
+
+struct ChatListView: View {
+    @ObservedObject var model: ContentViewModel
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // 顶部按钮组 - 现在固定在顶部
+            VStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ChatButton(icon: "🤖", text: "想法", onTap: {
+                            model.showingChatConfig = true
+                        })
+                        ChatButton(icon: "📚", text: "单词", onTap: {
+                            model.capsuleVM.toggleVisibility()
+                        })
+                        ChatButton(icon: "📅", text: "日历", onTap: {
+                            withAnimation {
+                                model.showingCalendar = true
+                            }
+                        })
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                }
+                
+                Divider()
+                    .frame(height: 0.5)
+                    .background(Color(.systemGray6))
+                    .opacity(0.8)
+            }
+            List {
+                if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .listRowBackground(Color.clear)
+                } else if model.sessions.isEmpty {
+                    EmptyStateView()
+                        .listRowBackground(Color.clear)
+                        .onAppear {
+                            print("Sessions is empty: \(model.sessions.isEmpty)")
+                            print("Debug - sessions count: \(model.sessions.count)")
+                        }
+                } else {
+                    ForEach(Array(model.sessions.enumerated()), id: \.element.id) { index, session in
+                        ChatSessionCardView(session: session, model: model)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowBackground(Color(UIColor.systemBackground))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                withAnimation {
+                                    ChatSessionBiz.delete(session: session, in: model.store)
+                                }
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                        // 只有不是最后一个元素时才添加分隔线
+                        .listRowSeparator(index == model.sessions.count - 1 ? .hidden : .visible)
+                    }
+                }
+            }
+            .listStyle(PlainListStyle())
         }
+    }
+}
+
+// 将空状态视图抽取为单独的组件
+struct EmptyStateView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+                .frame(height: 100)
+            Image(systemName: "message")
+                .font(.system(size: 50))
+                .foregroundColor(.gray)
+            Text("暂无聊天记录")
+                .foregroundColor(.gray)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -260,21 +306,23 @@ struct ScaleButtonStyle: ButtonStyle {
 
 // 聊天列表行视图
 struct ChatSessionCardView: View {
-    let chatSession: ChatSessionBiz
-    var onTap: () -> Void
+    let session: ChatSessionBiz
+    let model: ContentViewModel
     
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            model.pushChatDetailView(sessionId: session.id)
+        }) {
             HStack(alignment: .top, spacing: 16) {
                 // 头像部分
                 ZStack(alignment: .topTrailing) {
-                    Avatar(uri: chatSession.avatar_uri, size: 56)
+                    Avatar(uri: session.avatar_uri, size: 56)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                         )
                     
-                    if chatSession.unreadCount > 0 {
+                    if session.unreadCount > 0 {
                         Circle()
                             .fill(Color.green)
                             .frame(width: 14, height: 14)
@@ -285,18 +333,18 @@ struct ChatSessionCardView: View {
                 // 内容部分
                 VStack(alignment: .leading, spacing: 8) {  // 增加间距从 6 到 8
                     HStack {
-                        Text(chatSession.title)
+                        Text(session.title)
                             .font(.system(size: 17, weight: .semibold))  // 增加字体大小并加粗
                             .lineLimit(1)
                         
                         Spacer()
                         
-                        Text(formatDate(chatSession.updated_at))
+                        Text(formatDate(session.updated_at))
                             .font(.system(size: 14))  // 增加时间字体大小
                             .foregroundColor(.gray)
                     }
-                    if chatSession.boxes.count > 0 {
-                        ChatMsgPreview(box: chatSession.boxes[0])
+                    if session.boxes.count > 0 {
+                        ChatMsgPreview(box: session.boxes[0])
                             .foregroundColor(.gray)
                             .font(.system(size: 15))  // 增加预览文字大小
                             .lineLimit(1)
@@ -339,9 +387,9 @@ struct ChatMsgPreview: View {
                     if case let .message(data) = box.payload {
                         Text(data.text)
                     }
-                case "quiz":
+                case "puzzle":
                     if case .puzzle = box.payload {
-                        Text("[quiz]")
+                        Text("[puzzle]")
                     }
                 case "tip":
                     if case let .tip(data) = box.payload {
@@ -353,98 +401,6 @@ struct ChatMsgPreview: View {
             } else {
                 Text("")
             }
-        }
-    }
-}
-
-// 确保 ChatDetailView 符合 Hashable 协议
-// extension ChatDetailView: Hashable {
-//     static func == (lhs: ChatDetailView, rhs: ChatDetailView) -> Bool {
-//         lhs.chatSession.id == rhs.chatSession.id
-//     }
-    
-//     func hash(into hasher: inout Hasher) {
-//         hasher.combine(chatSession.id)
-//     }
-// }
-
-// 新增 ChatListView 组件
-struct ChatListView: View {
-    @EnvironmentObject var store: ChatStore
-    var capsuleVM: CapsuleButtonViewModel
-    @Binding var path: NavigationPath
-    @State private var isLoading = false
-    @Binding var showingChatConfig: Bool
-    @Binding var showingCalendar: Bool
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // 顶部按钮组 - 现在固定在顶部
-            VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ChatButton(icon: "🤖", text: "想法", onTap: {
-                            showingChatConfig = true
-                        })
-                        ChatButton(icon: "📚", text: "单词", onTap: {
-                            capsuleVM.toggleVisibility()
-                        })
-                        ChatButton(icon: "📅", text: "日历", onTap: {
-                            withAnimation {
-                                showingCalendar = true
-                            }
-                        })
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                }
-                
-                Divider()
-                    .frame(height: 0.5)
-                    .background(Color(.systemGray6))
-                    .opacity(0.8)
-            }
-            
-            // 将 ScrollView 和 LazyVStack 替换为 List
-            List {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .listRowBackground(Color.clear)
-                } else if store.sessions.isEmpty {
-                    VStack(spacing: 16) {
-                        Spacer()
-                            .frame(height: 100)
-                        Image(systemName: "message")
-                            .font(.system(size: 50))
-                            .foregroundColor(.gray)
-                        Text("暂无聊天记录")
-                            .foregroundColor(.gray)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .listRowBackground(Color.clear)
-                } else {
-                    ForEach(Array(store.sessions.enumerated()), id: \.element.id) { index, session in
-                        ChatSessionCardView(chatSession: session, onTap: {
-                            path.append(Route.ChatDetailView(sessionId: session.id))
-                        })
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        .listRowBackground(Color(UIColor.systemBackground))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                withAnimation {
-//                                    store.deleteSession(sessionId: session.id)
-                                }
-                            } label: {
-                                Label("删除", systemImage: "trash")
-                            }
-                        }
-                        // 只有不是最后一个元素时才添加分隔线
-                        .listRowSeparator(index == store.sessions.count - 1 ? .hidden : .visible)
-                    }
-                }
-            }
-            .listStyle(PlainListStyle())
         }
     }
 }
@@ -486,8 +442,4 @@ struct CapsuleButton: View {
         }
         .buttonStyle(PlainButtonStyle())
     }
-}
-
-#Preview {
-    ContentView()
 }

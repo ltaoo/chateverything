@@ -2,7 +2,7 @@ import Foundation
 import CoreData
 
 
-class ChatSessionConfig: ObservableObject {
+public class ChatSessionConfig: ObservableObject {
     @Published var blurMsg: Bool
     @Published var autoSpeaking: Bool
 
@@ -12,10 +12,10 @@ class ChatSessionConfig: ObservableObject {
     }
 }
 
-class ChatSessionBiz: ObservableObject, Identifiable {
+public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     let store: ChatStore
 
-    let id: UUID
+    public let id: UUID
     @Published var created_at: Date
     @Published var updated_at: Date
     @Published var title: String
@@ -119,7 +119,7 @@ class ChatSessionBiz: ObservableObject, Identifiable {
             if box.sender_id == config.me.id {
                 box.isMe = true
             }
-            box.load(store: store)
+            box.load(session: self, config: config)
             return box
         }
 
@@ -148,8 +148,10 @@ class ChatSessionBiz: ObservableObject, Identifiable {
     func setBoxes(boxes: [ChatBoxBiz]) {
         self.boxes = boxes
     }
-
-    func append(box: ChatBoxBiz, completion: (([ChatBoxBiz]) -> Void)? = nil) {
+    func appendTmpBox(box: ChatBoxBiz) {
+        self.boxes.append(box)
+    }
+    func appendBox(box: ChatBoxBiz) {
         self.boxes.append(box)
 
         let ctx = self.store.container.viewContext
@@ -164,7 +166,15 @@ class ChatSessionBiz: ObservableObject, Identifiable {
         try! ctx.save()
 
         box.save(sessionId: self.id, store: self.store)
+    }
+    func appendBoxes(boxes: [ChatBoxBiz], completion: (([ChatBoxBiz]) -> Void)? = nil) {
+        for box in boxes {
+            self.appendBox(box: box)
+        }
         completion?(self.boxes)
+    }
+    func removeLastBox() {
+        self.boxes.removeLast()
     }
 
     func save() {
@@ -183,5 +193,9 @@ class ChatSessionBiz: ObservableObject, Identifiable {
             print("Error saving chat box: \(error)")
             return
         }
+    }
+
+    public static func == (lhs: ChatSessionBiz, rhs: ChatSessionBiz) -> Bool {
+        return lhs.id == rhs.id
     }
 }

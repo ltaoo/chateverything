@@ -225,10 +225,7 @@ struct StreamVoiceInputExample: View {
             loading: false,
             blurred: false
         )
-        viewModel.session.append(box: userMessage) { boxes in
-            print("Current box count: \(boxes.count)")
-            viewModel.boxes = boxes
-        }
+        viewModel.session.appendBox(box: userMessage)
 
         // for member in viewModel.session.members {
         //     if let role = member.role {

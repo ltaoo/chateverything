@@ -1,6 +1,17 @@
 import Foundation
 import CoreData
 
+enum BoxPayloadTypes {
+    case message(ChatMsgContent)
+    case audio(ChatMsgAudio)
+    case puzzle(ChatMsgPuzzle)
+    case image(ChatMsgImage)
+    case video(ChatMsgVideo)
+    case error(ChatMsgError)
+    case tipText(ChatMsgTipText)
+    case time(ChatMsgTime)
+}
+
 class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
     var id: UUID
     var type: String
@@ -75,210 +86,75 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
         self.blurred = false
     }
 
-    func load(store: ChatStore) {
+    func load(session: ChatSessionBiz, config: Config) {
+        let store = config.store
+        let sender = RoleBiz.Get(id: self.sender_id, store: store)
+        guard let sender = sender else { return }
         if self.type == "message" {
             let req = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let message = try! store.container.viewContext.fetch(req).first {
-                self.payload = .message(ChatMessageBiz2(text: message.text!, nodes: []))
+                self.payload = sender.payloadBuilder.build(record: .message(message), role: sender, session: session, config: config)
             }
         }
         if self.type == "audio" {
             let req = NSFetchRequest<ChatMsgAudio>(entityName: "ChatMsgAudio")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let audio = try! store.container.viewContext.fetch(req).first {
-                self.payload = .audio(ChatAudioBiz(text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
+                self.payload = sender.payloadBuilder.build(record: .audio(audio), role: sender, session: session, config: config)
+                // self.payload = .audio(ChatAudioBiz(text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
             }
         }
         if self.type == "puzzle" {
             let req = NSFetchRequest<ChatMsgPuzzle>(entityName: "ChatMsgPuzzle")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-            if let question = try! store.container.viewContext.fetch(req).first {
-                let options = [
-                    ChatPuzzleOption(id: "1", text: "选项1"),
-                    ChatPuzzleOption(id: "2", text: "选项2"),
-                    ChatPuzzleOption(id: "3", text: "选项3"),
-                ]
-                self.payload = .puzzle(ChatPuzzleBiz(title: "请选出正确的选项", options: options, answer: options[0].id, selected: nil, corrected: false))
+            if let puzzle = try! store.container.viewContext.fetch(req).first {
+                self.payload = sender.payloadBuilder.build(record: .puzzle(puzzle), role: sender, session: session, config: config)
+                // let opts = puzzle.opts
+                // let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map { ChatPuzzleOption(id: $0.id, text: $0.text) }
+                // let selected = options.first { $0.id == puzzle.answer }
+                // self.payload = .puzzle(ChatPuzzleBiz(title: puzzle.title!, options: options, answer: puzzle.answer ?? "", selected: selected, corrected: false))
             }
         }
         if self.type == "image" {
             let req = NSFetchRequest<ChatMsgImage>(entityName: "ChatMsgImage")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let image = try! store.container.viewContext.fetch(req).first {
-                self.payload = .image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
+                self.payload = sender.payloadBuilder.build(record: .image(image), role: sender, session: session, config: config)
+                // self.payload = .image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
             }
         }
         if self.type == "video" {
             let req = NSFetchRequest<ChatMsgVideo>(entityName: "ChatMsgVideo")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let video = try! store.container.viewContext.fetch(req).first {
-                self.payload = .video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
+                self.payload = sender.payloadBuilder.build(record: .video(video), role: sender, session: session, config: config)
+                // self.payload = .video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
             }
         }
         if self.type == "error" {
             let req = NSFetchRequest<ChatMsgError>(entityName: "ChatMsgError")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let error = try! store.container.viewContext.fetch(req).first {
-                self.payload = .error(ChatErrorBiz(error: error.error!))
+                self.payload = sender.payloadBuilder.build(record: .error(error), role: sender, session: session, config: config)
+                // self.payload = .error(ChatErrorBiz(error: error.error!))
             }
         }
-    }
-    func entity(store: ChatStore) -> ChatBox {
-        let context = store.container.viewContext
-        let req = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-        req.predicate = NSPredicate(format: "id == %@", self.id as CVarArg)
-        let entity = try! context.fetch(req).first!
-        return entity
-    }
-    func changePayload(payload: ChatPayload, store: ChatStore) {
-        let context = store.container.viewContext
-
-        do {
-            // First update the ChatBox entity's payload_id
-           let boxCheck = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-           boxCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.id])
-           if let box = try context.fetch(boxCheck).first {
-               box.type = self.type
-           }
-
-            // Delete old payload
-            switch self.type {
-            case "message":
-                let messageCheck = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
-                messageCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-                if let message = try context.fetch(messageCheck).first {
-                    context.delete(message)
-                }
-                
-            case "audio":
-                let audioCheck = NSFetchRequest<ChatMsgAudio>(entityName: "ChatMsgAudio")
-                audioCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-                if let audio = try context.fetch(audioCheck).first {
-                    context.delete(audio)
-                }
-                
-            case "puzzle":
-                let puzzleCheck = NSFetchRequest<ChatMsgPuzzle>(entityName: "ChatMsgPuzzle")
-                puzzleCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-                if let puzzle = try context.fetch(puzzleCheck).first {
-                    context.delete(puzzle)
-                }
-                
-            case "error":
-                let errorCheck = NSFetchRequest<ChatMsgError>(entityName: "ChatMsgError")
-                errorCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-                if let error = try context.fetch(errorCheck).first {
-                    context.delete(error)
-                }
-                
-            default:
-                break
+        if self.type == "tipText" {
+            let req = NSFetchRequest<ChatMsgTipText>(entityName: "ChatMsgTipText")
+            req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
+            if let tipText = try! store.container.viewContext.fetch(req).first {
+                self.payload = sender.payloadBuilder.build(record: .tipText(tipText), role: sender, session: session, config: config)
+                // self.payload = .tipText(ChatTipTextBiz(content: tipText.content!))
             }
-            
-            // save new payload
-            switch payload {
-            case .message(let messageBiz):
-                let message = ChatMsgContent(context: context)
-                message.id = self.payload_id
-                message.text = messageBiz.text
-                
-            case .audio(let audioBiz):
-                let audio = ChatMsgAudio(context: context)
-                audio.id = self.payload_id
-                audio.text = audioBiz.text
-                audio.uri = audioBiz.url
-                audio.duration = audioBiz.duration
-                
-            case .puzzle(let puzzleBiz):
-                let puzzle = ChatMsgPuzzle(context: context)
-                puzzle.id = self.payload_id
-                puzzle.title = puzzleBiz.title
-                puzzle.opts = puzzleBiz.optionsToJSON()
-                puzzle.other1 = puzzleBiz.answer
-                
-            case .error(let errorBiz):
-                let error = ChatMsgError(context: context)
-                error.id = self.payload_id
-                error.error = errorBiz.error
-                
-            case .image(let imageBiz):
-                let image = ChatMsgImage(context: context)
-                image.id = self.payload_id
-                image.url = imageBiz.url
-                image.width = imageBiz.width
-                image.height = imageBiz.height
-                
-            case .video(let videoBiz):
-                let video = ChatMsgVideo(context: context)
-                video.id = self.payload_id
-                video.url = videoBiz.url
-                video.thumbnail = videoBiz.thumbnail
-                video.duration = videoBiz.duration
-                video.width = videoBiz.width
-                video.height = videoBiz.height
-                
-            case .estimate(let estimateBiz):
-                let estimate = ChatMsgEstimate(context: context)
-                estimate.id = self.payload_id
-                estimate.title = estimateBiz.title
-                // Save price range if needed
-                
-            case .tip(let tipBiz):
-                let tip = ChatMsgTip(context: context)
-                tip.id = self.payload_id
-                tip.title = tipBiz.title
-                tip.content = tipBiz.content
-                tip.type = tipBiz.type
-                
-            case .time(let timeBiz):
-                let time = ChatTimeBiz(time: timeBiz.time)
-                let timeEntity = ChatMsgTime(context: context)
-                timeEntity.id = self.payload_id
-                timeEntity.time = time.time
-                
-            case .unknown:
-                break
-            }
-
-            try context.save()
-        } catch {
-            print("Error changing payload: \(error)")
         }
-    }
-    func updatePayload(payload: ChatPayload, store: ChatStore) {
-        let context = store.container.viewContext
-        do {
-            switch payload {
-            case .message(let messageBiz):
-                let messageCheck = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
-                messageCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-                let message = try context.fetch(messageCheck).first!
-                message.text = messageBiz.text
-                
-            case .audio(let audioBiz):
-                let audioCheck = NSFetchRequest<ChatMsgAudio>(entityName: "ChatMsgAudio")
-                audioCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-                let audio = try context.fetch(audioCheck).first!
-                audio.text = audioBiz.text
-                audio.uri = audioBiz.url
-                audio.duration = audioBiz.duration
-                
-            case .puzzle(let puzzleBiz):
-                let puzzleCheck = NSFetchRequest<ChatMsgPuzzle>(entityName: "ChatMsgPuzzle")
-                puzzleCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
-                let puzzle = try context.fetch(puzzleCheck).first!
-                puzzle.title = puzzleBiz.title
-                puzzle.opts = puzzleBiz.optionsToJSON()
-                puzzle.other1 = puzzleBiz.answer
-                
-            default:
-                break
+        if self.type == "time" {
+            let req = NSFetchRequest<ChatMsgTime>(entityName: "ChatMsgTime")
+            req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
+            if let time = try! store.container.viewContext.fetch(req).first {
+                self.payload = sender.payloadBuilder.build(record: .time(time), role: sender, session: session, config: config)
+                // self.payload = .time(ChatTimeBiz(time: time.time!))
             }
-            
-            try context.save()
-        } catch {
-            print("Error updating payload: \(error)")
         }
     }
     func save(sessionId: UUID, store: ChatStore) {
@@ -328,7 +204,12 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                         puzzle.id = self.payload_id
                         puzzle.title = puzzleBiz.title
                         puzzle.opts = puzzleBiz.optionsToJSON()
-                        puzzle.other1 = puzzleBiz.answer
+                        puzzle.other1 = [
+                            "selected": puzzleBiz.selected?.id ?? "",
+                            "corrected": puzzleBiz.corrected
+                        ].toJSON()
+                        puzzle.answer = puzzleBiz.answer
+                        print("before save puzzle: \(puzzle.other1)")
                     }
                     
                 case .image(let imageBiz):
@@ -363,6 +244,16 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                         error.id = self.payload_id
                         error.error = errorBiz.error
                     }
+
+                case .tipText(let tipTextBiz):
+                    let tipTextCheck = NSFetchRequest<ChatMsgTipText>(entityName: "ChatMsgTipText")
+                    tipTextCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
+                    if try context.fetch(tipTextCheck).isEmpty {
+                        let tipText = ChatMsgTipText(context: context)
+                        tipText.id = self.payload_id
+                        tipText.content = tipTextBiz.content
+                    }
+
                 case .time(let timeBiz):
                     let timeCheck = NSFetchRequest<ChatMsgTime>(entityName: "ChatMsgTime")
                     timeCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
@@ -381,6 +272,17 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             print("Error saving ChatBox: \(error)")
         }
     }
+    func entity(store: ChatStore) -> ChatBox {
+        let context = store.container.viewContext
+        let req = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+        req.predicate = NSPredicate(format: "id == %@", self.id as CVarArg)
+        let entity = try! context.fetch(req).first!
+        return entity
+    }
+    func updatePayload(payload: ChatPayload, store: ChatStore) {
+        payload.update(id: self.payload_id, store: store)
+    }
+    
 } 
 
 
@@ -434,6 +336,10 @@ struct ChatTimeStruct: Codable {
     let time: Date
 }
 
+struct ChatTipTextStruct: Codable {
+    let content: String
+}
+
 // MARK: - 消息载荷类型
 enum ChatPayload: Encodable {
     case message(ChatMessageBiz2)
@@ -445,6 +351,7 @@ enum ChatPayload: Encodable {
     case error(ChatErrorBiz)
     case tip(ChatTipBiz)
     case time(ChatTimeBiz)
+    case tipText(ChatTipTextBiz)
     case unknown(type: String)
     
     // 自定义解码逻辑（关键部分）
@@ -480,8 +387,51 @@ enum ChatPayload: Encodable {
         case "time":
             let time = try ChatTimeStruct(from: decoder)
             self = .time(ChatTimeBiz.from(data: time))
+        case "tipText":
+            let tipText = try ChatTipTextStruct(from: decoder)
+            self = .tipText(ChatTipTextBiz.from(data: tipText))
         default:
             self = .unknown(type: type)
+        }
+    }
+
+    func update(id: UUID, store: ChatStore) {
+        let context = store.container.viewContext
+        do {
+            switch self {
+            case .message(let messageBiz):
+                let messageCheck = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
+                messageCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", id])
+                let message = try context.fetch(messageCheck).first!
+                message.text = messageBiz.text
+                
+            case .audio(let audioBiz):
+                let audioCheck = NSFetchRequest<ChatMsgAudio>(entityName: "ChatMsgAudio")
+                audioCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", id])
+                let audio = try context.fetch(audioCheck).first!
+                audio.text = audioBiz.text
+                audio.uri = audioBiz.url
+                audio.duration = audioBiz.duration
+                
+            case .puzzle(let puzzleBiz):
+                let puzzleCheck = NSFetchRequest<ChatMsgPuzzle>(entityName: "ChatMsgPuzzle")
+                puzzleCheck.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", id])
+                let puzzle = try context.fetch(puzzleCheck).first!
+                puzzle.title = puzzleBiz.title
+                puzzle.opts = puzzleBiz.optionsToJSON()
+                puzzle.other1 = [
+                    "selected": puzzleBiz.selected?.id ?? "",
+                    "corrected": puzzleBiz.corrected
+                ].toJSON()
+                puzzle.answer = puzzleBiz.answer
+                print("[BIZ]ChatPayload update puzzle: \(puzzleBiz.corrected) \(puzzle.other1)")
+            default:
+                break
+            }
+            
+            try context.save()
+        } catch {
+            print("Error updating payload: \(error)")
         }
     }
     
@@ -516,6 +466,9 @@ enum ChatPayload: Encodable {
         case .time(let time):
             try container.encode("time", forKey: .type)
             try time.encode(to: encoder)
+        case .tipText(let tipText):
+            try container.encode("tipText", forKey: .type)
+            try tipText.encode(to: encoder)
         case .unknown(let type):
             try container.encode(type, forKey: .type)
         }
@@ -541,6 +494,8 @@ enum ChatPayload: Encodable {
             return (text: tip.title, type: "tip")
         case .time(let time):
             return (text: time.time.description, type: "time")
+        case .tipText(let tipText):
+            return (text: tipText.content, type: "tipText")
         case .unknown(let type):
             return (text: "Unknown content", type: type)
         }
@@ -760,6 +715,17 @@ class ChatVideoBiz: Encodable {
     }
 }
 
+protocol ChatPuzzleHandler {
+    func select(puzzle: ChatPuzzleBiz, option: ChatPuzzleOption)
+}
+class DefaultChatPuzzleHandler: ChatPuzzleHandler {
+    func select(puzzle: ChatPuzzleBiz, option: ChatPuzzleOption) {
+        puzzle.selected = option
+        puzzle.attempts += 1
+        puzzle.corrected = puzzle.answer == option.id
+    }
+}
+
 class ChatPuzzleBiz: ObservableObject, Encodable {
     static func from(data: ChatPuzzleStruct) -> ChatPuzzleBiz {
         return ChatPuzzleBiz(title: data.title, options: data.options, answer: data.answer, selected: nil, corrected: false)
@@ -769,29 +735,33 @@ class ChatPuzzleBiz: ObservableObject, Encodable {
     let title: String
     let options: [ChatPuzzleOption]
     var answer: String
-    var selected: ChatPuzzleOption?
-    var corrected: Bool
+    @Published var selected: ChatPuzzleOption?
+    @Published var corrected: Bool
+
+    var handler: ChatPuzzleHandler = DefaultChatPuzzleHandler()
 
     var attempts: Int = 0
 
-    init(title: String, options: [ChatPuzzleOption], answer: String, selected: ChatPuzzleOption?, corrected: Bool) {
+    init(title: String, options: [ChatPuzzleOption], answer: String, selected: ChatPuzzleOption?, corrected: Bool, handler: ChatPuzzleHandler = DefaultChatPuzzleHandler()) {
         self.title = title
         self.options = options
         self.answer = answer
         self.selected = selected
         self.corrected = corrected
+        self.handler = handler
     }
 
     func selectOption(option: ChatPuzzleOption) {
-        self.selected = option
-        self.attempts += 1
-        self.corrected = self.answer == option.id
+        print("[BIZ]ChatPuzzleBiz selectOption: \(option.text) \(selected == nil)")
+        if selected == nil {
+            self.handler.select(puzzle: self, option: option)
+        }
     }
     func isSelected(option: ChatPuzzleOption) -> Bool {
         return self.selected?.id == option.id
     }
     func isCorrect(option: ChatPuzzleOption) -> Bool {
-        return self.answer == option.id
+        return self.corrected || self.answer == option.id
     }
 
     enum CodingKeys: String, CodingKey {
@@ -938,6 +908,30 @@ class ChatTipBiz: Encodable {
     }
 }
 
+class ChatTipTextBiz: Encodable {
+    static func from(data: ChatTipTextStruct) -> ChatTipTextBiz {
+        return ChatTipTextBiz(content: data.content)
+    }
+
+    let contentType = "tipText"
+    let content: String
+    
+    init(content: String) {
+        self.content = content
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case contentType
+        case content
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(contentType, forKey: .contentType)
+        try container.encode(content, forKey: .content)
+    }
+}
+
 class ChatTimeBiz: Encodable {
     static func from(data: ChatTimeStruct) -> ChatTimeBiz {
         return ChatTimeBiz(time: data.time)
@@ -959,5 +953,32 @@ class ChatTimeBiz: Encodable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(contentType, forKey: .contentType)
         try container.encode(time, forKey: .time)
+    }
+}
+
+extension Dictionary where Key == String {
+    func toJSON(pretty: Bool = false) -> String {
+        do {
+            let options: JSONSerialization.WritingOptions = pretty ? .prettyPrinted : []
+            let jsonData = try JSONSerialization.data(withJSONObject: self, options: options)
+            return String(data: jsonData, encoding: .utf8) ?? "{}"
+        } catch {
+            print("Error converting dictionary to JSON: \(error)")
+            return "{}"
+        }
+    }
+    
+    static func fromJSON(_ jsonString: String) -> [String: Any] {
+        guard let jsonData = jsonString.data(using: .utf8) else { return [:] }
+        
+        do {
+            if let dict = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                return dict
+            }
+            return [:]
+        } catch {
+            print("Error parsing JSON string to dictionary: \(error)")
+            return [:]
+        }
     }
 }

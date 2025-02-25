@@ -53,6 +53,7 @@ enum DesignSystem {
     
     // MARK: - Typography
     enum Typography {
+        // 动态字体(推荐)
         static let headingLarge = Font.system(size: 32, weight: .bold)
         static let headingMedium = Font.system(size: 24, weight: .bold)
         static let headingSmall = Font.headline

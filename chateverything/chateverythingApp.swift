@@ -88,7 +88,7 @@ struct ChatEverythingApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(model: ContentViewModel(store: store, config: config))
                 .environment(\.managedObjectContext, container.viewContext)
                 .environmentObject(store)
                 .environmentObject(config)

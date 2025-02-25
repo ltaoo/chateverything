@@ -225,6 +225,56 @@ struct RoleTTSProviderSettingView: View {
     }
 }
 
+struct VoiceTestButton: View {
+    @ObservedObject var role: RoleBiz
+    let controller: TTSProviderController
+    let provider: TTSProvider
+    @State var tts: TTSEngine?
+    @State var player: PCMStreamPlayer?
+
+    var body: some View {
+        Button(action: {
+            let text1 = "Hello! The weather is beautiful today. Would you like to go for a walk?"
+            let text2 = "你好！今天天气真好。要不要一起去散步？"
+            let text3 = "こんにちは！今日は天気が良いですね。一緒に散歩しませんか？"
+            let r = provider.schema.validate()
+            let lang = r.value["language"] as? String ?? "en-US"
+            let text = {
+                switch lang {
+                case "en-US":
+                    return text1
+                case "zh-CN":
+                    return text2
+                case "jp-JP":
+                    return text3
+                default:
+                    return text2
+                }
+            }()
+            tts = {
+                switch provider.id {
+                case "tencent":
+                    return TencentTTSEngine()
+                case "system":
+                    return SystemTTSEngine()
+                default:
+                    return SystemTTSEngine()
+                }
+            }()
+            let credential = controller.value.credential
+            var config = role.config.voice
+            for (key, value) in credential {
+                config[key] = value
+            }
+            tts!.setConfig(config: config)
+            tts!.speak(text)
+        }) {
+            Text("测试")
+        }
+    }
+}
+
+
 
 struct RoleLLMProviderSettingView: View {
     @ObservedObject var role: RoleBiz
@@ -302,55 +352,6 @@ struct ModelListView: View {
     }
 }
 
-struct VoiceTestButton: View {
-    @ObservedObject var role: RoleBiz
-    let controller: TTSProviderController
-    let provider: TTSProvider
-    @State var tts: TTSEngine?
-    @State var player: PCMStreamPlayer?
-
-    var body: some View {
-        Button(action: {
-            let text1 = "Hello! The weather is beautiful today. Would you like to go for a walk?"
-            let text2 = "你好！今天天气真好。要不要一起去散步？"
-            let text3 = "こんにちは！今日は天気が良いですね。一緒に散歩しませんか？"
-            let r = provider.schema.validate()
-            let lang = r.value["language"] as? String ?? "en-US"
-            let text = {
-                switch lang {
-                case "en-US":
-                    return text1
-                case "zh-CN":
-                    return text2
-                case "jp-JP":
-                    return text3
-                default:
-                    return text2
-                }
-            }()
-            tts = {
-                switch provider.id {
-                case "tencent":
-                    return TencentTTSEngine()
-                case "system":
-                    return SystemTTSEngine()
-                default:
-                    return SystemTTSEngine()
-                }
-            }()
-            let credential = controller.value.credential
-            var config = role.config.voice
-            for (key, value) in credential {
-                config[key] = value
-            }
-            tts!.setConfig(config: config)
-            tts!.speak(text)
-        }) {
-            Text("测试")
-        }
-    }
-}
-
 struct ObservablePicker: View {
     let field: FormField
     let onChange: (String) -> Void
@@ -417,18 +418,26 @@ struct ObservableSlider: View {
 
     var body: some View {
         if case .InputSlider(let input) = field.input {
-            Slider(value: Binding(
-                get: {
-                    print("[VIEW]InputSlider in getter \(field.label) \(v)")
-                    return v
-                },
-                set: { (newValue: Double) in
-                    print("[VIEW]formField \(field.label) \(newValue)")
-                    v = newValue
-                    input.setValue(value: newValue)
-                    onChange(newValue)
-                }
-            ), in: input.min...input.max, step: input.step)
+            HStack {
+                Slider(value: Binding(
+                    get: {
+                        print("[VIEW]InputSlider in getter \(field.label) \(v)")
+                        return v
+                    },
+                    set: { (newValue: Double) in
+                        print("[VIEW]formField \(field.label) \(newValue)")
+                        v = newValue
+                        input.setValue(value: newValue)
+                        onChange(newValue)
+                    }
+                ), in: input.min...input.max, step: input.step)
+                
+                // 添加数值显示
+                Text(String(format: "%.1f", v))
+                    .frame(width: 50)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
+            }
         }
     }
 }

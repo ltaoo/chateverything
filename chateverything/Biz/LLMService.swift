@@ -24,7 +24,7 @@ public struct ChatRequest: Codable {
     }
 }
 
-public typealias ResponseHandler = (Data) throws -> String
+public typealias LLMServiceResponseHandler = (Data) throws -> String
 
 public struct LLMProvider: Identifiable, Hashable {
     public var id: String
@@ -35,7 +35,7 @@ public struct LLMProvider: Identifiable, Hashable {
     public var models: [LLMProviderModel]
     public let responseHandler: (Data) throws -> String
     
-    public init(id: String, name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LLMProviderModel], responseHandler: @escaping (Data) throws -> String = DefaultHandler) {
+    public init(id: String, name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LLMProviderModel], responseHandler: @escaping (Data) throws -> String = LLMServiceDefaultHandler) {
         self.id = id
         self.name = name
         self.logo_uri = logo_uri
@@ -108,7 +108,7 @@ public class LLMService: ObservableObject {
     
     public init(value: LLMServiceConfig, prompt: String = "") {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: LLMServiceDefaultHandler)
         self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
         self.prompt = prompt
         self.messages = [Message(role: "system", content: prompt)]
@@ -118,7 +118,7 @@ public class LLMService: ObservableObject {
 
     public func update(value: LLMServiceConfig) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: DefaultHandler)
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: LLMServiceDefaultHandler)
         self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
     }
 
@@ -139,8 +139,10 @@ public class LLMService: ObservableObject {
         
         return AsyncThrowingStream { continuation in
             // Add user message
-            let userMessage = Message(role: "user", content: content)
-            messages.append(userMessage)
+            if !content.isEmpty {
+                let userMessage = Message(role: "user", content: content)
+                messages.append(userMessage)
+            }
             
             let apiProxyAddress = value.apiProxyAddress ?? provider.apiProxyAddress
             let apiKey = value.apiKey ?? provider.apiKey
@@ -180,6 +182,7 @@ public class LLMService: ObservableObject {
                         
                         guard let httpResponse = response as? HTTPURLResponse,
                               httpResponse.statusCode == 200 else {
+                            print("[Package]LLM chat error: Invalid response")
                             throw NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
                         }
                         
@@ -264,7 +267,7 @@ public class LLMService: ObservableObject {
     }
 }
 
-public let DefaultHandler: ResponseHandler = { data in
+public let LLMServiceDefaultHandler: LLMServiceResponseHandler = { data in
     let decoder = JSONDecoder()
     let response = try decoder.decode(DefaultChatResponse.self, from: data)
     return response.choices[0].message.content
@@ -287,7 +290,7 @@ public let LLMServiceProviders = [
                 name: "gpt-4o"
             )
         ],
-        responseHandler: DefaultHandler
+        responseHandler: LLMServiceDefaultHandler
 
     ),
     LLMProvider(
@@ -306,7 +309,7 @@ public let LLMServiceProviders = [
                 name: "deepseek-r1"
             )
         ],
-        responseHandler: DefaultHandler
+        responseHandler: LLMServiceDefaultHandler
     ),
     LLMProvider(
         id: "doubao",

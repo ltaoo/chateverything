@@ -631,9 +631,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCVersionGroup section */
 		A6D735832D6637D500ABAAC9 /* Model.xcdatamodeld */ = {
 			isa = XCVersionGroup;

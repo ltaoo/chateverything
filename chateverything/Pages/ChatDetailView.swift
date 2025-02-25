@@ -2,11 +2,15 @@ import SwiftUI
 import Foundation
 import AVFoundation
 import Speech
+import Combine
 
 class ChatDetailViewModel: ObservableObject {
     let config: Config
     let store: ChatStore
     @Published var session: ChatSessionBiz
+    @Published var boxes: [ChatBoxBiz] = []
+    
+    private var cancellables = Set<AnyCancellable>()
 
     @Published var loading = true
     @Published var disabled = true
@@ -14,7 +18,6 @@ class ChatDetailViewModel: ObservableObject {
     @Published var promptPopoverVisible = false
     @Published var permissionAlertVisible = false
     @Published var error: String?
-    @Published var boxes: [ChatBoxBiz] = []
 
     init(id: UUID, config: Config, store: ChatStore) {
         self.config = config
@@ -30,6 +33,13 @@ class ChatDetailViewModel: ObservableObject {
             config: ChatSessionConfig(blurMsg: false, autoSpeaking: false),
             store: store
         )
+        
+        self.session.$boxes
+            .sink { [weak self] newBoxes in
+                print("newBoxes: \(newBoxes.count)")
+                self?.boxes = newBoxes
+            }
+            .store(in: &cancellables)
     }
     func load() {
         self.session.load(id: self.session.id, config: self.config)
@@ -48,7 +58,7 @@ class ChatDetailViewModel: ObservableObject {
         print("Appending message to session")
         DispatchQueue.main.async {
             self.objectWillChange.send()
-            self.session.append(box: box)
+            self.session.appendBox(box: box)
         }
     }
 }
@@ -139,20 +149,6 @@ struct ChatDetailView: View {
         // }
     }
     
-    private func toggleSpeaking(message: ChatBoxBiz) {
-        // if message.isSpeaking {
-        //     TTSManager.shared.stopSpeaking()
-        //     message.isSpeaking = false
-        // } else {
-        //     TTSManager.shared.speak(message.data.text) {
-        //         DispatchQueue.main.async {
-        //             message.isSpeaking = false
-        //         }
-        //     }
-        //     message.isSpeaking = true
-        // }
-    }
-    
     private func recognizeSpeech(url: URL) {
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         
@@ -225,18 +221,11 @@ struct ChatDetailView: View {
             loading: false,
             blurred: false
         )
-        viewModel.session.append(box: userMessage) { boxes in
-            print("Current box count: \(boxes.count)")
-            viewModel.boxes = boxes
-        }
+        viewModel.session.appendBox(box: userMessage)
 
         for member in viewModel.session.members {
             if let role = member.role {
-                let box = role.response(text: recognizedText, session: viewModel.session, config: config)
-                viewModel.session.append(box: box) { boxes in
-                    print("Current box count: \(boxes.count)")
-                    viewModel.boxes = boxes
-                }
+                role.response(text: recognizedText, session: viewModel.session, config: config)
             }
         }
     }
@@ -256,8 +245,7 @@ struct ChatDetailView: View {
             model: model,
             config: config,
             recorder: recorder,
-            onDismiss: { dismiss() },
-            onSpeakToggle: toggleSpeaking
+            onDismiss: { dismiss() }
         )
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -283,9 +271,18 @@ struct ChatDetailView: View {
         .onAppear {
             setupRecorderCallbacks()
             model.load()
+
+            for member in model.session.members {
+                if let role = member.role {
+                    role.start(session: model.session, config: config)
+                }
+            }
         }
         .onDisappear {
             self.recorder.cleanup()
+        }
+        .onReceive(model.session.$boxes) { newBoxes in
+            model.boxes = newBoxes
         }
     }
 }
@@ -296,7 +293,6 @@ private struct ChatDetailContentView: View {
     let config: Config
     let recorder: AudioRecorder
     let onDismiss: () -> Void
-    let onSpeakToggle: (ChatBoxBiz) -> Void
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -304,8 +300,7 @@ private struct ChatDetailContentView: View {
             VStack {
                 ChatMessageList(
                     model: model,
-                    recorder: recorder,
-                    onSpeakToggle: onSpeakToggle
+                    recorder: recorder
                 )
             }
             .background(DesignSystem.Colors.background)
@@ -333,7 +328,6 @@ private struct ChatDetailContentView: View {
 private struct ChatMessageList: View {
     @ObservedObject var model: ChatDetailViewModel
     let recorder: AudioRecorder
-    let onSpeakToggle: (ChatBoxBiz) -> Void
     
     var body: some View {
         ScrollView {
@@ -342,8 +336,7 @@ private struct ChatMessageList: View {
                     ForEach(Array(model.boxes.enumerated()), id: \.element.id) { index, box in
                         ChatBoxView(
                             box: model.boxes[index],
-                            recorder: recorder,
-                            onSpeakToggle: onSpeakToggle
+                            recorder: recorder
                         )
                         .id(model.boxes[index].id)
                     }
@@ -545,10 +538,9 @@ private struct MessageContentView: View {
     @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatMessageBiz2
     let recorder: AudioRecorder
-    var onSpeakToggle: (ChatBoxBiz) -> Void
 
     var body: some View {
-        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.small) {
+        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
             HStack {
                 if box.isMe { Spacer() }
                 
@@ -587,10 +579,7 @@ private struct MessageContentView: View {
 
             if !box.loading && !box.isMe {
                 BotMessageActions(
-                    box: box,
-                    onSpeakToggle: { box in
-                        onSpeakToggle(box)
-                    }
+                    box: box
                 )
             }
         }
@@ -602,17 +591,16 @@ private struct AudioContentView: View {
     @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatAudioBiz
     let recorder: AudioRecorder
-    var onSpeakToggle: (ChatBoxBiz) -> Void
 
     var body: some View {
-        VStack(alignment: box.isMe ? .trailing : .leading, spacing: 8) {
+        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
             HStack {
                 if box.isMe { Spacer() }
                 
                 if box.loading {
                     LoadingView()
                 } else {
-                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: 4) {
+                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
                         if !data.ok {
                             Text(data.text)
                         } else {
@@ -625,9 +613,9 @@ private struct AudioContentView: View {
                             }
                         }
                     }
-                    .padding(12)
+                    .padding(DesignSystem.Spacing.medium)
                     .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
-                    .cornerRadius(16)
+                    .cornerRadius(DesignSystem.Radius.large)
                 }
                 
                 if !box.isMe { Spacer() }
@@ -642,10 +630,7 @@ private struct AudioContentView: View {
                 )
             } else if !box.isMe {
                 BotMessageActions(
-                    box: box,
-                    onSpeakToggle: { box in
-                        onSpeakToggle(box)
-                    }
+                    box: box
                 )
             }
         }
@@ -678,11 +663,23 @@ private struct TipContentView: View {
     }
 }
 
+struct TipTextContentView: View {
+    let data: ChatTipTextBiz
+
+    var body: some View {
+        Text(data.content)
+            .font(DesignSystem.Typography.bodySmall)
+            .multilineTextAlignment(.center)
+            .foregroundColor(DesignSystem.Colors.textSecondary)
+            .padding(DesignSystem.Spacing.small)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
 // 在 ChatBoxView 的 body 中更新条件分支
 struct ChatBoxView: View {
     @ObservedObject var box: ChatBoxBiz
     var recorder: AudioRecorder
-    let onSpeakToggle: (ChatBoxBiz) -> Void
     @State private var isShowingActions = false
 
     // 操作函数
@@ -718,22 +715,25 @@ struct ChatBoxView: View {
                     AudioContentView(
                         box: box,
                         data: data,
-                        recorder: recorder,
-                        onSpeakToggle: onSpeakToggle
+                        recorder: recorder
                     )
                 }
             } else if box.type == "message" {
                 if case let .message(data) = box.payload {
-                    MessageContentView(box: box, data: data, recorder: recorder, onSpeakToggle: onSpeakToggle)
+                    MessageContentView(box: box, data: data, recorder: recorder)
                 }
-            } else if box.type == "quiz" {
+            } else if box.type == "puzzle" {
                 if case let .puzzle(data) = box.payload {
-                    QuizContentView(data: data)
+                    PuzzleContentView(data: data)
                         .frame(maxWidth: .infinity)
                 }
             } else if box.type == "tip" {
                 if case let .tip(data) = box.payload {
                     TipContentView(data: data)
+                }
+            } else if box.type == "tipText" {
+                if case let .tipText(data) = box.payload {
+                    TipTextContentView(data: data)
                 }
             }
         }
@@ -786,19 +786,22 @@ private struct ErrorContentView: View {
     }
 }
 
-// 更新 QuizContentView 组件
-struct QuizContentView: View {
+// 更新 PuzzleContentView 组件
+struct PuzzleContentView: View {
     @ObservedObject var data: ChatPuzzleBiz
 
     @State private var selectedOption: UUID?
     @State private var showResult: Bool = false
     @State private var attempts: Int = 0
     
-    private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
-
+    var columns: [GridItem] {
+        return data.options.count > 2 ? [
+            GridItem(.flexible())
+        ] : [
+            GridItem(.flexible()),
+            GridItem(.flexible())
+        ]
+    }
     private func getBackgroundColor(for option: ChatPuzzleOption) -> Color {
         if data.isSelected(option: option) {
             if data.isCorrect(option: option) {
@@ -813,17 +816,15 @@ struct QuizContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
-                Text("评估")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
                 Text(data.title)
                     .font(DesignSystem.Typography.headingSmall)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
             
-            LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.medium) {
+            LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.small) {
                 ForEach(data.options) { option in
                     Button(action: {
-//                        handleOptionSelection(option)
+                        data.selectOption(option: option)
                     }) {
                         HStack {
                             Text(option.text)
@@ -852,19 +853,6 @@ struct QuizContentView: View {
                 }
             }
             
-            if data.attempts > 0 {
-                HStack {
-                    Image(systemName: "info.circle")
-                    Text(data.attempts == 1 ? "第一次尝试" : "第 \(data.attempts) 次尝试")
-                    if data.corrected {
-                        Text("- 答对了！")
-                            .foregroundColor(DesignSystem.Colors.success)
-                    }
-                }
-                .font(DesignSystem.Typography.caption)
-                .foregroundColor(DesignSystem.Colors.textSecondary)
-                .padding(.top, DesignSystem.Spacing.xxSmall)
-            }
         }
         .padding(DesignSystem.Spacing.medium)
         .background(DesignSystem.Colors.secondaryBackground)
@@ -1058,8 +1046,6 @@ private struct UserMessageActions: View {
 private struct BotMessageActions: View {
     @ObservedObject var box: ChatBoxBiz
     
-    let onSpeakToggle: (ChatBoxBiz) -> Void
-    
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             Button(action: {
@@ -1080,7 +1066,7 @@ private struct BotMessageActions: View {
             }
             
             Button(action: {
-                onSpeakToggle(box)
+                // box.speaking.toggle()
             }) {
                 HStack(spacing: DesignSystem.Spacing.xxSmall) {
                     Image(systemName: box.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
