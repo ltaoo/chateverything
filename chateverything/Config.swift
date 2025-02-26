@@ -252,26 +252,3 @@ class Config: ObservableObject {
         UserDefaults.standard.set(configs, forKey: "role_configs")
     }
 }
-
-// Add this extension before the Config class
-extension Dictionary {
-    static func assign(_ target: [Key: Value], _ sources: [Key: Value]...) -> [Key: Value] {
-        var result = target
-        
-        for source in sources {
-            for (key, value) in source {
-                result[key] = value
-            }
-        }
-        
-        return result
-    }
-    
-    mutating func assign(_ sources: [Key: Value]...) {
-        for source in sources {
-            for (key, value) in source {
-                self[key] = value
-            }
-        }
-    }
-}

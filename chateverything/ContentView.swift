@@ -35,7 +35,6 @@ class ContentViewModel: ObservableObject {
     }
 
     func fetchSessions() {
-        print("[Sessions] Starting fetchSessions...")
         let ctx = store.container.viewContext
         let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         request.sortDescriptors = [NSSortDescriptor(key: "updated_at", ascending: false)]
@@ -43,8 +42,6 @@ class ContentViewModel: ObservableObject {
 
         do {
             let fetchedSessions = try ctx.fetch(request)
-            print("[Sessions] Fetched \(fetchedSessions.count) sessions from CoreData")
-            
             var result: [ChatSessionBiz] = []
 
             for session in fetchedSessions {
@@ -69,13 +66,9 @@ class ContentViewModel: ObservableObject {
 
             DispatchQueue.main.async {
                 if !result.isEmpty {
-                    print("[Sessions] About to update sessions with \(result.count) items")
                     withAnimation {
                         self.sessions = result
                     }
-                    print("[Sessions] Updated sessions array")
-                } else {
-                    print("[Sessions] Warning: Processed result is empty, keeping existing sessions")
                 }
             }
         } catch {
@@ -133,11 +126,15 @@ struct ContentView: View {
                     .tag(3)
                 }
                 .onAppear {
-                    // 设置 TabView 的背景颜色为浅灰色
+                    // 设置 TabView 的背景为毛玻璃效果
                     let appearance = UITabBarAppearance()
-                    appearance.configureWithOpaqueBackground()
-                    appearance.backgroundColor = UIColor.systemGray6
+                    appearance.configureWithDefaultBackground() // 使用默认毛玻璃效果背景
                     
+                    // 自定义背景色调
+                    appearance.backgroundColor = .clear // 清除背景色以显示毛玻璃效果
+                    appearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial) // 添加毛玻璃效果
+                    
+                    // 应用外观设置
                     UITabBar.appearance().standardAppearance = appearance
                     if #available(iOS 15.0, *) {
                         UITabBar.appearance().scrollEdgeAppearance = appearance
@@ -209,11 +206,6 @@ struct ChatListView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 16)
                 }
-                
-                Divider()
-                    .frame(height: 0.5)
-                    .background(Color(.systemGray6))
-                    .opacity(0.8)
             }
             List {
                 if isLoading {
@@ -222,11 +214,6 @@ struct ChatListView: View {
                         .listRowBackground(Color.clear)
                 } else if model.sessions.isEmpty {
                     EmptyStateView()
-                        .listRowBackground(Color.clear)
-                        .onAppear {
-                            print("Sessions is empty: \(model.sessions.isEmpty)")
-                            print("Debug - sessions count: \(model.sessions.count)")
-                        }
                 } else {
                     ForEach(Array(model.sessions.enumerated()), id: \.element.id) { index, session in
                         ChatSessionCardView(session: session, model: model)
@@ -276,19 +263,17 @@ struct ChatButton: View {
         Button(action: onTap) {
             HStack(spacing: 8) {
                 Text(icon)
-                    .font(.system(size: 20))  // 增大表情符号
+                    .font(DesignSystem.Typography.bodyMedium)
                 Text(text)
-                    .font(.system(size: 16, weight: .medium))  // 增大字体并加粗
-                // Image(systemName: "chevron.down")
-                //     .font(.system(size: 14))  // 增大箭头
+                    .font(DesignSystem.Typography.bodyMedium)
             }
             .foregroundColor(.primary)
-            .padding(.horizontal, 16)  // 增加水平内边距
-            .padding(.vertical, 10)    // 增加垂直内边距
+            .padding(.horizontal, DesignSystem.Spacing.medium)
+            .padding(.vertical, DesignSystem.Spacing.small)
             .background(
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.xLarge)
                     .fill(Color(.systemGray6))
-                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)  // 添加轻微阴影
+                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
             )
         }
         .buttonStyle(ScaleButtonStyle())  // 添加按压效果

@@ -36,6 +36,10 @@ enum DesignSystem {
         // Add these two colors
         static let primaryGradientStart = Color("PrimaryGradientStart")
         static let primaryGradientEnd = Color("PrimaryGradientEnd")
+
+        static var divider: Color {
+            Color.gray.opacity(0.2)
+        }
     }
     
     // MARK: - Spacing
@@ -49,8 +53,11 @@ enum DesignSystem {
         static let xLarge: CGFloat = 32
         static let xxLarge: CGFloat = 48
         static let xxxLarge: CGFloat = 64
+
+        static let cardPadding: CGFloat = 16
+        static let xlCardPadding: CGFloat = 24
     }
-    
+
     // MARK: - Typography
     enum Typography {
         // 动态字体(推荐)
@@ -72,22 +79,29 @@ enum DesignSystem {
         static let medium: CGFloat = 8
         static let large: CGFloat = 12
         static let circle: CGFloat = .infinity
+        static let xLarge: CGFloat = 24
     }
     
     // MARK: - Shadow
     enum Shadows {
-        static let small = Shadow(color: Color.black.opacity(0.1),
-                                radius: 4,
-                                x: 0,
-                                y: 2)
-        static let medium = Shadow(color: Color.black.opacity(0.15),
-                                 radius: 8,
-                                 x: 0,
-                                 y: 4)
-        static let large = Shadow(color: Color.black.opacity(0.2),
-                                radius: 16,
-                                x: 0,
-                                y: 8)
+        static let small = Shadow(
+            color: Color.black.opacity(0.1),
+            radius: 4,
+            x: 0,
+            y: 2
+        )
+        static let medium = Shadow(
+            color: Color.black.opacity(0.15),
+            radius: 8,
+            x: 0,
+            y: 4
+        )
+        static let large = Shadow(
+            color: Color.black.opacity(0.2),
+            radius: 16,
+            x: 0,
+            y: 8
+        )
     }
     
     // MARK: - Gradients
@@ -140,21 +154,3 @@ enum DesignSystem {
         static let xLarge: CGFloat = 96
     }
 }
-
-// 便捷访问扩展
-extension View {
-    func primaryShadow() -> some View {
-        self.shadow(color: DesignSystem.Shadows.small.color,
-                   radius: DesignSystem.Shadows.small.radius,
-                   x: DesignSystem.Shadows.small.x,
-                   y: DesignSystem.Shadows.small.y)
-    }
-}
-
-// Shadow 数据结构
-struct Shadow {
-    let color: Color
-    let radius: CGFloat
-    let x: CGFloat
-    let y: CGFloat
-} 

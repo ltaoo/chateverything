@@ -350,14 +350,6 @@ public class RoleBiz: ObservableObject, Identifiable {
     }
 }
 
-// extension RoleSettingsV1: Codable {}
-// extension RoleModelV1: Codable {}
-// extension RoleSpeakerV1: Codable {}
-
-// extension RoleModelV2: Codable {}
-// extension RoleSpeakerV2: Codable {}
-
-// AnyCodable 包装器
 public struct AnyCodable: Codable {
     let value: Any
     
@@ -545,43 +537,3 @@ public class RoleVoice: ObservableObject, Codable {
     }
 }
 
-extension Dictionary where Key == String, Value == Any {
-    func toSwiftValueType() -> [String: SwiftValueType] {
-        var result: [String: SwiftValueType] = [:]
-        
-        for (key, value) in self {
-            if let stringValue = value as? String {
-                result[key] = .string(stringValue)
-            } else if let intValue = value as? Int {
-                result[key] = .int(intValue)
-            } else if let doubleValue = value as? Double {
-                result[key] = .double(doubleValue)
-            } else if let boolValue = value as? Bool {
-                result[key] = .bool(boolValue)
-            } else if let arrayValue = value as? [Any] {
-                result[key] = .array(arrayValue.compactMap { convertToSwiftValueType($0) })
-            } else if let dictValue = value as? [String: Any] {
-                result[key] = .dictionary(dictValue.toSwiftValueType())
-            }
-        }
-        
-        return result
-    }
-}
-
-private func convertToSwiftValueType(_ value: Any) -> SwiftValueType? {
-    if let stringValue = value as? String {
-        return .string(stringValue)
-    } else if let intValue = value as? Int {
-        return .int(intValue)
-    } else if let doubleValue = value as? Double {
-        return .double(doubleValue)
-    } else if let boolValue = value as? Bool {
-        return .bool(boolValue)
-    } else if let arrayValue = value as? [Any] {
-        return .array(arrayValue.compactMap { convertToSwiftValueType($0) })
-    } else if let dictValue = value as? [String: Any] {
-        return .dictionary(dictValue.toSwiftValueType())
-    }
-    return nil
-}

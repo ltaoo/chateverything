@@ -449,6 +449,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ChatEverything;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSCameraUsageDescription = "生成头像等图片";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "访问录音文件进行语音识别";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "请求使用";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要使用麦克风来进行语音输入";
@@ -489,6 +490,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ChatEverything;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSCameraUsageDescription = "生成头像等图片";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "访问录音文件进行语音识别";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "请求使用";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要使用麦克风来进行语音输入";

@@ -754,16 +754,6 @@ struct ChatBoxView: View {
     
 }
 
-// 用于条件修饰符的 View 扩展
-extension View {
-    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
-        if condition {
-            transform(self)
-        } else {
-            self
-        }
-    }
-}
 
 // 错误提示视图
 private struct ErrorContentView: View {

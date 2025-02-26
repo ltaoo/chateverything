@@ -542,31 +542,6 @@ func splitTextToNodes(text: String) -> [MsgTextNode] {
     
     return result
 }
-extension String {
-    func split(includesSeparators: Bool, 
-              whereSeparator isSeparator: (Character) -> Bool) -> [Substring] {
-        var result: [Substring] = []
-        var start = self.startIndex
-        
-        for i in self.indices {
-            if isSeparator(self[i]) {
-                if i > start {
-                    result.append(self[start..<i])
-                }
-                if includesSeparators {
-                    result.append(self[i...i])
-                }
-                start = self.index(after: i)
-            }
-        }
-        
-        if start < self.endIndex {
-            result.append(self[start..<self.endIndex])
-        }
-        
-        return result
-    }
-}
 
 
 class ChatAudioBiz: ObservableObject, Encodable {
@@ -953,32 +928,5 @@ class ChatTimeBiz: Encodable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(contentType, forKey: .contentType)
         try container.encode(time, forKey: .time)
-    }
-}
-
-extension Dictionary where Key == String {
-    func toJSON(pretty: Bool = false) -> String {
-        do {
-            let options: JSONSerialization.WritingOptions = pretty ? .prettyPrinted : []
-            let jsonData = try JSONSerialization.data(withJSONObject: self, options: options)
-            return String(data: jsonData, encoding: .utf8) ?? "{}"
-        } catch {
-            print("Error converting dictionary to JSON: \(error)")
-            return "{}"
-        }
-    }
-    
-    static func fromJSON(_ jsonString: String) -> [String: Any] {
-        guard let jsonData = jsonString.data(using: .utf8) else { return [:] }
-        
-        do {
-            if let dict = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
-                return dict
-            }
-            return [:]
-        } catch {
-            print("Error parsing JSON string to dictionary: \(error)")
-            return [:]
-        }
     }
 }

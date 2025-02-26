@@ -5,11 +5,8 @@ struct LLMProviderSettingsPage: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-            Form {
-                Section(header: Text("语言模型提供商")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                ) {
+            ScrollView {
+                LazyVStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(config.llmProviderControllers) { controller in
                         LLMProviderSettingView(
                             controller: controller,
@@ -19,9 +16,9 @@ struct LLMProviderSettingsPage: View {
                         )
                     }
                 }
+                .padding(DesignSystem.Spacing.medium)
             }
             .background(DesignSystem.Colors.background)
-            .navigationTitle("模型设置")
             .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -36,15 +33,18 @@ struct LLMProviderSettingView: View {
     @State private var isShowingAlert = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
-            HStack {
-                Image(provider.logo_uri)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 30, height: 30)
-                Text(provider.name)
-                    .font(DesignSystem.Typography.bodyMedium)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
+        VStack() {
+            // Provider Header
+            HStack() {
+                HStack {
+                    Image(provider.logo_uri)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                    Text(provider.name)
+                        .font(DesignSystem.Typography.bodyLarge)
+                        .foregroundColor(DesignSystem.Colors.textPrimary)
+                }
                 Spacer()
                 Toggle("", isOn: Binding(
                     get: { value.enabled },
@@ -55,61 +55,91 @@ struct LLMProviderSettingView: View {
                 ))
                 .tint(DesignSystem.Colors.primary)
             }
+            .padding(DesignSystem.Spacing.medium)
+            .background(DesignSystem.Colors.secondaryBackground)
             
             if value.enabled {
-                // API 设置
-                TextField("API 代理地址", text: Binding(
-                    get: { value.apiProxyAddress ?? "" },
-                    set: { address in
-                        value.apiProxyAddress = address
-                        config.updateSingleLLMProviderValue(id: provider.id, value: value)
+                // Provider Content
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+                    // API Settings
+                    Text("API 设置")
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .foregroundColor(DesignSystem.Colors.textPrimary)
+                    TextField("API 代理地址", text: Binding(
+                        get: { value.apiProxyAddress ?? "" },
+                        set: { address in
+                            value.apiProxyAddress = address
+                            config.updateSingleLLMProviderValue(id: provider.id, value: value)
+                        }
+                    ), prompt: Text(provider.apiProxyAddress)
+                        .foregroundColor(DesignSystem.Colors.textSecondary))
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(DesignSystem.Typography.bodySmall)
+
+                    Divider()
+                    
+                    Text("API Key")
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .foregroundColor(DesignSystem.Colors.textPrimary)
+                    TextField("API Key", text: Binding(
+                        get: { value.apiKey },
+                        set: { key in
+                            value.apiKey = key
+                            config.updateSingleLLMProviderValue(id: provider.id, value: value)
+                        }
+                    ), prompt: Text("请输入您的 API Key")
+                        .foregroundColor(DesignSystem.Colors.textSecondary))
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(DesignSystem.Typography.bodyMedium)
+
+                    Divider()
+                    // Model List
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+                        Text("Model List")
+                            .font(DesignSystem.Typography.bodyMedium)
+                            .foregroundColor(DesignSystem.Colors.textPrimary)
+                        
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxSmall) {
+                            ForEach(Array(controller.models.enumerated()), id: \.element.id) { index, model in
+                                ModelToggleRow(controller: controller, model: controller.models[index], config: config, onChange: {
+                                    controller.updateValueModels()
+                                    config.updateSingleLLMProviderValue(id: provider.id, value: value)
+                                })
+                            }
+                            Button(action: {
+                                showingAddModelDialog = true
+                            }) {
+                                Label("添加自定义模型", systemImage: "plus.circle")
+                                    .font(DesignSystem.Typography.bodySmall)
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                            }
+                            .buttonStyle(.borderless)
+                        }
                     }
-                ), prompt: Text(provider.apiProxyAddress)
-                    .foregroundColor(DesignSystem.Colors.textSecondary))
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .font(DesignSystem.Typography.bodyMedium)
-                    .padding(.leading, DesignSystem.Spacing.xxLarge)
-                
-                SecureField("API Key", text: Binding(
-                    get: { value.apiKey },
-                    set: { key in
-                        value.apiKey = key
-                        config.updateSingleLLMProviderValue(id: provider.id, value: value)
+
+                    Divider()
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("校验")
+                                .font(DesignSystem.Typography.bodyMedium)
+                                .foregroundColor(DesignSystem.Colors.textPrimary)
+                        }
+                        Spacer()
+                        Button("Check") {
+                            // TODO: Implement connectivity check
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(DesignSystem.Colors.primary)
+                        .controlSize(.small)
                     }
-                ), prompt: Text("请输入您的 API Key")
-                    .foregroundColor(DesignSystem.Colors.textSecondary))
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .font(DesignSystem.Typography.bodyMedium)
-                    .padding(.leading, DesignSystem.Spacing.xxLarge)
-                
-                Text("模型")
-                    .font(DesignSystem.Typography.headingSmall)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
-                    .padding(.top, DesignSystem.Spacing.medium)
-                    .padding(.leading, DesignSystem.Spacing.xxLarge)
-                
-                ForEach(Array(controller.models.enumerated()), id: \.element.id) { index, model in
-                    ModelToggleRow(controller: controller, model: controller.models[index], config: config, onChange: {
-                        controller.updateValueModels()
-                        config.updateSingleLLMProviderValue(id: provider.id, value: value)
-                    })
                 }
-                
-                HStack {
-                    Button(action: {
-                        showingAddModelDialog = true
-                    }) {
-                        Label("添加自定义模型", systemImage: "plus.circle")
-                            .font(DesignSystem.Typography.bodySmall)
-                            .foregroundColor(DesignSystem.Colors.primary)
-                    }
-                    .buttonStyle(.borderless)
-                    Spacer()
-                }
-                .padding(.leading, DesignSystem.Spacing.xxLarge)
-                .padding(.top, DesignSystem.Spacing.xSmall)
+                .padding(.vertical, DesignSystem.Spacing.cardPadding)
+                .padding(.horizontal, DesignSystem.Spacing.cardPadding)
             }
         }
+        .frame(maxWidth: .infinity)
+        .shadow()
         .sheet(isPresented: $showingAddModelDialog) {
             NavigationView {
                 Form {
@@ -137,8 +167,7 @@ struct LLMProviderSettingView: View {
             .presentationDetents([.height(200)])
         }
     }
-} 
-
+}
 
 struct ModelToggleRow: View {
     let controller: LLMProviderController
@@ -147,23 +176,19 @@ struct ModelToggleRow: View {
     var onChange: () -> Void
     
     var body: some View {
-        HStack {
+        HStack(spacing: DesignSystem.Spacing.small) {
             Text(model.name)
-                .font(DesignSystem.Typography.bodyMedium)
+                .font(DesignSystem.Typography.bodySmall)
                 .foregroundColor(DesignSystem.Colors.textPrimary)
-                .padding(.leading, DesignSystem.Spacing.xxLarge)
-            Spacer()
             if !model.isDefault {
-                Button(action: {
-                    controller.removeCustomModel(name: model.name)
-                    onChange()
-                }) {
-                    Image(systemName: "trash")
-                        .foregroundColor(DesignSystem.Colors.error)
-                }
-                .buttonStyle(.borderless)
-                .padding(.trailing, DesignSystem.Spacing.xSmall)
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(DesignSystem.Colors.error)
+                    .onTapGesture {
+                        controller.removeCustomModel(name: model.name)
+                        onChange()
+                    }
             }
+            Spacer()
             Toggle("", isOn: Binding(
                 get: { model.enabled },
                 set: { enabled in
@@ -173,9 +198,9 @@ struct ModelToggleRow: View {
             ))
             .tint(DesignSystem.Colors.primary)
         }
+        .padding(.vertical, 4)
     }
-} 
-
+}
 
 #Preview {
     LLMProviderSettingsPage()

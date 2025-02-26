@@ -1,47 +1,86 @@
 import SwiftUI
+import UIKit // Add this import for UIImage related types
+import AVFoundation
+
+// Add these imports if they don't exist in other files
+import Foundation
 
 struct MineView: View {
     @Environment(\.colorScheme) var colorScheme
+    @AppStorage("isDarkMode") private var isDarkMode = false
+    @AppStorage("isAutoMode") private var isAutoMode = false
+    @State private var showToast = false
+    @State private var toastMessage = ""
+    
+    func toggleAppearanceMode() {
+        if isAutoMode {
+            isAutoMode = false
+            isDarkMode = true
+            toastMessage = "已切换到深色模式"
+        } else if isDarkMode {
+            isDarkMode = false
+            toastMessage = "已切换到浅色模式"
+        } else {
+            isAutoMode = true
+            toastMessage = "已切换到自动模式"
+        }
+        showToast = true
+    }
 
     var body: some View {
         VStack(spacing: 0) {
+            // 顶部导航栏
             HStack {
-                Text("")
                 Spacer()
+                // Button(action: toggleAppearanceMode) {
+                //     Image(systemName: isAutoMode ? "circle.lefthalf.filled" : 
+                //                     isDarkMode ? "moon.fill" : "sun.max.fill")
+                //         .font(.system(size: 20))
+                //         .foregroundStyle(.white)
+                // }
+                // .padding(.trailing)
             }
-            .padding(.horizontal, DesignSystem.Spacing.medium)
+            .padding(.top, DesignSystem.Spacing.medium)
+            .padding(.bottom, DesignSystem.Spacing.medium)
+            .background(DesignSystem.Colors.background)
             
             ScrollView(showsIndicators: false) {
                 VStack(spacing: DesignSystem.Spacing.medium) {
                     // 个人信息卡片
                     ProfileCard()
+                        .padding(.top, 20)
                     
                     // 设置列表
                     SettingsList()
                 }
                 .padding(.bottom, DesignSystem.Spacing.medium)
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        DesignSystem.Colors.accent.opacity(0.1),
-                        DesignSystem.Colors.accent.opacity(0.2),
-                        colorScheme == .dark 
-                            ? Color.black.opacity(0.6) 
-                            : DesignSystem.Colors.accent.opacity(0.4)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
         }
+        .background(DesignSystem.Colors.background)
+        .overlay(
+            ToastView(message: toastMessage, isShowing: $showToast)
+        )
+        .preferredColorScheme(isAutoMode ? nil : (isDarkMode ? .dark : .light))
     }
 }
 
 // 个人信息卡片视图
 struct ProfileCard: View {
-
+    @StateObject private var userProfile = UserProfile()
+    @State private var showingImagePicker = false
+    @State private var showingNicknameAlert = false
+    @State private var newNickname = ""
+    @State private var showingImageMenu = false
+    @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
+    
+    // 添加统计数据
+    // let stats = [
+    //     ("聊天记录", "3434"),
+    //     ("生词本", "22"),
+    //     ("待面试", "0"),
+    //     ("收藏", "19")
+    // ]
+    
     let level: Int = 5
     let currentExp: Int = 720
     let maxExp: Int = 1000
@@ -51,104 +90,229 @@ struct ProfileCard: View {
         CGFloat(currentExp) / CGFloat(maxExp)
     }
     
+    // 检查相机权限
+    func checkCameraPermission(completion: @escaping (Bool) -> Void) {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            completion(true)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    completion(granted)
+                }
+            }
+        default:
+            completion(false)
+        }
+    }
+    
     var body: some View {
-        VStack(spacing: DesignSystem.Spacing.large) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.medium) {
-                // 头像
-                ZStack {
-                    Circle()
-                        .fill(DesignSystem.Gradients.avatarBackgroundGradient)
-                        .frame(width: DesignSystem.AvatarSize.large, height: DesignSystem.AvatarSize.large)
-                    
-                    Image(systemName: "person.circle.fill")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: DesignSystem.AvatarSize.large - 10, height: DesignSystem.AvatarSize.large - 10)
-                        .foregroundStyle(DesignSystem.Gradients.avatarForegroundGradient)
+        VStack(spacing: DesignSystem.Spacing.medium) {
+            // 基本信息部分
+            HStack(spacing: DesignSystem.Spacing.medium) {
+                // 头像按钮
+                Button {
+                    showingImageMenu = true
+                } label: {
+                    ZStack {
+                        if let avatarImage = userProfile.avatarImage {
+                            Image(uiImage: avatarImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 60, height: 60)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .frame(width: 60, height: 60)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        // 添加编辑图标
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                            .background(Circle().fill(Color.accentColor))
+                            .offset(x: 20, y: 20)
+                    }
                 }
                 
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xSmall) {
-                    // 昵称和认证标识
-                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
-                        Text("用户昵称")
-                            .font(DesignSystem.Typography.headingSmall)
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                            .font(DesignSystem.Typography.bodySmall)
+                VStack(alignment: .leading, spacing: 4) {
+                    // 昵称
+                    Button {
+                        showingNicknameAlert = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(userProfile.nickname)
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.primary)
+                            
+                            // 添加编辑图标
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
-                    // 会员标识
-                    if isPremium {
-                        HStack(spacing: DesignSystem.Spacing.xxxSmall) {
-                            Image(systemName: "crown.fill")
-                                .foregroundStyle(.yellow)
-                            Text("Premium")
-                                .font(DesignSystem.Typography.bodySmall)
-                                .foregroundStyle(DesignSystem.Gradients.premiumGradient)
-                        }
-                        .padding(.horizontal, DesignSystem.Spacing.xSmall)
-                        .padding(.vertical, DesignSystem.Spacing.xxxSmall)
-                        .background(Color.yellow.opacity(0.15))
-                        .cornerRadius(DesignSystem.Radius.small)
-                    }
+                    // 添加提示文本
+                    Text("点击修改昵称")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
             }
-            .padding(.horizontal, DesignSystem.Spacing.medium)
+            .padding(.horizontal)
             
-            // 经验条
-            VStack(spacing: DesignSystem.Spacing.xxSmall) {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        // 背景条
-                        Capsule()
-                            .fill(Color.gray.opacity(0.15))
-                            .frame(height: 12)
-                        
-                        // 进度条
-                        Capsule()
-                            .fill(DesignSystem.Gradients.primaryGradient)
-                            .frame(width: geometry.size.width * expPercentage, height: 12)
-                    }
-                    .overlay(
-                        HStack {
-                            Text("Lv.\(level)")
-                                .font(DesignSystem.Typography.small)
-                            Text("\(currentExp)/\(maxExp)")
-                                .font(DesignSystem.Typography.small)
+            // 统计数据
+            HStack {
+                // ForEach(stats, id: \.0) { stat in
+                //     VStack(spacing: 8) {
+                //         Text(stat.1)
+                //             .font(.system(size: 20, weight: .medium))
+                //             .foregroundColor(.primary)
+                //         Text(stat.0)
+                //             .font(.system(size: 14))
+                //             .foregroundColor(.secondary)
+                //     }
+                //     .frame(maxWidth: .infinity)
+                // }
+            }
+        }
+        .padding(.vertical, 20)
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(10)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .padding(.horizontal)
+        .confirmationDialog("修改头像", isPresented: $showingImageMenu) {
+            Button("从相册选择") {
+                sourceType = .photoLibrary
+                showingImagePicker = true
+            }
+            Button("拍照") {
+                checkCameraPermission { granted in
+                    if granted {
+                        sourceType = .camera
+                        showingImagePicker = true
+                    } else {
+                        // 提示用户开启相机权限
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
                         }
-                        .foregroundColor(.white)
-                        .shadow(radius: 1)
-                    )
+                    }
                 }
             }
-            .frame(height: 12)
-            .padding(.horizontal, DesignSystem.Spacing.medium)
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("请选择修改头像的方式")
         }
-        .padding(.vertical, DesignSystem.Spacing.large)
-        .frame(maxWidth: .infinity)
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(image: $userProfile.avatarImage, sourceType: sourceType)
+        }
+        .sheet(isPresented: $showingNicknameAlert) {
+            NavigationView {
+                Form {
+                    TextField("请输入新昵称", text: $newNickname)
+                        .textInputAutocapitalization(.never)
+                }
+                .navigationTitle("修改昵称")
+                .navigationBarItems(
+                    leading: Button("取消", role: .cancel) {
+                        showingNicknameAlert = false
+                    },
+                    trailing: Button("确定") {
+                        if !newNickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            userProfile.nickname = newNickname.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    }
+                )
+            }
+            .presentationDetents([.height(200)])
+        }
+    }
+}
+
+// 图片选择器
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Environment(\.presentationMode) var presentationMode
+    let sourceType: UIImagePickerController.SourceType
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = sourceType
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.image = image
+            }
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
     }
 }
 
 // 设置列表视图
 struct SettingsList: View {
+    @AppStorage("isDarkMode") private var isDarkMode = false
+    @Environment(\.colorScheme) var colorScheme
+    
+    // 获取版本号
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "未知"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        return "版本 \(version) (\(build))"
+    }
+    
     var body: some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 0) {
             Group {
+                SettingsRow(icon: "gear", title: "通用设置")
                 NavigationLink {
                     LLMProviderSettingsPage()
                 } label: {
-                    SettingsRow(icon: "brain", title: "语言模型", showDivider: true)
+                    SettingsRow(icon: "brain", title: "语言模型")
                 }
                 NavigationLink {
                     TTSProviderSettingsPage()
                 } label: {
-                    SettingsRow(icon: "waveform", title: "语音设置", showDivider: true)
+                    SettingsRow(icon: "waveform", title: "语音设置")
                 }
-                SettingsRow(icon: "gear", title: "通用设置", showDivider: true)
             }
+            
+            // 添加版本号显示
+            HStack {
+                Spacer()
+                Text(appVersion)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(DesignSystem.Colors.textSecondary)
+                Spacer()
+            }
+            .padding(.top, DesignSystem.Spacing.large)
+            .padding(.bottom, DesignSystem.Spacing.medium)
         }
+        .background(DesignSystem.Colors.background)
+        .cornerRadius(DesignSystem.Radius.medium)
+        .padding(.horizontal, DesignSystem.Spacing.medium)
     }
 }
 
@@ -156,40 +320,69 @@ struct SettingsList: View {
 struct SettingsRow: View {
     let icon: String
     let title: String
-    let showDivider: Bool
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 18))
-                    .foregroundStyle(DesignSystem.Gradients.iconGradient)
-                    .frame(width: 30)
-                
-                Text(title)
-                    .font(DesignSystem.Typography.bodyMedium)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-            }
-            .padding(.horizontal, DesignSystem.Spacing.medium)
-            .padding(.vertical, DesignSystem.Spacing.small)
+        HStack {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundStyle(DesignSystem.Gradients.iconGradient)
+                .frame(width: 30)
             
-            if showDivider {
-                Divider()
-                    .padding(.leading, 46)
-            }
+            Text(title)
+                .font(DesignSystem.Typography.bodyMedium)
+                .foregroundColor(DesignSystem.Colors.textPrimary)
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundColor(DesignSystem.Colors.textSecondary)
         }
+        .padding(.horizontal, DesignSystem.Spacing.medium)
+        .padding(.vertical, DesignSystem.Spacing.small)
         .background(DesignSystem.Colors.background)
+        .overlay(alignment: .bottom) {
+            LinearGradient(
+                stops: [
+                    .init(color: DesignSystem.Colors.divider.opacity(0), location: 0),
+                    .init(color: DesignSystem.Colors.divider.opacity(0.6), location: 0.2),
+                    .init(color: DesignSystem.Colors.divider.opacity(0.6), location: 0.8),
+                    .init(color: DesignSystem.Colors.divider.opacity(0), location: 1)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 0.5)
+        }
     }
 }
 
-struct MineView_Previews: PreviewProvider {
-    static var previews: some View {
-        MineView()
+// 添加 ToastView
+struct ToastView: View {
+    let message: String
+    @Binding var isShowing: Bool
+    
+    var body: some View {
+        if isShowing {
+            VStack {
+                Spacer()
+                Text(message)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(8)
+                    .padding(.bottom, 100)
+            }
+            .transition(.opacity)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation {
+                        isShowing = false
+                    }
+                }
+            }
+        }
     }
 }
+

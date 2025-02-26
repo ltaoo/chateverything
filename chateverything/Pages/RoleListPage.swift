@@ -27,35 +27,45 @@ struct RoleListPage: View {
         _roles = State(initialValue: config.roles)
     }
 
+    func handleClickRole(role: RoleBiz) {
+        let session = ChatSessionBiz.create(role: role, in: self.config.store)
+        ChatSessionMemberBiz.create(role: role, session: session, in: self.config.store)
+        ChatSessionMemberBiz.create(role: self.config.me, session: session, in: self.config.store)
+        self.path.append(Route.ChatDetailView(sessionId: session.id))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-//            HStack {
-//                Text("角色列表")
-//                    .font(DesignSystem.Typography.headingMedium)
-//                Spacer()
-//            }
-//            .padding(DesignSystem.Spacing.medium)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(RoleCategory.allCases, id: \.self) { category in
-                        RoleCategoryButton(
-                            category: category,
-                            isSelected: selectedCategory == category,
-                            action: { selectedCategory = category }
-                        )
+                        Button(action: { selectedCategory = category }) {
+                            Text(category.rawValue)
+                                .font(DesignSystem.Typography.bodyMedium)
+                                .padding(.horizontal, DesignSystem.Spacing.medium)
+                                .padding(.vertical, DesignSystem.Spacing.small)
+                                .background {
+                                    if selectedCategory == category {
+                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                                            .fill(DesignSystem.Colors.primaryGradient)
+                                    } else {
+                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
+                                            .fill(DesignSystem.Colors.secondary.opacity(0.2))
+                                    }
+                                }
+                                .foregroundColor(selectedCategory == category ? .white : DesignSystem.Colors.textPrimary)
+                        }
                     }
                 }
                 .padding(DesignSystem.Spacing.medium)
             }
+            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
 
             ScrollView {
                 LazyVStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(roles) { role in
                         RoleCardInListPage(role: role, onTap: {
-                            let session = ChatSessionBiz.create(role: role, in: config.store)
-                            ChatSessionMemberBiz.create(role: role, session: session, in: config.store)
-                            ChatSessionMemberBiz.create(role: config.me, session: session, in: config.store)
-                            path.append(Route.ChatDetailView(sessionId: session.id))
+                            handleClickRole(role: role)
                         }, onSecondaryTap: {
                             path.append(Route.RoleDetailView(roleId: role.id))
                         })
@@ -63,46 +73,7 @@ struct RoleListPage: View {
                 }
                 .padding(DesignSystem.Spacing.medium)
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        DesignSystem.Colors.accent.opacity(0.1),
-                        DesignSystem.Colors.accent.opacity(0.2),
-                        colorScheme == .dark 
-                            ? Color.black.opacity(0.6) 
-                            : DesignSystem.Colors.accent.opacity(0.4)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
-        }
-    }
-}
-
-
-struct RoleCategoryButton: View {
-    let category: RoleCategory
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(category.rawValue)
-                .font(DesignSystem.Typography.bodyMedium)
-                .padding(.horizontal, DesignSystem.Spacing.medium)
-                .padding(.vertical, DesignSystem.Spacing.small)
-                .background {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                            .fill(DesignSystem.Colors.primaryGradient)
-                    } else {
-                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                            .fill(DesignSystem.Colors.secondary.opacity(0.2))
-                    }
-                }
-                .foregroundColor(isSelected ? .white : DesignSystem.Colors.textPrimary)
+            .background(DesignSystem.Colors.background)
         }
     }
 }
@@ -116,23 +87,22 @@ struct RoleCardInListPage: View {
     @State private var isLoading = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
             HStack(spacing: DesignSystem.Spacing.medium) {
                 Avatar(
                     uri: role.avatar,
                     size: DesignSystem.AvatarSize.large
                 )
-                
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxSmall) {
                     Text(role.name)
                         .font(DesignSystem.Typography.headingSmall)
-                    
-                    Text(role.language)
-                        .font(DesignSystem.Typography.bodySmall)
-                        .padding(.horizontal, DesignSystem.Spacing.small)
-                        .padding(.vertical, DesignSystem.Spacing.xxSmall)
-                        .background(DesignSystem.Colors.secondary.opacity(0.2))
-                        .cornerRadius(DesignSystem.Radius.small)
+                    // Spacer()
+                    // Text(role.config.voice[])
+                    //     .font(DesignSystem.Typography.bodySmall)
+                    //     .padding(.horizontal, DesignSystem.Spacing.small)
+                    //     .padding(.vertical, DesignSystem.Spacing.xxSmall)
+                    //     .background(DesignSystem.Colors.secondary.opacity(0.2))
+                    //     .cornerRadius(DesignSystem.Radius.small)
                 }
                 
                 Spacer()
@@ -144,22 +114,22 @@ struct RoleCardInListPage: View {
             }
             
             Text(role.desc)
-                .font(DesignSystem.Typography.bodyMedium)
+                .font(DesignSystem.Typography.bodySmall)
                 .foregroundColor(DesignSystem.Colors.textSecondary)
                 .lineLimit(3)
                 .padding(.leading, DesignSystem.Spacing.xxxSmall)
             
             Divider()
-                .padding(.top, DesignSystem.Spacing.small)
             
-            HStack(spacing: DesignSystem.Spacing.medium) {
+            HStack {
                 Button(action: onTap) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
                         Image(systemName: "message.fill")
                         Text("开始聊天")
+                        .font(DesignSystem.Typography.bodySmall)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, DesignSystem.Spacing.small)
+                    .padding(.vertical, DesignSystem.Spacing.xSmall)
+                    .padding(.horizontal, DesignSystem.Spacing.xSmall)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isLoading)
@@ -168,28 +138,21 @@ struct RoleCardInListPage: View {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
                         Image(systemName: "info.circle")
                         Text("详情")
+                        .font(DesignSystem.Typography.bodySmall)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, DesignSystem.Spacing.small)
+                    .padding(.vertical, DesignSystem.Spacing.xSmall)
+                    .padding(.horizontal, DesignSystem.Spacing.xSmall)
                 }
                 .buttonStyle(.bordered)
                 .disabled(isLoading)
+
+                Spacer()
             }
-            .padding(.top, DesignSystem.Spacing.small)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignSystem.Spacing.large)
-        .padding(.horizontal, DesignSystem.Spacing.large)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                .fill(DesignSystem.Colors.background)
-                .shadow(
-                    color: DesignSystem.Shadows.medium.color,
-                    radius: DesignSystem.Shadows.medium.radius,
-                    x: DesignSystem.Shadows.medium.x,
-                    y: DesignSystem.Shadows.medium.y
-                )
-        )
+        .padding(.vertical, DesignSystem.Spacing.cardPadding)
+        .padding(.horizontal, DesignSystem.Spacing.cardPadding)
+        .shadow()
         .scaleEffect(isPressed ? 0.98 : 1.0)
         .animation(.spring(response: 0.3), value: isPressed)
     }
