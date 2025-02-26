@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Message: Codable {
+public struct LLMServiceMessage: Codable {
     public let role: String
     public let content: String
     
@@ -12,11 +12,11 @@ public struct Message: Codable {
 
 public struct ChatRequest: Codable {
     public let model: String
-    public let messages: [Message]
+    public let messages: [LLMServiceMessage]
     public let format: String
     public let stream: Bool
     
-    public init(model: String, messages: [Message], format: String, stream: Bool) {
+    public init(model: String, messages: [LLMServiceMessage], format: String, stream: Bool) {
         self.model = model
         self.messages = messages
         self.format = format
@@ -97,8 +97,6 @@ public class LLMService: ObservableObject {
     @Published public var value: LLMServiceConfig
     private var provider: LLMProvider
     private var model: LLMProviderModel
-    private var prompt: String
-    private var messages: [Message]
     
     // 添加一个属性来存储当前的数据任务
     private var currentTask: URLSessionDataTask?
@@ -106,14 +104,14 @@ public class LLMService: ObservableObject {
     // Add new callback type
     public typealias ChatCallback = (String) -> Void
     
-    public init(value: LLMServiceConfig, prompt: String = "") {
+    public init(value: LLMServiceConfig) {
         self.value = value
         self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: LLMServiceDefaultHandler)
         self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
-        self.prompt = prompt
-        self.messages = [Message(role: "system", content: prompt)]
+        // self.prompt = prompt
+        // self.messages = [Message(role: "system", content: prompt)]
 
-        print("[Package]LLM init: \(value.provider) \(value.model) \(prompt)")
+        print("[Package]LLM init: \(value.provider) \(value.model)")
     }
 
     public func update(value: LLMServiceConfig) {
@@ -133,17 +131,10 @@ public class LLMService: ObservableObject {
         currentTask = nil
     }
 
-    
-    public func chat(content: String) -> AsyncThrowingStream<String, Error> {
+    public func chat(messages: [LLMServiceMessage]) -> AsyncThrowingStream<String, Error> {
         let stream = value.extra["stream"] as? Bool ?? false
         
         return AsyncThrowingStream { continuation in
-            // Add user message
-            if !content.isEmpty {
-                let userMessage = Message(role: "user", content: content)
-                messages.append(userMessage)
-            }
-            
             let apiProxyAddress = value.apiProxyAddress ?? provider.apiProxyAddress
             let apiKey = value.apiKey ?? provider.apiKey
             print("[Package]LLM chat: \(model.name) \(apiProxyAddress) \(apiKey) \(stream)")
@@ -200,8 +191,8 @@ public class LLMService: ObservableObject {
                                 
                                 for line in lines.dropLast() where !line.isEmpty {
                                     if line == "data: [DONE]" {
-                                        let assistantMessage = Message(role: "assistant", content: fullContent)
-                                        self.messages.append(assistantMessage)
+                                        // let assistantMessage = Message(role: "assistant", content: fullContent)
+                                        // self.messages.append(assistantMessage)
                                         continuation.finish()
                                         return
                                     }
@@ -243,8 +234,8 @@ public class LLMService: ObservableObject {
                         
                         let result = try self.provider.responseHandler(data)
                         
-                        let assistantMessage = Message(role: "assistant", content: result)
-                        self.messages.append(assistantMessage)
+                        // let assistantMessage = Message(role: "assistant", content: result)
+                        // self.messages.append(assistantMessage)
                         
                         continuation.yield(result)
                         continuation.finish()
@@ -259,11 +250,6 @@ public class LLMService: ObservableObject {
                 self.currentTask?.cancel()
             }
         }
-    }
-
-    // 添加获取消息历史的方法
-    public func getMessages() -> [Message] {
-        return messages
     }
 }
 

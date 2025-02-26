@@ -242,7 +242,7 @@ public let DefaultRoles: [RoleBiz] = [
                     
                     Task {
                         do {
-                            guard let stream = role.llm?.chat(content: text) else { return }
+                            guard let stream = role.llm?.chat(messages: role.buildMessagesWithText(text: text)) else { return }
                             
                             for try await chunk in stream {
                                 print("[BIZ]RoleBiz response chunk: \(chunk)")

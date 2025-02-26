@@ -46,7 +46,7 @@ class DefaultRoleResponseHandler: RoleResponseHandler {
         
         Task {
             do {
-                guard let stream = role.llm?.chat(content: text) else { return }
+                guard let stream = role.llm?.chat(messages: role.buildMessagesWithText(text: text)) else { return }
                 
                 for try await chunk in stream {
                     print("[BIZ]RoleBiz response chunk: \(chunk)")
@@ -165,6 +165,7 @@ public class RoleBiz: ObservableObject, Identifiable {
     @Published var noLLM = true
     @Published var loading = false
     @Published var count: Int = 0
+    @Published var messages: [LLMServiceMessage] = []
 
     var responseHandler: RoleResponseHandler
     var payloadBuilder: RolePayloadBuilder = DefaultRolePayloadBuilder()
@@ -187,6 +188,7 @@ public class RoleBiz: ObservableObject, Identifiable {
         self.desc = props.desc
         self.avatar = props.avatar
         self.prompt = props.prompt
+        self.messages = [LLMServiceMessage(role: "system", content: props.prompt)]
         self.language = props.language
         self.created_at = props.created_at
         self.config = props.config
@@ -252,7 +254,7 @@ public class RoleBiz: ObservableObject, Identifiable {
         let llmProviderController = config.llmProviderControllers.first { $0.id == llmConfig["provider"] as? String }
         if let llmProviderController = llmProviderController {
             let value = llmProviderController.build(config: self.config)
-            llm = LLMService(value: value, prompt: prompt)
+            llm = LLMService(value: value)
         }
         if llm == nil {
             self.noLLM = true
@@ -281,6 +283,11 @@ public class RoleBiz: ObservableObject, Identifiable {
         }
         tts.setConfig(config: ttsConfig)
         self.tts = tts
+    }
+
+    func buildMessagesWithText(text: String) -> [LLMServiceMessage] {
+        messages.append(LLMServiceMessage(role: "user", content: text))
+        return messages
     }
 
     func load(config: Config) {

@@ -4,6 +4,18 @@ import AVFoundation
 import Speech
 import Combine
 
+struct DictionaryView: UIViewControllerRepresentable {
+    let word: String
+    
+    func makeUIViewController(context: Context) -> UIReferenceLibraryViewController {
+        return UIReferenceLibraryViewController(term: word)
+    }
+    
+    func updateUIViewController(_ uiViewController: UIReferenceLibraryViewController, context: Context) {
+    }
+}
+
+
 class ChatDetailViewModel: ObservableObject {
     let config: Config
     let store: ChatStore
@@ -267,6 +279,7 @@ struct ChatDetailView: View {
         .sheet(isPresented: $model.roleDetailVisible) {
             // let session = self.model.session
             // RoleDetailView(session: session)
+            DictionaryView(word: "present")
         }
         .onAppear {
             setupRecorderCallbacks()
@@ -981,12 +994,6 @@ struct InputBarView: View {
             
             HStack {
                 Button(action: {
-                    for member in model.session.members {
-                        if let role = member.role {
-                            role.tts?.speak("hello")
-//                            let box = role.response(text: recognizedText, session: model.session, config: config)
-                        }
-                    }
                 }) {
                     Image(systemName: "keyboard")
                         .font(.system(size: 24))
