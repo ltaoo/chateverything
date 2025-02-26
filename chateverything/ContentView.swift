@@ -272,7 +272,7 @@ struct ChatButton: View {
             .padding(.vertical, DesignSystem.Spacing.small)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.Radius.xLarge)
-                    .fill(Color(.systemGray6))
+                    .fill(DesignSystem.Colors.secondaryBackground)
                     .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
             )
         }

@@ -108,32 +108,28 @@ struct RoleTTSProviderSettingView: View {
     }
 
     var body: some View {
-       Section(header: Text("语音设置")
-           .font(DesignSystem.Typography.bodyMedium)
-           .foregroundColor(DesignSystem.Colors.textSecondary)) {
+        Section(header: Text("语音设置") 
+            .font(DesignSystem.Typography.bodyMedium)
+            .foregroundColor(DesignSystem.Colors.textSecondary)
+        ) {
             Picker("语音引擎", selection: $selectedProviderController) {
-               ForEach(enabledTTSProviders, id: \.id) { provider in
-                   Text(provider.name)
-                       .font(DesignSystem.Typography.bodyMedium)
-                       .tag(provider)
-               }
+            ForEach(enabledTTSProviders, id: \.id) { provider in
+                Text(provider.name)
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .tag(provider)
+            }
             }
             .onChange(of: selectedProviderController) { controller in
                 print("[VIEW]RoleTTSProviderSettingView selectedProviderController is changed \(controller)")
                 self.handleChange()
             }
-
             if let provider = selectedProvider {
                 form
-
+            }
+            if let provider = selectedProvider {
                 VoiceTestButton(role: role, controller: selectedProviderController!, provider: provider)
             }
-       }
-    }
-
-    struct TmpFormField: Identifiable {
-        let id: String
-        let field: AnyFormField
+        }
     }
  
     @ViewBuilder
@@ -231,50 +227,100 @@ struct VoiceTestButton: View {
     let provider: TTSProvider
     @State var tts: TTSEngine?
     @State var player: PCMStreamPlayer?
+    @State private var isLoading = false
+    @State private var statusMessage = ""
+    @State private var isError = false
 
-    var body: some View {
-        Button(action: {
-            let text1 = "Hello! The weather is beautiful today. Would you like to go for a walk?"
-            let text2 = "你好！今天天气真好。要不要一起去散步？"
-            let text3 = "こんにちは！今日は天気が良いですね。一緒に散歩しませんか？"
+    private func testVoice() async {
+        isLoading = true
+        statusMessage = "正在初始化语音引擎..."
+        isError = false
+        
+        let text1 = "Hello! The weather is beautiful today. Would you like to go for a walk?"
+        let text2 = "你好！今天天气真好。要不要一起去散步？"
+        let text3 = "こんにちは！今日は天気が良いですね。一緒に散歩しませんか？"
+        
             let r = provider.schema.validate()
             let lang = r.value["language"] as? String ?? "en-US"
             let text = {
                 switch lang {
-                case "en-US":
-                    return text1
-                case "zh-CN":
-                    return text2
-                case "jp-JP":
-                    return text3
-                default:
-                    return text2
+                case "en-US": return text1
+                case "zh-CN": return text2
+                case "jp-JP": return text3
+                default: return text2
                 }
             }()
             tts = {
                 switch provider.id {
-                case "tencent":
-                    return TencentTTSEngine()
-                case "system":
-                    return SystemTTSEngine()
-                default:
-                    return SystemTTSEngine()
+                case "tencent": return TencentTTSEngine()
+                case "system": return SystemTTSEngine()
+                default: return SystemTTSEngine()
                 }
             }()
+            let events = TTSCallback(onStart: {
+                statusMessage = "正在生成语音..."
+            }, onData: { data in
+                statusMessage = "正在生成语音... \(data.count) bytes"
+            }, onComplete: {
+                statusMessage = "语音测试完成"
+                isLoading = false
+            }, onCancel: {
+                statusMessage = "语音测试取消"
+            }, onError: { error in
+                statusMessage = "语音测试失败: \(error.localizedDescription)"
+                isLoading = false
+            })
+        tts!.setEvents(callback: events)
             let credential = controller.value.credential
             var config = role.config.voice
             for (key, value) in credential {
                 config[key] = value
             }
+            
             tts!.setConfig(config: config)
             tts!.speak(text)
-        }) {
-            Text("测试")
+            
+            isError = false
+    }
+
+    var body: some View {
+        VStack(spacing: DesignSystem.Spacing.small) {
+            Button(action: {
+                Task {
+                    await testVoice()
+                }
+            }) {
+                HStack {
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                            .padding(.trailing, 8)
+                    }
+                    Text(isLoading ? "生成语音中..." : "测试语音")
+                        .font(DesignSystem.Typography.bodyLarge)
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DesignSystem.Spacing.medium)
+            }
+            .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(DesignSystem.Colors.primary)
+            )
+            .disabled(isLoading)
+            
+            if !statusMessage.isEmpty {
+                Text(statusMessage)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundColor(isError ? DesignSystem.Colors.error : DesignSystem.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, 4)
+            }
         }
     }
+    
 }
-
-
 
 struct RoleLLMProviderSettingView: View {
     @ObservedObject var role: RoleBiz
@@ -307,24 +353,31 @@ struct RoleLLMProviderSettingView: View {
         role.updateLLM(config: config)
     }
     var body: some View {
-        ForEach(enabledProvidersControllers, id: \.id) { (controller: LLMProviderController) in
-            Section {
-                HStack {
-                    Image(controller.provider.logo_uri)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                    Text(controller.provider.name)
+        Section(header: Text("语言模型")
+            .font(DesignSystem.Typography.bodyMedium)
+            .foregroundColor(DesignSystem.Colors.textSecondary)) {
+            ForEach(enabledProvidersControllers, id: \.id) { (controller: LLMProviderController) in
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(controller.provider.logo_uri)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 36, height: 36)
+                        Text(controller.provider.name)
+                            .font(DesignSystem.Typography.bodyLarge)
+                            .foregroundColor(DesignSystem.Colors.textPrimary)
+                    }
+                    .padding(.bottom, 4)
+                    
+                    ModelListView(role: role, controller: controller, onTap: { model in
+                        self.handleChange(controller: controller, model: model)
+                    })
                 }
-                ModelListView(role: role, controller: controller, onTap: { model in
-                    self.handleChange(controller: controller, model: model)
-                })
             }
         }
     }
 }
 
-// 子视图
 struct ModelListView: View {
     @ObservedObject var role: RoleBiz
     let controller: LLMProviderController
@@ -332,18 +385,20 @@ struct ModelListView: View {
     
     var body: some View {
         ForEach(controller.models, id: \.id) { sub in
+            let isSelected = role.config.llm["model"] as? String == sub.name
+            
             HStack {
                 Text(sub.name)
-                Spacer()
-                if let v = role.config.llm["model"] {
-                    if v is String {
-                        if sub.name == v as! String {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.blue)
-                        }
-                    }
-                }
+                    .font(DesignSystem.Typography.bodyMedium)
+                    .foregroundColor(isSelected ? .white : DesignSystem.Colors.textPrimary)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? DesignSystem.Colors.primary : Color.clear)
+            )
             .contentShape(Rectangle())
             .onTapGesture {
                 onTap(sub)

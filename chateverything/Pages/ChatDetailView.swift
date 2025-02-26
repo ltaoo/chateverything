@@ -960,7 +960,7 @@ struct InputBarView: View {
             HStack(spacing: DesignSystem.Spacing.medium) {
                 Button(action: {}) {
                     Image(systemName: "lightbulb.fill")
-                        .foregroundColor(DesignSystem.Colors.accent)
+                        .foregroundColor(DesignSystem.Colors.primary)
                         .font(.system(size: 24))
                 }
                 .frame(width: 50, height: 50)

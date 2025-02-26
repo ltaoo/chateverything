@@ -5,21 +5,21 @@ struct LLMProviderSettingsPage: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-            ScrollView {
-                LazyVStack(spacing: DesignSystem.Spacing.medium) {
-                    ForEach(config.llmProviderControllers) { controller in
-                        LLMProviderSettingView(
-                            controller: controller,
-                            provider: controller.provider,
-                            value: controller.value,
-                            config: config
-                        )
-                    }
+        ScrollView {
+            LazyVStack(spacing: DesignSystem.Spacing.medium) {
+                ForEach(config.llmProviderControllers) { controller in
+                    LLMProviderSettingView(
+                        controller: controller,
+                        provider: controller.provider,
+                        value: controller.value,
+                        config: config
+                    )
                 }
-                .padding(DesignSystem.Spacing.medium)
             }
-            .background(DesignSystem.Colors.background)
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(DesignSystem.Spacing.medium)
+        }
+        .background(DesignSystem.Colors.background)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

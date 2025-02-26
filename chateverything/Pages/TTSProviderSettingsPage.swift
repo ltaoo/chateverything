@@ -5,26 +5,21 @@ struct TTSProviderSettingsPage: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("TTS")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                ) {
-                    ForEach(config.ttsProviderControllers) { controller in
-                        TTSProviderSettingView(
-                            controller: controller,
-                            provider: controller.provider,
-                            value: controller.value,
-                            config: config
-                        )
-                    }
+        ScrollView {
+            LazyVStack(spacing: DesignSystem.Spacing.medium) {
+                ForEach(config.ttsProviderControllers) { controller in
+                    TTSProviderSettingView(
+                        controller: controller,
+                        provider: controller.provider,
+                        value: controller.value,
+                        config: config
+                    )
                 }
             }
-            .background(DesignSystem.Colors.background)
-            .navigationTitle("TTS 设置")
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(DesignSystem.Spacing.medium)
         }
+        .background(DesignSystem.Colors.background)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -35,15 +30,18 @@ struct TTSProviderSettingView: View {
     @ObservedObject var config: Config
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+        VStack() {
+            // Provider Header
             HStack {
-                Image(provider.logo_uri)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 30, height: 30)
-                Text(provider.name)
-                    .font(DesignSystem.Typography.bodyMedium)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
+                HStack {
+                    Image(provider.logo_uri)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                    Text(provider.name)
+                        .font(DesignSystem.Typography.bodyLarge)
+                        .foregroundColor(DesignSystem.Colors.textPrimary)
+                }
                 Spacer()
                 Toggle("", isOn: Binding(
                     get: { value.enabled },
@@ -51,14 +49,23 @@ struct TTSProviderSettingView: View {
                        value.update(enabled: enabled)
                         config.updateSingleTTSProviderValue(id: provider.id, value: value)
                     }
-                )).disabled(provider.id == "system")
+                ))
+                .disabled(provider.id == "system")
                 .tint(DesignSystem.Colors.primary)
             }
+            .padding(DesignSystem.Spacing.medium)
+            .background(DesignSystem.Colors.secondaryBackground)
             
             if value.enabled {
-                credentialFieldsView
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+                    credentialFieldsView
+                }
+                .padding(.vertical, DesignSystem.Spacing.cardPadding)
+                .padding(.horizontal, DesignSystem.Spacing.cardPadding)
             }
         }
+        .frame(maxWidth: .infinity)
+        .shadow()
     }
 
     func handleChange() {
@@ -74,32 +81,49 @@ struct TTSProviderSettingView: View {
     @ViewBuilder
     private var credentialFieldsView: some View {
         if let credential = provider.credential {
-            ForEach(credential.orders, id: \.self) { key in
-                if let field = credential.fields[key] {
-                    switch field {
-                    case .single(let formField):
-                    if case .InputString(let input) = formField.input {
-                        TextField(
-                            formField.label,
-                            text: Binding(
-                                get: { input.value as? String ?? "" },
-                                set: { newValue in
-                                    input.setValue(value: newValue)
-                                    self.handleChange()
+                if credential.orders.count > 0 {
+                    ForEach(Array(credential.orders.enumerated()), id: \.element) { index, key in
+                        if let field = credential.fields[key] {
+                            switch field {
+                            case .single(let formField):
+                                if case .InputString(let input) = formField.input {
+                                    Text(formField.label)
+                                        .font(DesignSystem.Typography.bodyMedium)
+                                        .foregroundColor(DesignSystem.Colors.textPrimary)
+                                    TextField(
+                                        formField.label,
+                                        text: Binding(
+                                            get: { input.value as? String ?? "" },
+                                            set: { newValue in
+                                                input.setValue(value: newValue)
+                                                self.handleChange()
+                                            }
+                                        )
+                                    )
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
                                 }
-                            )
-                        )
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.vertical, 4)
+                                
+                                // Only add Divider if this is not the last item
+                                if index < credential.orders.count - 1 {
+                                    Divider()
+                                }
+                            case .array(_):
+                                EmptyView() // Handle array fields if needed
+                            case .object(_):
+                                EmptyView() // Handle object fields if needed
+                            }
+                        }
                     }
-                case .array(_):
-                    EmptyView() // Handle array fields if needed
-                case .object(_):
-                        EmptyView() // Handle object fields if needed
-                    }
+                } else {
+                    Text("没有可配置的参数")
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
                 }
+            } else {
+                    Text("没有可配置的参数")
+                        .font(DesignSystem.Typography.bodyMedium)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
             }
-        }
     }
 } 
 

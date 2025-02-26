@@ -121,14 +121,14 @@ enum DesignSystem {
         static let avatarBackgroundGradient = LinearGradient(
             gradient: Gradient(colors: [
                 Colors.primary.opacity(0.2),
-                Colors.accent.opacity(0.2)
+                Colors.secondary.opacity(0.2)
             ]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
         
         static let avatarForegroundGradient = LinearGradient(
-            gradient: Gradient(colors: [Colors.primary, Colors.accent]),
+            gradient: Gradient(colors: [Colors.primary, Colors.primary]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
