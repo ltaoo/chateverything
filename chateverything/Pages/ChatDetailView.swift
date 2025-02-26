@@ -3,7 +3,6 @@ import Foundation
 import AVFoundation
 import Speech
 import Combine
-
 struct DictionaryView: UIViewControllerRepresentable {
     let word: String
     
@@ -57,6 +56,46 @@ class ChatDetailViewModel: ObservableObject {
     }
     func load() {
         self.session.load(id: self.session.id, config: self.config)
+        for member in self.session.members {
+            if let role = member.role {
+                if role.disabled {
+                    continue
+                }
+                if role.id == config.me.id {
+                    continue
+                }
+                let boxes: [ChatBoxBiz] = self.session.getBoxesForMember(roleId: role.id, config: config)
+                let llmMessages: [LLMServiceMessage?] = boxes.map {
+                    print("box: \($0.type) \(String(describing: $0.payload))")
+                    guard let payload = $0.payload else {
+                        return nil
+                    }
+                    if $0.type == "message" {
+                        if case let .message(message) = $0.payload {
+                            return LLMServiceMessage(role: $0.sender_id == config.me.id ? "user" : "assistant", content: message.text)
+                        } else {
+                            print("box: type is message, but payload is not message")
+                            // return LLMServiceMessage(role: "assistant", content: "")
+                            return nil
+                        }
+                    } else if $0.type == "audio" {
+                        if case let .audio(audio) = $0.payload {
+                            return LLMServiceMessage(role: $0.sender_id == config.me.id ? "user" : "assistant", content: audio.text)
+                        } else {
+                            print("box: type is audio, but payload is not audio")
+                            // return LLMServiceMessage(role: "assistant", content: "")
+                            return nil
+                        }
+                    }
+                    print("box: type is \($0.type), but payload is not message or audio")
+                    // return LLMServiceMessage(role: "assistant", content: "")
+                    return nil
+                }
+                let msgs = llmMessages.compactMap { $0 }
+                print("llmMessages: \(msgs.count)")
+                role.setMessages(messages: msgs)
+            }
+        }
         self.boxes = self.session.boxes
     }
     func showPermissionAlert() {
@@ -90,6 +129,12 @@ class ChatDetailViewModel: ObservableObject {
 
         for member in self.session.members {
             if let role = member.role {
+                if role.disabled {
+                    continue
+                }
+                if role.id == config.me.id {
+                    continue
+                }
                 role.response(text: text, session: self.session, config: config)
             }
         }
@@ -118,9 +163,13 @@ class ChatDetailViewModel: ObservableObject {
 
         for member in self.session.members {
             if let role = member.role {
-                if role.id != config.me.id {
-                    role.response(text: text, session: self.session, config: config)
+                if role.disabled {
+                    continue
                 }
+                if role.id == config.me.id {
+                    continue
+                }
+                role.response(text: text, session: self.session, config: config)
             }
         }
     }
@@ -343,7 +392,6 @@ private struct ChatDetailContentView: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Main content
             VStack {
                 ChatMessageList(
                     model: model,
@@ -352,20 +400,9 @@ private struct ChatDetailContentView: View {
             }
             .background(DesignSystem.Colors.background)
             
-            // Input bar overlay
             VStack {
                 Spacer()
                 InputBarView(config: config, model: model, recorder: recorder)
-                    .background(
-                        Rectangle()
-                            .fill(DesignSystem.Colors.background.opacity(0))
-                            .edgesIgnoringSafeArea(.bottom)
-                    )
-            }
-            
-            // Error overlay if needed
-            if let error = model.error {
-                ErrorOverlayView(error: error, onDismiss: onDismiss)
             }
         }
     }
@@ -605,11 +642,13 @@ private struct MessageContentView: View {
                 } else {
                     HStack(spacing: 0) {
                         if !box.isMe {
-                            // 左侧三角形
-                            Triangle()
+                            // 左侧小矩形
+                            Rectangle()
                                 .fill(DesignSystem.Colors.secondaryBackground)
-                                .frame(width: 8, height: 12)
-                                .offset(x: -1)
+                                .frame(width: 16, height: 16)
+                                .cornerRadius(DesignSystem.Radius.small)
+                                .rotationEffect(.degrees(45))
+                                .offset(x: 12)
                         }
                         
                         VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
@@ -622,12 +661,13 @@ private struct MessageContentView: View {
                         .cornerRadius(DesignSystem.Radius.large)
                         
                         if box.isMe {
-                            // 右侧三角形
-                            Triangle()
-                                .rotation(Angle(degrees: 180))
+                            // 右侧小矩形
+                            Rectangle()
                                 .fill(DesignSystem.Colors.primary)
-                                .frame(width: 8, height: 12)
-                                .offset(x: 1)
+                                .frame(width: 16, height: 16)
+                                .cornerRadius(DesignSystem.Radius.small)
+                                .rotationEffect(.degrees(45))
+                                .offset(x: -12)
                         }
                     }
                 }
@@ -641,6 +681,7 @@ private struct MessageContentView: View {
                 BotMessageActions(
                     box: box
                 )
+                .offset(x: 12)
             }
         }
     }
@@ -665,10 +706,10 @@ private struct AudioContentView: View {
                             // 左侧小矩形
                             Rectangle()
                                 .fill(DesignSystem.Colors.secondaryBackground)
-                                .frame(width: 10, height: 10)
+                                .frame(width: 16, height: 16)
                                 .cornerRadius(DesignSystem.Radius.small)
                                 .rotationEffect(.degrees(45))
-                                .offset(x: -5)
+                                .offset(x: 12)
                         }
                         
                         VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
@@ -683,10 +724,10 @@ private struct AudioContentView: View {
                             // 右侧小矩形
                             Rectangle()
                                 .fill(DesignSystem.Colors.primary)
-                                .frame(width: 10, height: 10)
+                                .frame(width: 16, height: 16)
                                 .cornerRadius(DesignSystem.Radius.small)
                                 .rotationEffect(.degrees(45))
-                                .offset(x: -4)
+                                .offset(x: -12)
                         }
                     }
                     .zIndex(1) // 确保小矩形显示在正确的层级
@@ -702,10 +743,12 @@ private struct AudioContentView: View {
                     recorder: recorder,
                     box: box
                 )
+                .offset(x: -12)
             } else if !box.isMe {
                 BotMessageActions(
                     box: box
                 )
+                .offset(x: -12)
             }
         }
     }
@@ -937,40 +980,58 @@ struct RecordButton: View {
     @State private var dragOffset: CGFloat = 0
     @State private var cancelHighlighted = false
     @State private var insertHighlighted = false
+
+    var color: Color {
+        if cancelHighlighted {
+            return Color.red.opacity(0.2)
+        } else if insertHighlighted {
+            return Color.green.opacity(0.2)
+        } else if recorder.isRecording {
+            return Color.green.opacity(0.2)
+        } else {
+            return Color.blue.opacity(0.1)
+        }
+    }
+    
+    var color2: Color {
+        if cancelHighlighted {
+            return Color.red
+        } else if insertHighlighted {
+            return Color.green
+        } else if recorder.isRecording {
+            return Color.green
+        } else {
+            return Color.blue
+        }
+    }
+    
+    var text: String {
+        if cancelHighlighted {
+            return "取消"
+        } else if insertHighlighted {
+            return "发送"
+        } else if recorder.isRecording {
+            return "松开发送"
+        } else {
+            return "按住说话"
+        }
+    }
     
     var body: some View {
-        // 使用 GeometryReader 来创建固定高度的容器
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
-                // 录音状态提示
-                // 使用 opacity 而不是条件渲染来避免布局变化
-                HStack(spacing: 24) {
-                    // 左侧取消提示
-                    VStack(spacing: 0) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 32))
-                        Text("取消")
-                            .font(.system(size: 14))
-                    }
-                    .foregroundColor(cancelHighlighted ? .red : .gray)
-                    
-                    Spacer()
-                    Spacer()
-                }
-                .offset(y: -80)
-                .opacity(recorder.isRecording ? 1 : 0)
-                
-                // 录音按钮
                 Rectangle()
-                    .fill(recorder.isRecording ? Color.gray.opacity(0.2) : Color.blue.opacity(0.1))
-                    .frame(height: 46)
+                    .fill(color)
+                    .animation(.easeInOut(duration: 0.2), value: color)
                     .overlay(
                         HStack(spacing: 8) {
                             Image(systemName: recorder.isRecording ? "waveform" : "mic")
-                                .foregroundColor(recorder.isRecording ? .gray : .blue)
-                            Text(recorder.isRecording ? "松开发送" : "按住说话")
+                                .foregroundColor(color2)
+                                .animation(.easeInOut(duration: 0.2), value: color2)
+                            Text(text)
                                 .font(.system(size: 15))
-                                .foregroundColor(recorder.isRecording ? .gray : .blue)
+                                .foregroundColor(color2)
+                                .animation(.easeInOut(duration: 0.2), value: color2)
                         }
                     )
                     .cornerRadius(8)
@@ -981,12 +1042,13 @@ struct RecordButton: View {
                             }
                             .simultaneously(with: DragGesture(minimumDistance: 0)
                                 .onChanged { value in
+                                    print("value \(value.translation.width) \(value.translation.height)")
                                     // Remove dragOffset update to prevent button movement
-                                    cancelHighlighted = value.translation.width < -50
+                                    cancelHighlighted = value.translation.width < -100 && value.translation.height < -100
                                     insertHighlighted = value.translation.width > 50
                                 }
                                 .onEnded { value in
-                                    if value.translation.width < -50 {
+                                    if value.translation.width < -100 && value.translation.height < -100 {
                                         recorder.cancelRecording()
                                     } else if value.translation.width > 50 {
                                         recorder.stopRecording() { url in
@@ -1001,6 +1063,30 @@ struct RecordButton: View {
                                     insertHighlighted = false
                                 })
                     )
+
+
+                // 录音状态提示
+                // 使用 opacity 而不是条件渲染来避免布局变化
+                if recorder.isRecording {
+                    HStack(spacing: 0) {
+                        // 左侧取消提示
+                        VStack(spacing: 0) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 48))
+                            Text("取消")
+                                .font(.system(size: 14))
+                        }
+                        .foregroundColor(cancelHighlighted ? .red : .gray)
+                        .animation(.easeInOut(duration: 0.2), value: cancelHighlighted)
+
+                        Spacer()
+                        Spacer()
+                        Spacer()
+                    }
+                    .opacity(recorder.isRecording ? 1 : 0)
+                    .frame(height: 46) // 固定 RecordButton 的高度
+                    .offset(y: -160)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -1017,53 +1103,51 @@ struct InputBarView: View {
     @State private var inputText = ""
     
     var body: some View {
-        // 使用 ZStack 来固定整体高度
         ZStack {
-            // 背景色
+            // Background color
             Color(uiColor: .systemBackground)
                 .edgesIgnoringSafeArea(.bottom)
             
-            HStack(spacing: 8) {
-                // 左侧表情按钮
-                Button(action: {}) {
-                    Image(systemName: "face.smiling")
-                        .font(.system(size: 24))
-                        .foregroundColor(.gray)
-                }
-                .frame(width: 44, height: 44) // 增加高度
+            HStack(alignment: .center, spacing: 8) { // Ensure .center alignment
+                Spacer()
                 
-                // 中间区域 - 根据模式显示输入框或录音按钮
-                if isKeyboardMode {
-                    TextField("说点什么...", text: $inputText)
-                        .submitLabel(.send)
-                        .onSubmit {
-                            if !inputText.isEmpty {
-                                model.sendTextMessage(text: inputText)
-                                inputText = ""
+                // Middle area - vertically center the content
+                HStack(alignment: .center) { // Add HStack with .center alignment
+                    if isKeyboardMode {
+                        TextField("说点什么...", text: $inputText)
+                            .submitLabel(.send)
+                            .onSubmit {
+                                if !inputText.isEmpty {
+                                    model.sendTextMessage(text: inputText)
+                                    inputText = ""
+                                }
                             }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 12) // 增加垂直内边距
-                        .background(Color(uiColor: .systemGray6))
-                        .cornerRadius(8) // 增加圆角
-                } else {
-                    RecordButton(recorder: recorder)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 12)
+                            .background(Color(uiColor: .systemGray6))
+                            .cornerRadius(8)
+                    } else {
+                        RecordButton(recorder: recorder)
+                    }
                 }
                 
-                // 右侧键盘/语音切换按钮
-                Button(action: {
-                    isKeyboardMode.toggle()
-                }) {
+                // Right keyboard/voice toggle button
+                HStack(alignment: .center) {
+                    Button(action: {
+                        isKeyboardMode.toggle()
+                    }) {
                     Image(systemName: isKeyboardMode ? "mic" : "keyboard")
                         .font(.system(size: 24))
                         .foregroundColor(.gray)
+                    }
                 }
-                .frame(width: 44, height: 44) // 增加高度
+                .frame(width: 44, height: 44) // 固定尺寸
+                .contentShape(Rectangle())
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 12) // 增加垂直内边距
+            .padding(.vertical, 12)
         }
-        .frame(height: 70) // 固定 InputBarView 的高度
+        .frame(height: 70)
     }
 }
 
@@ -1110,6 +1194,14 @@ private struct UserMessageActions: View {
 private struct BotMessageActions: View {
     @ObservedObject var box: ChatBoxBiz
     
+    func handleSpeak() {
+//        if let tts = box.role.tts {
+//            if let text = box.payload?.text {
+//                tts.speak(text)
+//            }
+//        }
+    }
+    
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             Button(action: {
@@ -1130,7 +1222,7 @@ private struct BotMessageActions: View {
             }
             
             Button(action: {
-                // box.speaking.toggle()
+                self.handleSpeak()
             }) {
                 HStack(spacing: DesignSystem.Spacing.xxSmall) {
                     Image(systemName: box.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")

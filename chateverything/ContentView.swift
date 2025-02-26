@@ -132,6 +132,9 @@ struct ContentView: View {
                     appearance.backgroundColor = .clear // 清除背景色以显示毛玻璃效果
                     appearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial) // 添加毛玻璃效果
                     
+                    // 设置分割线颜色为更淡的颜色
+                    appearance.shadowColor = UIColor.systemGray4
+                    
                     // 应用外观设置
                     UITabBar.appearance().standardAppearance = appearance
                     if #available(iOS 15.0, *) {
@@ -194,13 +197,13 @@ struct ChatListView: View {
             VStack(spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ChatButton(icon: "🤖", text: "想法", onTap: {
+                        MenuButton(icon: "🤖", text: "想法", onTap: {
                             model.showingChatConfig = true
                         })
-                        ChatButton(icon: "📚", text: "单词", onTap: {
+                        MenuButton(icon: "📚", text: "单词", onTap: {
                             model.capsuleVM.toggleVisibility()
                         })
-                        ChatButton(icon: "📅", text: "日历", onTap: {
+                        MenuButton(icon: "📅", text: "日历", onTap: {
                             withAnimation {
                                 model.showingCalendar = true
                             }
@@ -210,46 +213,47 @@ struct ChatListView: View {
                     .padding(.vertical, 16)
                 }
             }
-            List {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .listRowBackground(Color.clear)
-                } else if model.sessions.isEmpty {
-                    EmptyStateView()
+            Group {
+                if model.sessions.isEmpty {
+                    ScrollView {
+                        EmptyStateView()
+                    }
                 } else {
-                    ForEach(Array(model.sessions.enumerated()), id: \.element.id) { index, session in
-                        ChatSessionCardView(session: session, model: model)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .listRowBackground(Color(UIColor.systemBackground))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    withAnimation {
-                                        ChatSessionBiz.delete(session: session, in: model.store)
+                    List {
+                        ForEach(Array(model.sessions.enumerated()), id: \.element.id) { index, session in
+                            ChatSessionCardView(session: session, model: model)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                .listRowBackground(Color(UIColor.systemBackground))
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        withAnimation {
+                                            ChatSessionBiz.delete(session: session, in: model.store)
+                                        }
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
                                     }
-                                } label: {
-                                    Label("删除", systemImage: "trash")
                                 }
-                            }
-                            .listRowSeparator(index == model.sessions.count - 1 ? .hidden : .visible)
-                            .onAppear {
-                                if index == model.sessions.count - 3 {
-                                    model.loadMoreSessions()
+                                .listRowSeparator(index == model.sessions.count - 1 ? .hidden : .visible)
+                                .listRowSeparatorTint(Color.gray.opacity(0.28))
+                                .onAppear {
+                                    if index == model.sessions.count - 3 {
+                                        model.loadMoreSessions()
+                                    }
                                 }
-                            }
-                    }
-                    
-                    if model.service.loading {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                            Spacer()
                         }
-                        .listRowBackground(Color.clear)
+                        if model.service.loading {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                Spacer()
+                            }
+                            .listRowBackground(Color.clear)
+                        }
                     }
+                    .listStyle(PlainListStyle())
                 }
             }
-            .listStyle(PlainListStyle())
+            
         }
         .onAppear {
             model.fetchSessions()
@@ -273,7 +277,7 @@ struct EmptyStateView: View {
     }
 }
 
-struct ChatButton: View {
+struct MenuButton: View {
     var icon: String
     var text: String
     var onTap: () -> Void

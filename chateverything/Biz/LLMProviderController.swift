@@ -51,7 +51,7 @@ public class LLMProviderController: ObservableObject, Identifiable, Hashable {
         return LLMServiceConfig(
             provider: self.provider.id,
             model: llmConfig["model"] as! String,
-            apiProxyAddress: value.apiProxyAddress,
+            apiProxyAddress: value.apiProxyAddress ?? provider.apiProxyAddress,
             apiKey: value.apiKey
         )
     }

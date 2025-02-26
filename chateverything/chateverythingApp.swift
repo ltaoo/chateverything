@@ -34,7 +34,6 @@ struct ChatEverythingApp: App {
         }
     }
 
-    
     var body: some Scene {
         WindowGroup {
             ContentView(model: ContentViewModel(store: store, config: config))
@@ -42,6 +41,7 @@ struct ChatEverythingApp: App {
                 .environmentObject(store)
                 .environmentObject(config)
                 .environmentObject(networkManager)
+                .preferredColorScheme(.light) // Force light mode for SwiftUI views
         }
     }
 }
@@ -176,6 +176,17 @@ extension View {
         }
     }
 }
+
+extension View {
+    func debugBorder(_ color: Color = .red) -> some View {
+        self.overlay(
+            Rectangle()
+                .strokeBorder(color, lineWidth: 1)
+        )
+    }
+}
+
+
 
 // Shadow 数据结构
 struct Shadow {

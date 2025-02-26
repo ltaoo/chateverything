@@ -48,6 +48,26 @@ public struct LLMProvider: Identifiable, Hashable {
     public var models: [LLMProviderModel]
     public let responseHandler: (Data) throws -> String
 
+    static func Default() -> LLMProvider {
+        return LLMProvider(
+            id: "openai",
+            name: "openai",
+            logo_uri: "provider_light_openai",
+            apiKey: "",
+            apiProxyAddress: "https://api.openai.com/v1",
+            models: [
+                LLMProviderModel(
+                    id: "gpt-4o-mini",
+                    name: "gpt-4o-mini",
+                    desc: "",
+                    type: "",
+                    tags: []
+                )
+            ],
+            responseHandler: LLMServiceDefaultHandler
+        )
+    }
+
     public init(id: String, name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LLMProviderModel], responseHandler: @escaping (Data) throws -> String = LLMServiceDefaultHandler) {
         self.id = id
         self.name = name
@@ -71,10 +91,27 @@ public struct LLMProvider: Identifiable, Hashable {
 public struct LLMProviderModel: Identifiable, Hashable {
     public let id: String
     public let name: String
-    
-    public init(id: String, name: String) {
+    public let desc: String
+    // 类型 对话、视频、音频、图片
+    public let type: String
+    // 标签 
+    public let tags: [String]
+
+    static func Default() -> LLMProviderModel {
+        return LLMProviderModel(
+            id: "gpt-4o-mini",
+            name: "gpt-4o-mini",
+            desc: "gpt-4o-mini",
+            type: "对话",
+            tags: []
+        )
+    }
+    public init(id: String, name: String, desc: String, type: String, tags: [String]) {
         self.id = id
         self.name = name
+        self.desc = desc
+        self.type = type
+        self.tags = tags
     }
     
     // 实现 Hashable 协议
@@ -120,12 +157,12 @@ public class LLMService: ObservableObject {
     
     public init(value: LLMServiceConfig) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: LLMServiceDefaultHandler)
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider.Default()
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel.Default()
         // self.prompt = prompt
         // self.messages = [Message(role: "system", content: prompt)]
 
-        print("[Package]LLM init: \(value.provider) \(value.model)")
+        print("[Package]LLM init: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)")
     }
 
     public func setEvents(events: LLMServiceEvents) {
@@ -134,8 +171,8 @@ public class LLMService: ObservableObject {
 
     public func update(value: LLMServiceConfig) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider(id: "", name: "", logo_uri: "", apiKey: "", apiProxyAddress: "", models: [], responseHandler: LLMServiceDefaultHandler)
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel(id: "", name: "")
+        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider.Default()
+        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel.Default()
     }
 
     public func fakeChat(content: String) async throws -> String {
@@ -152,12 +189,12 @@ public class LLMService: ObservableObject {
     public func chat(messages: [LLMServiceMessage]) -> AsyncThrowingStream<String, Error> {
         print("[Package]LLM chat: \(messages)")
 
-        let stream = value.extra["stream"] as? Bool ?? false
+        let stream = self.value.extra["stream"] as? Bool ?? false
         
         return AsyncThrowingStream { continuation in
-            let apiProxyAddress = value.apiProxyAddress ?? provider.apiProxyAddress
-            let apiKey = value.apiKey ?? provider.apiKey
-            print("[Package]LLM chat: \(model.name) \(apiProxyAddress) \(apiKey) \(stream)")
+            let apiProxyAddress = self.value.apiProxyAddress ?? provider.apiProxyAddress
+            let apiKey = self.value.apiKey ?? provider.apiKey
+            print("[Package]LLM chat: \(self.value.provider) \(self.value.model) \(apiProxyAddress) \(apiKey) \(stream)")
 
             self.events?.onStart()
 
@@ -168,7 +205,7 @@ public class LLMService: ObservableObject {
             }
             
             let requestBody = LLMServiceRequest(
-                model: model.name,
+                model: self.value.model,
                 messages: messages,
                 format: "text",
                 stream: stream
@@ -290,21 +327,27 @@ public let LLMServiceDefaultHandler: LLMServiceResponseHandler = { data in
     return response.choices[0].message.content
 }
 
-public let LLMServiceProviders = [
+public let LLMServiceProviders: [LLMProvider] = [
     LLMProvider(
         id: "openai",
         name: "openai",
-        logo_uri: "provider_dark_openai",
+        logo_uri: "provider_light_openai",
         apiKey: "",
         apiProxyAddress: "https://api.openai.com/v1",
         models: [
             LLMProviderModel(
                 id: "gpt-4o-mini",
-                name: "gpt-4o-mini"
+                name: "gpt-4o-mini",
+                desc: "",
+                type: "对话",
+                tags: []
             ),
             LLMProviderModel(
                 id: "gpt-4o",
-                name: "gpt-4o"
+                name: "gpt-4o",
+                desc: "",
+                type: "对话",
+                tags: []
             )
         ],
         responseHandler: LLMServiceDefaultHandler
@@ -313,17 +356,23 @@ public let LLMServiceProviders = [
     LLMProvider(
         id: "deepseek",
         name: "deepseek",
-        logo_uri: "provider_dark_deepseek",
+        logo_uri: "provider_light_deepseek",
         apiKey: "",
         apiProxyAddress: "https://api.deepseek.com/chat/completions",
         models: [
             LLMProviderModel(
                 id: "deepseek-chat",
-                name: "deepseek-chat"
+                name: "deepseek-chat",
+                desc: "",
+                type: "对话",
+                tags: []
             ),
             LLMProviderModel(
                 id: "deepseek-r1",
-                name: "deepseek-r1"
+                name: "deepseek-r1",
+                desc: "",
+                type: "对话",
+                tags: []
             )
         ],
         responseHandler: LLMServiceDefaultHandler
@@ -334,17 +383,50 @@ public let LLMServiceProviders = [
         logo_uri: "provider_dark_doubao",
         apiKey: "",
         apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-        models: [
-            LLMProviderModel(
-                id: "ep-20250205141518-nvl9p",
-                name: "ep-20250205141518-nvl9p"
-            )
-        ],
+        models: [],
         responseHandler: { data in
             let decoder = JSONDecoder()
             let response = try decoder.decode(DoubaoChatResponse.self, from: data)
             return response.choices[0].message.content
         }
-    )
+    ),
+    LLMProvider(
+        id: "siliconflow",
+        name: "硅基流动",
+        logo_uri: "provider_light_siliconcloud",
+        apiKey: "",
+        apiProxyAddress: "https://api.siliconflow.cn/v1/chat/completions",
+        models: [
+            LLMProviderModel(
+                id: "Pro/deepseek-ai/DeepSeek-R1",
+                name: "Pro/deepseek-ai/DeepSeek-R1",
+                desc: "",
+                type: "对话",
+                tags: []
+            ),
+            LLMProviderModel(
+                id: "Pro/deepseek-ai/DeepSeek-V3",
+                name: "Pro/deepseek-ai/DeepSeek-V3",
+                desc: "",
+                type: "对话",
+                tags: []
+            ),
+            LLMProviderModel(
+                id: "deepseek-ai/DeepSeek-R1",
+                name: "deepseek-ai/DeepSeek-R1",
+                desc: "",
+                type: "对话",
+                tags: []
+            ),
+            LLMProviderModel(
+                id: "deepseek-ai/DeepSeek-V3",
+                name: "deepseek-ai/DeepSeek-V3",
+                desc: "",
+                type: "对话",
+                tags: []
+            )
+        ],
+        responseHandler: LLMServiceDefaultHandler
+    ),
 ]
 

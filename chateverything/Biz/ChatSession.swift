@@ -203,4 +203,10 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     public static func == (lhs: ChatSessionBiz, rhs: ChatSessionBiz) -> Bool {
         return lhs.id == rhs.id
     }
+
+    func getBoxesForMember(roleId: UUID, config: Config) -> [ChatBoxBiz] {
+        return boxes.filter { box in
+            (box.sender_id == roleId || box.sender_id == config.me.id) && (box.type == "message" || box.type == "audio")
+        }.sorted { $0.created_at < $1.created_at }
+    }
 }

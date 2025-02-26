@@ -1,12 +1,5 @@
 import SwiftUI
 
-enum RoleCategory: String, CaseIterable {
-    case daily = "日常生活"
-    case business = "商务职场"
-    case travel = "旅游出行"
-    case study = "学习教育"
-}
-
 struct RoleListPage: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
@@ -19,7 +12,7 @@ struct RoleListPage: View {
     @State private var gradientStart = UnitPoint(x: 0, y: 0)
     @State private var gradientEnd = UnitPoint(x: 1, y: 1)
     @State private var selectedChat: ChatSessionBiz?
-    @State private var selectedCategory: RoleCategory = .daily
+    @State private var searchText = ""
 
     init(path: Binding<NavigationPath>, config: Config) {
         self.config = config
@@ -34,46 +27,48 @@ struct RoleListPage: View {
         self.path.append(Route.ChatDetailView(sessionId: session.id))
     }
 
+    var filteredRoles: [RoleBiz] {
+        if searchText.isEmpty {
+            return roles
+        }
+        return roles.filter { role in
+            role.name.localizedCaseInsensitiveContains(searchText) ||
+            role.desc.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: DesignSystem.Spacing.medium) {
-                    ForEach(RoleCategory.allCases, id: \.self) { category in
-                        Button(action: { selectedCategory = category }) {
-                            Text(category.rawValue)
-                                .font(DesignSystem.Typography.bodyMedium)
-                                .padding(.horizontal, DesignSystem.Spacing.medium)
-                                .padding(.vertical, DesignSystem.Spacing.small)
-                                .background {
-                                    if selectedCategory == category {
-                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                                            .fill(DesignSystem.Colors.primaryGradient)
-                                    } else {
-                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                                            .fill(DesignSystem.Colors.secondary.opacity(0.2))
-                                    }
-                                }
-                                .foregroundColor(selectedCategory == category ? .white : DesignSystem.Colors.textPrimary)
-                        }
-                    }
+            HStack(spacing: DesignSystem.Spacing.small) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                    TextField("搜索角色...", text: $searchText)
+                        .font(DesignSystem.Typography.bodyMedium)
                 }
-                .padding(DesignSystem.Spacing.medium)
+                .padding(.horizontal, DesignSystem.Spacing.medium)
+                .padding(.vertical, DesignSystem.Spacing.small)
+                .background(DesignSystem.Colors.secondaryBackground)
+                .cornerRadius(DesignSystem.Radius.xLarge)
             }
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .padding(DesignSystem.Spacing.medium)
+            .background(DesignSystem.Colors.background)
 
             ScrollView {
                 LazyVStack(spacing: DesignSystem.Spacing.medium) {
-                    ForEach(roles) { role in
+                    ForEach(filteredRoles) { role in
                         if !role.disabled {
                             RoleCardInListPage(role: role, onTap: {
                                 handleClickRole(role: role)
                             }, onSecondaryTap: {
                                 path.append(Route.RoleDetailView(roleId: role.id))
                             })
+                            .transition(.opacity.combined(with: .scale))
                         }
                     }
                 }
                 .padding(DesignSystem.Spacing.medium)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: filteredRoles)
             }
             .background(DesignSystem.Colors.background)
         }
@@ -124,17 +119,7 @@ struct RoleCardInListPage: View {
             Divider()
             
             HStack {
-                Button(action: onTap) {
-                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
-                        Image(systemName: "message.fill")
-                        Text("开始聊天")
-                        .font(DesignSystem.Typography.bodySmall)
-                    }
-                    .padding(.vertical, DesignSystem.Spacing.xSmall)
-                    .padding(.horizontal, DesignSystem.Spacing.xSmall)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isLoading)
+                Spacer()
                 
                 Button(action: onSecondaryTap) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
@@ -148,7 +133,18 @@ struct RoleCardInListPage: View {
                 .buttonStyle(.bordered)
                 .disabled(isLoading)
 
-                Spacer()
+                Button(action: onTap) {
+                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
+                        Image(systemName: "message.fill")
+                        Text("开始聊天")
+                        .font(DesignSystem.Typography.bodySmall)
+                    }
+                    .padding(.vertical, DesignSystem.Spacing.xSmall)
+                    .padding(.horizontal, DesignSystem.Spacing.xSmall)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isLoading)
+
             }
         }
         .frame(maxWidth: .infinity)

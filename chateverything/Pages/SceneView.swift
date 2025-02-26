@@ -90,11 +90,11 @@ struct CategoryTabBar: View {
                                 .padding(.vertical, DesignSystem.Spacing.small)
                                 .background {
                                     if selectedCategory == category {
-                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                                            .fill(DesignSystem.Colors.primaryGradient)
+                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.xLarge)
+                                            .fill(DesignSystem.Colors.primary)
                                     } else {
-                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.large)
-                                            .fill(DesignSystem.Colors.secondary.opacity(0.2))
+                                        RoundedRectangle(cornerRadius: DesignSystem.Radius.xLarge)
+                                            .fill(DesignSystem.Colors.secondaryBackground)
                                     }
                                 }
                                 .foregroundColor(selectedCategory == category ? .white : DesignSystem.Colors.textPrimary)
@@ -162,15 +162,7 @@ struct ScenarioCardInListPage: View {
             Divider()
             
             HStack {
-                Button(action: onTap) {
-                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
-                        Text("开始对话")
-                        .font(DesignSystem.Typography.bodySmall)
-                    }
-                    .padding(.vertical, DesignSystem.Spacing.xSmall)
-                    .padding(.horizontal, DesignSystem.Spacing.xSmall)
-                }
-                .buttonStyle(.borderedProminent)
+                Spacer()
 
                 Button(action: onSecondaryTap) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
@@ -183,7 +175,15 @@ struct ScenarioCardInListPage: View {
                 }
                 .buttonStyle(.bordered)
 
-                Spacer()
+                Button(action: onTap) {
+                    HStack(spacing: DesignSystem.Spacing.xxSmall) {
+                        Text("开始对话")
+                        .font(DesignSystem.Typography.bodySmall)
+                    }
+                    .padding(.vertical, DesignSystem.Spacing.xSmall)
+                    .padding(.horizontal, DesignSystem.Spacing.xSmall)
+                }
+                .buttonStyle(.borderedProminent)
             }
         }
         .padding(.vertical, DesignSystem.Spacing.cardPadding)

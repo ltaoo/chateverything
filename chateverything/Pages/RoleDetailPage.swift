@@ -397,7 +397,7 @@ struct ModelListView: View {
             .padding(.horizontal, 12)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? DesignSystem.Colors.primary : Color.clear)
+                    .fill(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)
             )
             .contentShape(Rectangle())
             .onTapGesture {

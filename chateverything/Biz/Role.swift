@@ -154,7 +154,7 @@ public struct RoleProps {
     }
 }
 
-public class RoleBiz: ObservableObject, Identifiable {
+public class RoleBiz: ObservableObject, Equatable, Identifiable {
     public var id: UUID
     @Published public var name: String
     @Published public var desc: String
@@ -174,6 +174,10 @@ public class RoleBiz: ObservableObject, Identifiable {
 
     var responseHandler: RoleResponseHandler
     var payloadBuilder: RolePayloadBuilder = DefaultRolePayloadBuilder()
+
+    public static func == (lhs: RoleBiz, rhs: RoleBiz) -> Bool {
+        return lhs.id == rhs.id
+    }
 
     static func Get(id: UUID, config: Config) -> RoleBiz? {
         let m = config.roles.first { $0.id == id }
@@ -237,10 +241,14 @@ public class RoleBiz: ObservableObject, Identifiable {
         var llm: LLMService? = nil
 
         let llmConfig = self.config.llm
-        print("[BIZ]RoleBiz updateLLM \(llmConfig["provider"])")
+        print("[BIZ]RoleBiz updateLLM \(llmConfig["provider"]) \(llmConfig["model"])")
         let llmProviderController = config.llmProviderControllers.first { $0.id == llmConfig["provider"] as? String }
+        for v in config.llmProviderControllers {
+            print("[BIZ]RoleBiz updateLLM provider: \(v.id) \(v.provider.name) \(v.value.apiProxyAddress) \(v.value.apiKey)")
+        }
         if let llmProviderController = llmProviderController {
             let value = llmProviderController.build(config: self.config)
+            print("[BIZ]RoleBiz updateLLM value: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)")
             llm = LLMService(value: value)
         }
         if llm == nil {
@@ -271,7 +279,9 @@ public class RoleBiz: ObservableObject, Identifiable {
         tts.setConfig(config: ttsConfig)
         self.tts = tts
     }
-
+    func setMessages(messages: [LLMServiceMessage?]) {
+        self.messages = self.messages + messages.compactMap { $0 }
+    }
     func buildMessagesWithText(text: String) -> [LLMServiceMessage] {
         messages.append(LLMServiceMessage(role: "user", content: text))
         return messages
