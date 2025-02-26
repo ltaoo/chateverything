@@ -19,14 +19,14 @@ protocol RoleResponseHandler {
 class DefaultRoleResponseHandler: RoleResponseHandler {
     public func start(
         role: RoleBiz,
-        session: ChatSessionBiz, 
+        session: ChatSessionBiz,
         config: Config
     ) {
     }
     public func handle(
         text: String,
         role: RoleBiz,
-        session: ChatSessionBiz, 
+        session: ChatSessionBiz,
         config: Config,
         completion: (([ChatBoxBiz]) -> Void)?
     ) {
@@ -41,52 +41,54 @@ class DefaultRoleResponseHandler: RoleResponseHandler {
             payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
             loading: true
         )
-        
         session.appendTmpBox(box: loadingMessage)
-        
-        Task {
-            do {
-                guard let stream = role.llm?.chat(messages: role.buildMessagesWithText(text: text)) else { return }
-                
-                for try await chunk in stream {
-                    print("[BIZ]RoleBiz response chunk: \(chunk)")
-                    
-                    session.removeLastBox()
-                    let box = ChatBoxBiz(
-                        id: UUID(),
-                        type: "message", 
-                        created_at: Date(),
-                        isMe: false,
-                        payload_id: UUID(),
-                        session_id: session.id,
-                        sender_id: role.id,
-                        payload: ChatPayload.message(ChatMessageBiz2(text: chunk, nodes: [])),
-                        loading: false,
-                        blurred: role.config.autoBlur
-                    )
-                    session.appendBox(box: box)
-                    
-                    if let tts = role.tts, role.config.autoSpeak {
-                        tts.speak(chunk)
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    session.removeLastBox()
-                    let box = ChatBoxBiz(
-                        id: UUID(),
-                        type: "error",
-                        created_at: Date(),
-                        isMe: false,
-                        payload_id: UUID(),
-                        session_id: session.id,
-                        sender_id: role.id,
-                        payload: ChatPayload.error(ChatErrorBiz(error: error.localizedDescription)),
-                        loading: false
-                    )
-                    session.appendBox(box: box)
-                }
+        print("[BIZ]RoleBiz before chat 1")
+        let isStream = role.config.llm["stream"] as? Bool ?? false
+
+        let events = LLMServiceEvents(onStart: {
+            print("[BIZ]RoleBiz onStart")
+        }, onChunk: { chunk in
+            print("[BIZ]RoleBiz onChunk: \(chunk)")
+        }, onFinish: { result in
+            print("[BIZ]RoleBiz onFinish: \(result)")
+			DispatchQueue.main.async {
+                session.removeLastBox()
+                let box = ChatBoxBiz(
+                    id: UUID(),
+                    type: "message", 
+                    created_at: Date(),
+                    isMe: false,
+                    payload_id: UUID(),
+                    session_id: session.id,
+                    sender_id: role.id,
+                    payload: ChatPayload.message(ChatMessageBiz2(text: result, nodes: [])),
+                    loading: false,
+                    blurred: role.config.autoBlur
+                )
+                session.appendBox(box: box)
             }
+            if let tts = role.tts, role.config.autoSpeak {
+                tts.speak(result)
+            }
+        }, onError: { error in
+            print("[BIZ]RoleBiz onError: \(error)")
+            session.removeLastBox()
+            let box = ChatBoxBiz(
+                id: UUID(),
+                type: "error",
+                created_at: Date(),
+                isMe: false,
+                payload_id: UUID(),
+                session_id: session.id,
+                sender_id: role.id,
+                payload: ChatPayload.error(ChatErrorBiz(error: error.localizedDescription)),
+                loading: false
+            )
+            session.appendBox(box: box)
+        })
+        role.llm?.setEvents(events: events)
+        Task {
+            guard let stream = role.llm?.chat(messages: role.buildMessagesWithText(text: text)) else { return }
         }
     }
 } 
@@ -107,25 +109,26 @@ class DefaultRolePayloadBuilder: RolePayloadBuilder {
         session: ChatSessionBiz,
         config: Config
     ) -> ChatPayload? {
+        print("[BIZ]DefaultRolePayloadBuilder build: \(role.name)")
         switch record {
-        case .message(let message):
+        case BoxPayloadTypes.message(let message):
             return ChatPayload.message(ChatMessageBiz2(text: message.text!, nodes: []))
-        case .audio(let audio):
+        case BoxPayloadTypes.audio(let audio):
             return ChatPayload.audio(ChatAudioBiz(text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
-        case .puzzle(let puzzle):
+        case BoxPayloadTypes.puzzle(let puzzle):
             let opts = puzzle.opts
             let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map { ChatPuzzleOption(id: $0.id, text: $0.text) }
             let selected = options.first { $0.id == puzzle.answer }
             return ChatPayload.puzzle(ChatPuzzleBiz(title: puzzle.title!, options: options, answer: puzzle.answer ?? "", selected: selected, corrected: false))
-        case .image(let image):
+        case BoxPayloadTypes.image(let image):
             return ChatPayload.image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
-        case .video(let video):
+        case BoxPayloadTypes.video(let video):
             return ChatPayload.video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
-        case .error(let error):
+        case BoxPayloadTypes.error(let error):
             return ChatPayload.error(ChatErrorBiz(error: error.error!))
-        case .tipText(let tipText):
+        case BoxPayloadTypes.tipText(let tipText):
             return ChatPayload.tipText(ChatTipTextBiz(content: tipText.content!))
-        case .time(let time):
+        case BoxPayloadTypes.time(let time):
             return ChatPayload.time(ChatTimeBiz(time: time.time!))
         default:
             return nil
@@ -140,6 +143,7 @@ public struct RoleProps {
     var avatar: String = "avatar1"
     var prompt: String = ""
     var language: String = "en-US"
+    var disabled: Bool = false
     var created_at: Date = Date()
     var config: RoleConfig = RoleConfig(voice: defaultRoleVoice, llm: defaultRoleLLM)
     var responseHandler: RoleResponseHandler = DefaultRoleResponseHandler()
@@ -157,6 +161,7 @@ public class RoleBiz: ObservableObject, Identifiable {
     @Published public var avatar: String
     @Published public var prompt: String
     @Published public var language: String
+    @Published public var disabled: Bool
     @Published public var created_at: Date
     @Published public var config: RoleConfig
     public var llm: LLMService?
@@ -170,12 +175,8 @@ public class RoleBiz: ObservableObject, Identifiable {
     var responseHandler: RoleResponseHandler
     var payloadBuilder: RolePayloadBuilder = DefaultRolePayloadBuilder()
 
-    static func Get(id: UUID, store: ChatStore) -> RoleBiz? {
-        // let ctx = store.container.viewContext
-        // let req = NSFetchRequest<Role>(entityName: "Role")
-        // req.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        // let role = try! ctx.fetch(req).first!
-        let m = DefaultRoles.first { $0.id == id }
+    static func Get(id: UUID, config: Config) -> RoleBiz? {
+        let m = config.roles.first { $0.id == id }
         if let m = m {
             return m
         }
@@ -190,6 +191,7 @@ public class RoleBiz: ObservableObject, Identifiable {
         self.prompt = props.prompt
         self.messages = [LLMServiceMessage(role: "system", content: props.prompt)]
         self.language = props.language
+        self.disabled = props.disabled
         self.created_at = props.created_at
         self.config = props.config
         self.llm = nil
@@ -224,21 +226,6 @@ public class RoleBiz: ObservableObject, Identifiable {
         // 解析 config JSON
         var voice = defaultRoleVoice
         var llmHelper = defaultRoleLLM
-
-        // if let config_data = config_str.data(using: .utf8) {
-        //     do {
-        //         let roleConfig = try JSONDecoder().decode(RoleConfig.self, from: config_data)
-        //         voice["provider"] = roleConfig.voice["provider"] ?? "system"
-        //         voice["rate"] = roleConfig.voice["rate"] ?? 1
-        //         voice["volume"] = roleConfig.voice["volume"] ?? 1
-        //         voice["style"] = roleConfig.voice["style"] ?? "normal"
-        //         voice["role"] = roleConfig.voice["role"] ?? ""
-        //         llmHelper["provider"] = roleConfig.llm["provider"] as! String ?? "deepseek"
-        //         llmHelper["model"] = roleConfig.llm["model"] as! String ?? "deepseek-chat"
-        //     } catch {
-        //         print("Error parsing role config: \(error)")
-        //     }
-        // }
         
         props.config = RoleConfig(voice: voice, llm: llmHelper)
         
@@ -291,16 +278,15 @@ public class RoleBiz: ObservableObject, Identifiable {
     }
 
     func load(config: Config) {
-        let m = DefaultRoles.first { $0.id == id }
+        print("[BIZ]RoleBiz load \(self.id)")
+        let m = DefaultRoles.first { $0.id == self.id }
         guard let m = m else {
             print("[BIZ]RoleBiz load error: role not found")
             self.loading = false
             return
         }
-        
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            print("[BIZ]RoleBiz refresh UI")
             self.name = m.name
             self.desc = m.desc
             self.avatar = m.avatar

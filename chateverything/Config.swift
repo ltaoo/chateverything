@@ -51,7 +51,7 @@ class Config: ObservableObject {
                     id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
                     name: "u5x9k4",
                     desc: "",
-                    avatar: "",
+                    avatar: "avatar1",
                     prompt: "",
                     language: "",
                     created_at: Date(),
@@ -67,7 +67,7 @@ class Config: ObservableObject {
                 ]
                 UserDefaults.standard.set(data, forKey: "me")
             }
-
+            self.me.disabled = true
 
                 // if let configs = UserDefaults.standard.object(forKey: "role_configs") as? [String: Any] {
                 //     for (id, config) in configs {
@@ -105,7 +105,7 @@ class Config: ObservableObject {
                     }
                 }
             }
-            self.roles = DefaultRoles
+            self.roles = DefaultRoles + [self.me]
             print("roles: \(roles.count)")
 
 // loadLLMProviders

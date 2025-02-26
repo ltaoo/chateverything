@@ -88,20 +88,21 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
 
     func load(session: ChatSessionBiz, config: Config) {
         let store = config.store
-        let sender = RoleBiz.Get(id: self.sender_id, store: store)
+        let sender = RoleBiz.Get(id: self.sender_id, config: config)
+        print("[BIZ]ChatBox.load: \(self.type) \(self.sender_id)")
         guard let sender = sender else { return }
         if self.type == "message" {
             let req = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let message = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .message(message), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.message(message), role: sender, session: session, config: config)
             }
         }
         if self.type == "audio" {
             let req = NSFetchRequest<ChatMsgAudio>(entityName: "ChatMsgAudio")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let audio = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .audio(audio), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.audio(audio), role: sender, session: session, config: config)
                 // self.payload = .audio(ChatAudioBiz(text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
             }
         }
@@ -109,7 +110,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             let req = NSFetchRequest<ChatMsgPuzzle>(entityName: "ChatMsgPuzzle")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let puzzle = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .puzzle(puzzle), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.puzzle(puzzle), role: sender, session: session, config: config)
                 // let opts = puzzle.opts
                 // let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map { ChatPuzzleOption(id: $0.id, text: $0.text) }
                 // let selected = options.first { $0.id == puzzle.answer }
@@ -120,7 +121,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             let req = NSFetchRequest<ChatMsgImage>(entityName: "ChatMsgImage")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let image = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .image(image), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.image(image), role: sender, session: session, config: config)
                 // self.payload = .image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
             }
         }
@@ -128,7 +129,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             let req = NSFetchRequest<ChatMsgVideo>(entityName: "ChatMsgVideo")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let video = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .video(video), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.video(video), role: sender, session: session, config: config)
                 // self.payload = .video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
             }
         }
@@ -136,7 +137,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             let req = NSFetchRequest<ChatMsgError>(entityName: "ChatMsgError")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let error = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .error(error), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.error(error), role: sender, session: session, config: config)
                 // self.payload = .error(ChatErrorBiz(error: error.error!))
             }
         }
@@ -144,7 +145,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             let req = NSFetchRequest<ChatMsgTipText>(entityName: "ChatMsgTipText")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let tipText = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .tipText(tipText), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.tipText(tipText), role: sender, session: session, config: config)
                 // self.payload = .tipText(ChatTipTextBiz(content: tipText.content!))
             }
         }
@@ -152,7 +153,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             let req = NSFetchRequest<ChatMsgTime>(entityName: "ChatMsgTime")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let time = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: .time(time), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.time(time), role: sender, session: session, config: config)
                 // self.payload = .time(ChatTimeBiz(time: time.time!))
             }
         }

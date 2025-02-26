@@ -10,7 +10,7 @@ public struct LLMServiceMessage: Codable {
     }
 }
 
-public struct ChatRequest: Codable {
+public struct LLMServiceRequest: Codable {
     public let model: String
     public let messages: [LLMServiceMessage]
     public let format: String
@@ -25,6 +25,19 @@ public struct ChatRequest: Codable {
 }
 
 public typealias LLMServiceResponseHandler = (Data) throws -> String
+public class LLMServiceEvents {
+    public let onStart: () -> Void
+    public let onChunk: (String) -> Void
+    public let onFinish: (String) -> Void
+    public let onError: (Error) -> Void
+
+    public init(onStart: @escaping () -> Void, onChunk: @escaping (String) -> Void, onFinish: @escaping (String) -> Void, onError: @escaping (Error) -> Void) {
+        self.onStart = onStart
+        self.onChunk = onChunk
+        self.onFinish = onFinish
+        self.onError = onError
+    }
+}
 
 public struct LLMProvider: Identifiable, Hashable {
     public var id: String
@@ -34,7 +47,7 @@ public struct LLMProvider: Identifiable, Hashable {
     public let apiProxyAddress: String
     public var models: [LLMProviderModel]
     public let responseHandler: (Data) throws -> String
-    
+
     public init(id: String, name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LLMProviderModel], responseHandler: @escaping (Data) throws -> String = LLMServiceDefaultHandler) {
         self.id = id
         self.name = name
@@ -97,6 +110,7 @@ public class LLMService: ObservableObject {
     @Published public var value: LLMServiceConfig
     private var provider: LLMProvider
     private var model: LLMProviderModel
+    public var events: LLMServiceEvents?
     
     // 添加一个属性来存储当前的数据任务
     private var currentTask: URLSessionDataTask?
@@ -112,6 +126,10 @@ public class LLMService: ObservableObject {
         // self.messages = [Message(role: "system", content: prompt)]
 
         print("[Package]LLM init: \(value.provider) \(value.model)")
+    }
+
+    public func setEvents(events: LLMServiceEvents) {
+        self.events = events
     }
 
     public func update(value: LLMServiceConfig) {
@@ -132,6 +150,8 @@ public class LLMService: ObservableObject {
     }
 
     public func chat(messages: [LLMServiceMessage]) -> AsyncThrowingStream<String, Error> {
+        print("[Package]LLM chat: \(messages)")
+
         let stream = value.extra["stream"] as? Bool ?? false
         
         return AsyncThrowingStream { continuation in
@@ -139,12 +159,15 @@ public class LLMService: ObservableObject {
             let apiKey = value.apiKey ?? provider.apiKey
             print("[Package]LLM chat: \(model.name) \(apiProxyAddress) \(apiKey) \(stream)")
 
+            self.events?.onStart()
+
             guard let url = URL(string: apiProxyAddress) else {
+                self.events?.onError(NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]))
                 continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]))
                 return
             }
             
-            let requestBody = ChatRequest(
+            let requestBody = LLMServiceRequest(
                 model: model.name,
                 messages: messages,
                 format: "text",
@@ -173,16 +196,19 @@ public class LLMService: ObservableObject {
                         
                         guard let httpResponse = response as? HTTPURLResponse,
                               httpResponse.statusCode == 200 else {
-                            print("[Package]LLM chat error: Invalid response")
-                            throw NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+                            self.events?.onError(NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"]))
+                            continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"]))
+                            return
                         }
                         
                         for try await byte in bytes {
                             if Task.isCancelled {
+                                self.events?.onFinish(fullContent)
                                 continuation.finish()
                                 return
                             }
                             
+                            self.events?.onChunk(String(bytes: [byte], encoding: .utf8) ?? "")
                             buffer += String(bytes: [byte], encoding: .utf8) ?? ""
                             
                             if buffer.contains("\n") {
@@ -213,14 +239,17 @@ public class LLMService: ObservableObject {
                             }
                         }
                     } catch {
+                        self.events?.onError(error)
                         continuation.finish(throwing: error)
                     }
                 }
             } else {
+                request.timeoutInterval = 30 // 设置30秒超时
                 // 非流式响应
                 let task = URLSession.shared.dataTask(with: request) { data, response, error in
                     do {
                         if let error = error {
+                            self.events?.onError(error)
                             continuation.finish(throwing: error)
                             return
                         }
@@ -237,9 +266,11 @@ public class LLMService: ObservableObject {
                         // let assistantMessage = Message(role: "assistant", content: result)
                         // self.messages.append(assistantMessage)
                         
+                        self.events?.onFinish(result)
                         continuation.yield(result)
                         continuation.finish()
                     } catch {
+                        self.events?.onError(error)
                         continuation.finish(throwing: error)
                     }
                 }

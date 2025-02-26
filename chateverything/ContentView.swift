@@ -23,56 +23,54 @@ class ContentViewModel: ObservableObject {
     @Published var sessions: [ChatSessionBiz] = []
     @ObservedObject var capsuleVM = CapsuleButtonViewModel()
 
+    let service = ListHelper<ChatSessionWithLatestBox>(
+        service: { params, config in
+            FetchSessions(params: params, config: config)
+        }
+    )
+
     init(store: ChatStore, config: Config) {
         self.store = store
         self.config = config
-        // 在初始化时就获取数据
-        Task {
-            await MainActor.run {
-                fetchSessions()
-            }
-        }
     }
 
     func fetchSessions() {
-        let ctx = store.container.viewContext
-        let request = NSFetchRequest<ChatSession>(entityName: "ChatSession")
-        request.sortDescriptors = [NSSortDescriptor(key: "updated_at", ascending: false)]
-        request.fetchBatchSize = 20
-
-        do {
-            let fetchedSessions = try ctx.fetch(request)
-            var result: [ChatSessionBiz] = []
-
-            for session in fetchedSessions {
-                let biz = ChatSessionBiz.from(session, in: store)
-
-                let request = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-                request.predicate = NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id])
-                request.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: false)]
-                request.fetchBatchSize = 1
-                
-                if let boxes = try? ctx.fetch(request) {
-                    let boxes2: [ChatBoxBiz] = boxes.map {
-                        let b = ChatBoxBiz.from($0, store: store)
-                        b.load(session: biz, config: self.config)
-                        return b
-                    }
-                    biz.setBoxes(boxes: boxes2)
-                }
-                
-                result.append(biz)
+        service.setParams(params: ListHelperParams(page: 1, pageSize: 20, sorts: ["updated_at": "desc"]))
+        let records = service.load(config: config)
+        let sessions = records.map {
+            let session = ChatSessionBiz.from($0.session, in: store)
+            if let box = $0.box {
+                let biz = ChatBoxBiz.from(box, store: store)
+                biz.load(session: session, config: self.config)
+                session.setBoxes(boxes: [biz])
             }
-
-            DispatchQueue.main.async {
-                if !result.isEmpty {
-                    withAnimation {
-                        self.sessions = result
-                    }
+            return session
+        }
+        DispatchQueue.main.async {
+            if !sessions.isEmpty {
+                withAnimation {
+                    self.sessions = sessions
                 }
             }
-        } catch {
-            print("[Sessions] Error fetching sessions: \(error)")
+        }
+    }
+    func loadMoreSessions() {
+        let records = service.loadMore(config: config)
+        let sessions = records.map {
+            let session = ChatSessionBiz.from($0.session, in: store)
+            if let box = $0.box {
+                let biz = ChatBoxBiz.from(box, store: store)
+                biz.load(session: session, config: self.config)
+                session.setBoxes(boxes: [biz])
+            }
+            return session
+        }
+        DispatchQueue.main.async {
+            if !sessions.isEmpty {
+                withAnimation {
+                    self.sessions.append(contentsOf: sessions)
+                }
+            }
         }
     }
 
@@ -177,7 +175,12 @@ struct ContentView: View {
                 }
             }
             .environmentObject(model.store)
-        }.environmentObject(model.store)
+        }
+        .onAppear {
+            print("[PAGE]ContentView - onAppear")
+            model.fetchSessions()
+        }
+        .environmentObject(model.store)
     }
 }
 
@@ -217,23 +220,39 @@ struct ChatListView: View {
                 } else {
                     ForEach(Array(model.sessions.enumerated()), id: \.element.id) { index, session in
                         ChatSessionCardView(session: session, model: model)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        .listRowBackground(Color(UIColor.systemBackground))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                withAnimation {
-                                    ChatSessionBiz.delete(session: session, in: model.store)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowBackground(Color(UIColor.systemBackground))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    withAnimation {
+                                        ChatSessionBiz.delete(session: session, in: model.store)
+                                    }
+                                } label: {
+                                    Label("删除", systemImage: "trash")
                                 }
-                            } label: {
-                                Label("删除", systemImage: "trash")
                             }
+                            .listRowSeparator(index == model.sessions.count - 1 ? .hidden : .visible)
+                            .onAppear {
+                                if index == model.sessions.count - 3 {
+                                    model.loadMoreSessions()
+                                }
+                            }
+                    }
+                    
+                    if model.service.loading {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
                         }
-                        // 只有不是最后一个元素时才添加分隔线
-                        .listRowSeparator(index == model.sessions.count - 1 ? .hidden : .visible)
+                        .listRowBackground(Color.clear)
                     }
                 }
             }
             .listStyle(PlainListStyle())
+        }
+        .onAppear {
+            model.fetchSessions()
         }
     }
 }

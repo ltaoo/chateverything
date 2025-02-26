@@ -48,8 +48,10 @@ class ChatDetailViewModel: ObservableObject {
         
         self.session.$boxes
             .sink { [weak self] newBoxes in
-                print("newBoxes: \(newBoxes.count)")
-                self?.boxes = newBoxes
+                // print("newBoxes: \(newBoxes.count)")
+                DispatchQueue.main.async {
+                    self?.boxes = newBoxes
+                }
             }
             .store(in: &cancellables)
     }
@@ -66,6 +68,63 @@ class ChatDetailViewModel: ObservableObject {
     func showPromptPopover() {
         self.promptPopoverVisible = true
     }
+    func sendTextMessage(text: String) {
+        let userMessage = ChatBoxBiz(
+            id: UUID(),
+            type: "message",
+            created_at: Date(),
+            isMe: true,
+            payload_id: UUID(),
+            session_id: self.session.id,
+            sender_id: config.me.id,
+            payload: ChatPayload.message(
+                ChatMessageBiz2(
+                    text: text,
+                    nodes: []
+                )
+            ),
+            loading: false,
+            blurred: false
+        )
+        self.session.appendBox(box: userMessage)
+
+        for member in self.session.members {
+            if let role = member.role {
+                role.response(text: text, session: self.session, config: config)
+            }
+        }
+    }
+    func sendAudioMessage(text: String, url: URL, duration: TimeInterval) {
+        let userMessage = ChatBoxBiz(
+            id: UUID(),
+            type: "audio",
+            created_at: Date(),
+            isMe: true,
+            payload_id: UUID(),
+            session_id: self.session.id,
+            sender_id: config.me.id,
+            payload: ChatPayload.audio(
+                ChatAudioBiz(
+                    text: text,
+                    nodes: [],
+                    url: url,
+                    duration: duration
+                )
+            ),
+            loading: false,
+            blurred: false
+        )
+        self.session.appendBox(box: userMessage)
+
+        for member in self.session.members {
+            if let role = member.role {
+                if role.id != config.me.id {
+                    role.response(text: text, session: self.session, config: config)
+                }
+            }
+        }
+    }
+    
     func appendMessage(box: ChatBoxBiz) {
         print("Appending message to session")
         DispatchQueue.main.async {
@@ -214,32 +273,7 @@ struct ChatDetailView: View {
         }
         // print("handleRecognizedSpeech \(recognizedText)")
         let viewModel = self.model
-        let userMessage = ChatBoxBiz(
-            id: UUID(),
-            type: "audio",
-            created_at: Date(),
-            isMe: true,
-            payload_id: UUID(),
-            session_id: viewModel.session.id,
-            sender_id: config.me.id,
-            payload: ChatPayload.audio(
-                ChatAudioBiz(
-                    text: recognizedText,
-                    nodes: [],
-                    url: audioURL,
-                    duration: duration
-                )
-            ),
-            loading: false,
-            blurred: false
-        )
-        viewModel.session.appendBox(box: userMessage)
-
-        for member in viewModel.session.members {
-            if let role = member.role {
-                role.response(text: recognizedText, session: viewModel.session, config: config)
-            }
-        }
+        self.model.sendAudioMessage(text: recognizedText, url: audioURL, duration: duration)
     }
     
     
@@ -441,10 +475,19 @@ struct WavyLine: Shape {
 private struct Triangle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-        path.closeSubpath()
+        let radius: CGFloat = 2 // 圆角半径
+        
+        // 计算三角形的三个点
+        let tip = CGPoint(x: rect.minX, y: rect.midY)
+        let top = CGPoint(x: rect.maxX, y: rect.minY)
+        let bottom = CGPoint(x: rect.maxX, y: rect.maxY)
+        
+        // 绘制带圆角的路径
+        path.move(to: tip)
+        path.addQuadCurve(to: top, control: CGPoint(x: tip.x + radius, y: top.y + radius))
+        path.addLine(to: bottom)
+        path.addQuadCurve(to: tip, control: CGPoint(x: tip.x + radius, y: bottom.y - radius))
+        
         return path
     }
 }
@@ -560,29 +603,33 @@ private struct MessageContentView: View {
                 if box.loading {
                     LoadingView()
                 } else {
-                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
-                        Text(data.text)
-                            .font(DesignSystem.Typography.bodyMedium)
-                        // if !data.ok {
-                        //     Text(data.text)
-                        //         .font(DesignSystem.Typography.bodyMedium)
-                        // } else {
-                        //     FlowLayout(spacing: 0) { 
-                        //         ForEach(data.nodes) { node in
-                        //             TextNodeView(
-                        //                 node: node, 
-                        //                 color: box.isMe ? DesignSystem.Colors.background : DesignSystem.Colors.textPrimary,
-                        //                 onTap: { node in
-                        //                     print("node: \(node)")
-                        //                 }
-                        //             )
-                        //         }
-                        //     }
-                        // }
+                    HStack(spacing: 0) {
+                        if !box.isMe {
+                            // 左侧三角形
+                            Triangle()
+                                .fill(DesignSystem.Colors.secondaryBackground)
+                                .frame(width: 8, height: 12)
+                                .offset(x: -1)
+                        }
+                        
+                        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
+                            Text(data.text)
+                                .font(DesignSystem.Typography.bodyMedium)
+                                .foregroundColor(box.isMe ? .white : DesignSystem.Colors.textPrimary)
+                        }
+                        .padding(DesignSystem.Spacing.medium)
+                        .background(box.isMe ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)
+                        .cornerRadius(DesignSystem.Radius.large)
+                        
+                        if box.isMe {
+                            // 右侧三角形
+                            Triangle()
+                                .rotation(Angle(degrees: 180))
+                                .fill(DesignSystem.Colors.primary)
+                                .frame(width: 8, height: 12)
+                                .offset(x: 1)
+                        }
                     }
-                    .padding(DesignSystem.Spacing.medium)
-                    .background(box.isMe ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)
-                    .cornerRadius(DesignSystem.Radius.large)
                 }
                 
                 if !box.isMe { Spacer() }
@@ -599,7 +646,7 @@ private struct MessageContentView: View {
     }
 }
 
-// 同样更新 AudioContentView 中的 loading 视图
+// 更新 AudioContentView 中的 loading 视图
 private struct AudioContentView: View {
     @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatAudioBiz
@@ -613,22 +660,36 @@ private struct AudioContentView: View {
                 if box.loading {
                     LoadingView()
                 } else {
-                    VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
-                        if !data.ok {
+                    HStack(spacing: 0) {
+                        if !box.isMe {
+                            // 左侧小矩形
+                            Rectangle()
+                                .fill(DesignSystem.Colors.secondaryBackground)
+                                .frame(width: 10, height: 10)
+                                .cornerRadius(DesignSystem.Radius.small)
+                                .rotationEffect(.degrees(45))
+                                .offset(x: -5)
+                        }
+                        
+                        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
                             Text(data.text)
-                        } else {
-                            FlowLayout(spacing: 0) { 
-                                ForEach(data.nodes) { node in
-                                    TextNodeView(node: node, color: box.isMe ? .white : .black, onTap: { node in
-                                        print("node: \(node)")
-                                    })
-                                }
-                            }
+                                .foregroundColor(box.isMe ? .white : DesignSystem.Colors.textPrimary)
+                        }
+                        .padding(DesignSystem.Spacing.medium)
+                        .background(box.isMe ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)
+                        .cornerRadius(DesignSystem.Radius.large)
+                        
+                        if box.isMe {
+                            // 右侧小矩形
+                            Rectangle()
+                                .fill(DesignSystem.Colors.primary)
+                                .frame(width: 10, height: 10)
+                                .cornerRadius(DesignSystem.Radius.small)
+                                .rotationEffect(.degrees(45))
+                                .offset(x: -4)
                         }
                     }
-                    .padding(DesignSystem.Spacing.medium)
-                    .background(box.isMe ? Color.blue.opacity(0.8) : Color(uiColor: .systemGray5))
-                    .cornerRadius(DesignSystem.Radius.large)
+                    .zIndex(1) // 确保小矩形显示在正确的层级
                 }
                 
                 if !box.isMe { Spacer() }
@@ -695,6 +756,12 @@ struct ChatBoxView: View {
     var recorder: AudioRecorder
     @State private var isShowingActions = false
 
+    init(box: ChatBoxBiz, recorder: AudioRecorder) {
+        self.box = box
+        self.recorder = recorder
+        print("box \(box.type)")
+    }
+
     // 操作函数
     func saveMessage() {
         // 实现保存逻辑
@@ -718,8 +785,9 @@ struct ChatBoxView: View {
     }
     
     var body: some View {
+        
         VStack(alignment: .leading, spacing: 16) {
-            if box.type == "error" {
+             if box.type == "error" {
                 if case let .error(data) = box.payload {
                     ErrorContentView(data: data)
                 }
@@ -866,137 +934,136 @@ struct PuzzleContentView: View {
 
 struct RecordButton: View {
     @ObservedObject var recorder: AudioRecorder
-    @State private var scale: CGFloat = 1.0
-    @State private var cancelHighlighted: Bool = false
-    var isLoading: Bool = false
+    @State private var dragOffset: CGFloat = 0
+    @State private var cancelHighlighted = false
+    @State private var insertHighlighted = false
     
     var body: some View {
-        ZStack(alignment: .center) {
-            if recorder.isRecording {
-                VStack(spacing: DesignSystem.Spacing.small) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.textSecondary)
-                        .animation(.easeInOut, value: cancelHighlighted)
+        // 使用 GeometryReader 来创建固定高度的容器
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                // 录音状态提示
+                // 使用 opacity 而不是条件渲染来避免布局变化
+                HStack(spacing: 24) {
+                    // 左侧取消提示
+                    VStack(spacing: 0) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 32))
+                        Text("取消")
+                            .font(.system(size: 14))
+                    }
+                    .foregroundColor(cancelHighlighted ? .red : .gray)
                     
-                    Text("松开发送，上滑取消")
-                        .font(DesignSystem.Typography.bodySmall)
-                        .foregroundColor(cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.textSecondary)
+                    Spacer()
+                    Spacer()
                 }
-                .offset(y: -140)
-            }
-            
-            ZStack {
-                Circle()
-                    .stroke(recorder.isRecording ? 
-                           (cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.success) : 
-                           Color.clear, lineWidth: 4)
-                    .frame(width: 128, height: 128)
-                    .scaleEffect(scale)
+                .offset(y: -80)
+                .opacity(recorder.isRecording ? 1 : 0)
                 
-                Circle()
-                    .fill(recorder.isRecording ? 
-                          (cancelHighlighted ? DesignSystem.Colors.error.opacity(0.2) : DesignSystem.Colors.success.opacity(0.2)) : 
-                          DesignSystem.Colors.primary.opacity(0.1))
-                    .frame(width: 108, height: 108)
+                // 录音按钮
+                Rectangle()
+                    .fill(recorder.isRecording ? Color.gray.opacity(0.2) : Color.blue.opacity(0.1))
+                    .frame(height: 46)
                     .overlay(
-                        Group {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: DesignSystem.Colors.primary))
-                                    .scaleEffect(1.8)
-                            } else {
-                                Image(systemName: recorder.isRecording ? "waveform" : "mic.circle.fill")
-                                    .font(.system(size: 68))
-                                    .foregroundColor(recorder.isRecording ? 
-                                                   (cancelHighlighted ? DesignSystem.Colors.error : DesignSystem.Colors.success) : 
-                                                   DesignSystem.Colors.primary)
-                            }
+                        HStack(spacing: 8) {
+                            Image(systemName: recorder.isRecording ? "waveform" : "mic")
+                                .foregroundColor(recorder.isRecording ? .gray : .blue)
+                            Text(recorder.isRecording ? "松开发送" : "按住说话")
+                                .font(.system(size: 15))
+                                .foregroundColor(recorder.isRecording ? .gray : .blue)
                         }
                     )
-                    .scaleEffect(recorder.isRecording ? 0.9 : 1.0)
-            }
-            .gesture(
-                LongPressGesture(minimumDuration: 0.2)
-                    .onEnded { _ in
-                        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever()) {
-                            scale = 1.2
-                        }
-                        recorder.startRecording()
-                    }
-                    .simultaneously(with: DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            withAnimation {
-                                cancelHighlighted = value.translation.height < -50
+                    .cornerRadius(8)
+                    .gesture(
+                        LongPressGesture(minimumDuration: 0.2)
+                            .onEnded { _ in
+                                recorder.startRecording()
                             }
-                        }
-                        .onEnded { value in
-                            withAnimation {
-                                scale = 1.0
-                            }
-                            if value.translation.height < -50 {
-                                recorder.cancelRecording()
-                            } else {
-                                recorder.stopRecording() { url in
-                                    print("complete audio recoding, the url: \(String(describing: url))")
+                            .simultaneously(with: DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    // Remove dragOffset update to prevent button movement
+                                    cancelHighlighted = value.translation.width < -50
+                                    insertHighlighted = value.translation.width > 50
                                 }
-                            }
-                            cancelHighlighted = false
-                        })
-            )
-            .animation(.spring(response: 0.3), value: recorder.isRecording)
+                                .onEnded { value in
+                                    if value.translation.width < -50 {
+                                        recorder.cancelRecording()
+                                    } else if value.translation.width > 50 {
+                                        recorder.stopRecording() { url in
+                                            print("Recording completed for text insertion")
+                                        }
+                                    } else {
+                                        recorder.stopRecording() { url in
+                                            print("Recording completed for sending")
+                                        }
+                                    }
+                                    cancelHighlighted = false
+                                    insertHighlighted = false
+                                })
+                    )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(height: 46) // 固定 RecordButton 的高度
     }
 }
 
-// 更新 InputBarView 以移除重复的录音状态显示
+// 更新 InputBarView 组件
 struct InputBarView: View {
     let config: Config
     let model: ChatDetailViewModel
     @ObservedObject var recorder: AudioRecorder
+    @State private var isKeyboardMode = false
+    @State private var inputText = ""
     
     var body: some View {
+        // 使用 ZStack 来固定整体高度
         ZStack {
-            HStack(spacing: DesignSystem.Spacing.medium) {
+            // 背景色
+            Color(uiColor: .systemBackground)
+                .edgesIgnoringSafeArea(.bottom)
+            
+            HStack(spacing: 8) {
+                // 左侧表情按钮
                 Button(action: {}) {
-                    Image(systemName: "lightbulb.fill")
-                        .foregroundColor(DesignSystem.Colors.primary)
+                    Image(systemName: "face.smiling")
                         .font(.system(size: 24))
+                        .foregroundColor(.gray)
                 }
-                .frame(width: 50, height: 50)
-                .background(DesignSystem.Colors.primary)
-                .clipShape(Circle())
+                .frame(width: 44, height: 44) // 增加高度
                 
-                Button(action: {}) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(DesignSystem.Colors.background)
+                // 中间区域 - 根据模式显示输入框或录音按钮
+                if isKeyboardMode {
+                    TextField("说点什么...", text: $inputText)
+                        .submitLabel(.send)
+                        .onSubmit {
+                            if !inputText.isEmpty {
+                                model.sendTextMessage(text: inputText)
+                                inputText = ""
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12) // 增加垂直内边距
+                        .background(Color(uiColor: .systemGray6))
+                        .cornerRadius(8) // 增加圆角
+                } else {
+                    RecordButton(recorder: recorder)
                 }
-                .frame(width: 50, height: 50)
-                .background(DesignSystem.Colors.primary)
-                .clipShape(Circle())
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, DesignSystem.Spacing.medium)
-            
-            RecordButton(recorder: recorder)
-                .frame(maxWidth: .infinity)
-            
-            HStack {
+                
+                // 右侧键盘/语音切换按钮
                 Button(action: {
+                    isKeyboardMode.toggle()
                 }) {
-                    Image(systemName: "keyboard")
+                    Image(systemName: isKeyboardMode ? "mic" : "keyboard")
                         .font(.system(size: 24))
-                        .foregroundColor(DesignSystem.Colors.background)
+                        .foregroundColor(.gray)
                 }
-                .frame(width: 50, height: 50)
-                .background(DesignSystem.Colors.primary)
-                .clipShape(Circle())
+                .frame(width: 44, height: 44) // 增加高度
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, DesignSystem.Spacing.medium)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12) // 增加垂直内边距
         }
-        .frame(height: 180)
+        .frame(height: 70) // 固定 InputBarView 的高度
     }
 }
 

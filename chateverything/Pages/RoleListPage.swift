@@ -64,11 +64,13 @@ struct RoleListPage: View {
             ScrollView {
                 LazyVStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(roles) { role in
-                        RoleCardInListPage(role: role, onTap: {
-                            handleClickRole(role: role)
-                        }, onSecondaryTap: {
-                            path.append(Route.RoleDetailView(roleId: role.id))
-                        })
+                        if !role.disabled {
+                            RoleCardInListPage(role: role, onTap: {
+                                handleClickRole(role: role)
+                            }, onSecondaryTap: {
+                                path.append(Route.RoleDetailView(roleId: role.id))
+                            })
+                        }
                     }
                 }
                 .padding(DesignSystem.Spacing.medium)

@@ -27,6 +27,9 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     }
     @Published var members: [ChatSessionMemberBiz]
     @Published var config: ChatSessionConfig
+    @Published var hasMoreHistory = true
+    private var currentPage = 1
+    private let pageSize = 20
 
     var unreadCount: Int {
         return 0
@@ -42,6 +45,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
         let record = ChatSession(context: ctx)
         record.id = id
         record.created_at = created_at
+        record.updated_at = updated_at
         record.title = title
         record.avatar_uri = avatar_uri
         ctx.insert(record)
@@ -82,6 +86,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
             store: store
         )
     }
+
     func load(id: UUID, config: Config) {
         let ctx = config.store.container.viewContext
         
@@ -99,7 +104,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
         let role_records = try! ctx.fetch(role_req)
         let members: [ChatSessionMemberBiz] = role_records.map {
             let r = ChatSessionMemberBiz.from($0, store: store)
-            let role = RoleBiz.Get(id: $0.role_id!, store: store)
+            let role = RoleBiz.Get(id: $0.role_id!, config: config)
             r.role = role
             if let r = role {
                 r.load(config: config)
@@ -115,7 +120,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
         let box_records = try! ctx.fetch(box_req)
         let boxes: [ChatBoxBiz] = box_records.map {
             let box = ChatBoxBiz.from($0, store: store)
-            // print("[BIZ]ChatSessionBiz.load: box: \(box.type) \(box.sender_id)")
+            print("[BIZ]ChatSessionBiz.load: box: \(box.type) \(box.sender_id)")
             if box.sender_id == config.me.id {
                 box.isMe = true
             }
