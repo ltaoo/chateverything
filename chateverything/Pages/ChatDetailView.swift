@@ -859,10 +859,92 @@ struct ChatBoxView: View {
                 if case let .tipText(data) = box.payload {
                     TipTextContentView(data: data)
                 }
+            } else if box.type == "dictionary" {
+                if case let ChatPayload.dictionary(data) = box.payload! {
+                    DictionaryContentView(data: data)
+                }
             }
         }
     }
     
+}
+
+struct DictionaryContentView: View {
+    let data: ChatDictionaryBiz
+    @State private var isFavorited = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
+            // 标题栏
+            HStack {
+                Text(data.translation)
+                    .font(DesignSystem.Typography.headingSmall)
+                    .foregroundColor(DesignSystem.Colors.textPrimary)
+                
+                Spacer()
+                
+                // 仅在文本类型为句子时显示收藏按钮
+                if data.text_type == "word" {
+                    Button(action: {
+                        isFavorited.toggle()
+                    }) {
+                        Image(systemName: isFavorited ? "star.fill" : "star")
+                            .foregroundColor(isFavorited ? .yellow : DesignSystem.Colors.textSecondary)
+                    }
+                }
+            }
+            
+            // 发音区域
+            if !data.pronunciation.isEmpty {
+                HStack(spacing: DesignSystem.Spacing.small) {
+                    Text(data.pronunciation)
+                        .font(DesignSystem.Typography.bodySmall)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                }
+                
+                if !data.pronunciation_tip.isEmpty {
+                    Text(data.pronunciation_tip)
+                        .font(DesignSystem.Typography.caption)
+                }
+            }
+            
+            // 分隔线
+            Divider()
+                .padding(.vertical, DesignSystem.Spacing.small)
+            
+            // 定义列表
+            if !data.definitions.isEmpty {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+                    Text("释义")
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                    
+                    ForEach(data.definitions, id: \.self) { definition in
+                        Text(definition)
+                            .font(DesignSystem.Typography.bodySmall)
+                            .foregroundColor(DesignSystem.Colors.textPrimary)
+                    }
+                }
+            }
+            
+            // 例句列表
+            if !data.examples.isEmpty {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
+                    Text("例句")
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                    
+                    ForEach(data.examples, id: \.self) { example in
+                        Text(example)
+                            .font(DesignSystem.Typography.bodySmall)
+                            .foregroundColor(DesignSystem.Colors.textPrimary)
+                    }
+                }
+            }
+        }
+        .padding(DesignSystem.Spacing.medium)
+        .background(DesignSystem.Colors.background)
+        .cornerRadius(DesignSystem.Radius.large)
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
 }
 
 

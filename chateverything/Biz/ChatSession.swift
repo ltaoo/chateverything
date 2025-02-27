@@ -57,14 +57,39 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     }
     static func delete(session: ChatSessionBiz, in store: ChatStore) {
         let ctx = store.container.viewContext
-        let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
-        req.predicate = NSPredicate(format: "id == %@", session.id as CVarArg)
-        let session = try! ctx.fetch(req).first
-        guard let session = session else {
-            print("[BIZ]ChatSessionBiz.delete: session not found")
-            return
+        
+        // Delete all member records
+        let memberReq = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
+        memberReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
+        if let members = try? ctx.fetch(memberReq) {
+            for member in members {
+                ctx.delete(member)
+            }
         }
-        ctx.delete(session)
+        
+        // Delete all box payloads and boxes
+        let boxReq = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+        boxReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
+        if let boxes = try? ctx.fetch(boxReq) {
+            for box in boxes {
+                // Delete associated payload based on box type
+                if let payloadId = box.payload_id {
+                    let biz = ChatBoxBiz.from(box, store: store)
+                    biz.deletePayload(store: store)
+                }
+                ctx.delete(box)
+            }
+        }
+        
+        // Delete the session record
+        let sessionReq = NSFetchRequest<ChatSession>(entityName: "ChatSession")
+        sessionReq.predicate = NSPredicate(format: "id == %@", session.id as CVarArg)
+        if let sessionRecord = try? ctx.fetch(sessionReq).first {
+            ctx.delete(sessionRecord)
+            // Save changes
+            try? ctx.save()
+        }
+        
     }
     static func from(_ record: ChatSession, in store: ChatStore) -> ChatSessionBiz {
         let id = record.id ?? UUID()

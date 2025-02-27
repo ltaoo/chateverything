@@ -5,14 +5,13 @@
 //  Created by litao on 2025/2/5.
 //
 
-import SwiftUI
 import AVFoundation
-import Speech
-import Foundation
-import UIKit
-import Network
 import CoreData
-
+import Foundation
+import Network
+import Speech
+import SwiftUI
+import UIKit
 
 class ContentViewModel: ObservableObject {
     @Published var path = NavigationPath()
@@ -35,7 +34,8 @@ class ContentViewModel: ObservableObject {
     }
 
     func fetchSessions() {
-        service.setParams(params: ListHelperParams(page: 1, pageSize: 20, sorts: ["updated_at": "desc"]))
+        service.setParams(
+            params: ListHelperParams(page: 1, pageSize: 20, sorts: ["updated_at": "desc"]))
         let records = service.load(config: config)
         let sessions = records.map {
             let session = ChatSessionBiz.from($0.session, in: store)
@@ -83,13 +83,13 @@ class ContentViewModel: ObservableObject {
 struct ContentView: View {
     @EnvironmentObject var networkManager: NetworkManager
     @State private var selectedTab = 0  // 添加状态变量来跟踪选中的标签页
-    @State private var isLoading = false // 添加加载状态
+    @State private var isLoading = false  // 添加加载状态
     @StateObject var model: ContentViewModel  // 改用 @StateObject
 
     init(model: ContentViewModel) {
         _model = StateObject(wrappedValue: model)
     }
-    
+
     var body: some View {
         NavigationStack(path: $model.path) {
             ZStack {
@@ -101,47 +101,47 @@ struct ContentView: View {
                             Text("聊天")
                         }
                         .tag(0)
-                    
+
                     SceneView()
-                    .tabItem {
-                        Image(systemName: "safari.fill")
-                        Text("探索")
-                    }
-                    .tag(1)
-                    
+                        .tabItem {
+                            Image(systemName: "safari.fill")
+                            Text("探索")
+                        }
+                        .tag(1)
+
                     RoleListPage(path: $model.path, config: model.config)
-                    .tabItem {
-                        Image(systemName: "sparkles")
-                        Text("角色")
-                    }
-                    .tag(2)
-                    
+                        .tabItem {
+                            Image(systemName: "sparkles")
+                            Text("角色")
+                        }
+                        .tag(2)
+
                     MineView()
-                    .tabItem {
-                        Image(systemName: "person.fill")
-                        Text("我的")
-                    }
-                    .tag(3)
+                        .tabItem {
+                            Image(systemName: "person.fill")
+                            Text("我的")
+                        }
+                        .tag(3)
                 }
                 .onAppear {
                     // 设置 TabView 的背景为毛玻璃效果
                     let appearance = UITabBarAppearance()
-                    appearance.configureWithDefaultBackground() // 使用默认毛玻璃效果背景
-                    
+                    appearance.configureWithDefaultBackground()  // 使用默认毛玻璃效果背景
+
                     // 自定义背景色调
-                    appearance.backgroundColor = .clear // 清除背景色以显示毛玻璃效果
-                    appearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial) // 添加毛玻璃效果
-                    
+                    appearance.backgroundColor = .clear  // 清除背景色以显示毛玻璃效果
+                    appearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial)  // 添加毛玻璃效果
+
                     // 设置分割线颜色为更淡的颜色
                     appearance.shadowColor = UIColor.systemGray4
-                    
+
                     // 应用外观设置
                     UITabBar.appearance().standardAppearance = appearance
                     if #available(iOS 15.0, *) {
                         UITabBar.appearance().scrollEdgeAppearance = appearance
                     }
                 }
-                
+
                 // 修改胶囊按钮部分
                 VStack {
                     Spacer()
@@ -156,11 +156,12 @@ struct ContentView: View {
                         .padding(.bottom, UIScreen.main.bounds.height / 6)
                         .transition(
                             .move(edge: .bottom)
-                            .combined(with: .opacity)
+                                .combined(with: .opacity)
                         )
                     }
                 }
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.capsuleVM.isVisible)
+                .animation(
+                    .spring(response: 0.3, dampingFraction: 0.7), value: model.capsuleVM.isVisible)
             }
             .sheet(isPresented: $model.showingCalendar) {
                 CalendarPopupView(isPresented: $model.showingCalendar)
@@ -169,12 +170,17 @@ struct ContentView: View {
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
-                    case .ChatDetailView(let sessionId):
-                        ChatDetailView(sessionId: sessionId, config: model.config).environmentObject(model.config)
-                    case .VocabularyView(let filepath):
-                        Vocabulary(filepath: filepath, path: model.path, store: model.store).environmentObject(model.store)
-                    case .RoleDetailView(let roleId):
-                        RoleDetailView(roleId: roleId, path: model.path, config: model.config).environmentObject(model.config)
+                case .ChatDetailView(let sessionId):
+                    ChatDetailView(sessionId: sessionId, config: model.config).environmentObject(
+                        model.config)
+                case .VocabularyStudyView(let filepath):
+                    VocabularyStudyView(filepath: filepath, path: model.path, store: model.store)
+                        .environmentObject(model.store)
+                case .RoleDetailView(let roleId):
+                    RoleDetailView(roleId: roleId, path: model.path, config: model.config)
+                        .environmentObject(model.config)
+                case .VocabularyReviewView:
+                    VocabularyReviewPage(config: model.config).environmentObject(model.config)
                 }
             }
             .environmentObject(model.store)
@@ -193,26 +199,62 @@ struct ChatListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部按钮组 - 现在固定在顶部
-            VStack(spacing: 0) {
+            // 顶部按钮组
+            ZStack {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        MenuButton(icon: "🤖", text: "想法", onTap: {
-                            model.showingChatConfig = true
-                        })
-                        MenuButton(icon: "📚", text: "单词", onTap: {
-                            model.capsuleVM.toggleVisibility()
-                        })
-                        MenuButton(icon: "📅", text: "日历", onTap: {
-                            withAnimation {
-                                model.showingCalendar = true
-                            }
-                        })
+                        MenuButton(
+                            icon: "🤖", text: "想法",
+                            onTap: {
+                                model.showingChatConfig = true
+                            })
+                        MenuButton(
+                            icon: "📚", text: "生词表",
+                            onTap: {
+                                model.path.append(Route.VocabularyReviewView)
+                            })
+                        MenuButton(
+                            icon: "📅", text: "日历",
+                            onTap: {
+                                withAnimation {
+                                    model.showingCalendar = true
+                                }
+                            })
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 16)
                 }
+                .zIndex(10.0)
+                // 渐变背景
+                Rectangle()
+                    .frame(width: 1, height: 1)
+                    .overlay(
+                        Circle()
+                            .fill(.blue)
+                            .opacity(0.8)
+                            .blur(radius: 30)
+                            .frame(width: 240, height: 240)
+                            .offset(x: 40, y: -280)
+                            .allowsHitTesting(false),  // 允许点击穿透
+                        alignment: .topLeading
+                    )
+                    .zIndex(9.0)
+                // 渐变背景
+                Rectangle()
+                    .frame(width: 1, height: 1)
+                    .overlay(
+                        Circle()
+                            .fill(.red)
+                            .opacity(0.8)
+                            .blur(radius: 30)
+                            .frame(width: 240, height: 240)
+                            .offset(x: -320, y: -280)
+                            .allowsHitTesting(false),  // 允许点击穿透
+                        alignment: .topLeading
+                    )
+                    .zIndex(9.0)
             }
+
             Group {
                 if model.sessions.isEmpty {
                     ScrollView {
@@ -220,20 +262,26 @@ struct ChatListView: View {
                     }
                 } else {
                     List {
-                        ForEach(Array(model.sessions.enumerated()), id: \.element.id) { index, session in
+                        ForEach(Array(model.sessions.enumerated()), id: \.element.id) {
+                            index, session in
                             ChatSessionCardView(session: session, model: model)
-                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                .listRowInsets(
+                                    EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)
+                                )
                                 .listRowBackground(Color(UIColor.systemBackground))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                     Button(role: .destructive) {
                                         withAnimation {
-                                            ChatSessionBiz.delete(session: session, in: model.store)
+                                            ChatSessionBiz.delete(
+                                                session: session, in: model.store)
                                         }
                                     } label: {
                                         Label("删除", systemImage: "trash")
                                     }
                                 }
-                                .listRowSeparator(index == model.sessions.count - 1 ? .hidden : .visible)
+                                .listRowSeparator(
+                                    index == model.sessions.count - 1 ? .hidden : .visible
+                                )
                                 .listRowSeparatorTint(Color.gray.opacity(0.28))
                                 .onAppear {
                                     if index == model.sessions.count - 3 {
@@ -253,7 +301,6 @@ struct ChatListView: View {
                     .listStyle(PlainListStyle())
                 }
             }
-            
         }
         .onAppear {
             model.fetchSessions()
@@ -281,7 +328,7 @@ struct MenuButton: View {
     var icon: String
     var text: String
     var onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 8) {
@@ -316,7 +363,7 @@ struct ScaleButtonStyle: ButtonStyle {
 struct ChatSessionCardView: View {
     let session: ChatSessionBiz
     let model: ContentViewModel
-    
+
     var body: some View {
         Button(action: {
             model.pushChatDetailView(sessionId: session.id)
@@ -329,7 +376,7 @@ struct ChatSessionCardView: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                         )
-                    
+
                     if session.unreadCount > 0 {
                         Circle()
                             .fill(Color.green)
@@ -337,16 +384,16 @@ struct ChatSessionCardView: View {
                             .offset(x: 3, y: -3)
                     }
                 }
-                
+
                 // 内容部分
                 VStack(alignment: .leading, spacing: 8) {  // 增加间距从 6 到 8
                     HStack {
                         Text(session.title)
                             .font(.system(size: 17, weight: .semibold))  // 增加字体大小并加粗
                             .lineLimit(1)
-                        
+
                         Spacer()
-                        
+
                         Text(formatDate(session.updated_at))
                             .font(.system(size: 14))  // 增加时间字体大小
                             .foregroundColor(.gray)
@@ -368,7 +415,7 @@ struct ChatSessionCardView: View {
         .buttonStyle(PlainButtonStyle())
         .listRowBackground(Color(UIColor.systemGray6))
     }
-    
+
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
@@ -403,6 +450,10 @@ struct ChatMsgPreview: View {
                     if case let .tip(data) = box.payload {
                         Text("[tip]\(data.title)")
                     }
+                case "dictionary":
+                    if case let ChatPayload.dictionary(data) = box.payload! {
+                        Text("[dictionary]\(data.text)")
+                    }
                 default:
                     Text("未知消息类型: \(box.type)")
                 }
@@ -419,7 +470,7 @@ struct CapsuleButton: View {
     let icon: String
     let action: () -> Void
     @State private var isPressed = false
-    
+
     var body: some View {
         Button(action: {
             withAnimation(.easeInOut(duration: 0.1)) {

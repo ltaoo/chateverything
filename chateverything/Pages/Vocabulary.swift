@@ -117,7 +117,7 @@ class AudioPlayer: ObservableObject {
     }
 }
 
-struct Vocabulary: View {
+struct VocabularyStudyView: View {
     let filepath: String
     var path: NavigationPath
     var store: ChatStore

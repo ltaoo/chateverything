@@ -55,7 +55,7 @@ struct DiscoverView: View {
                         size: .small
                     ) {
                         print("进入单词模块")
-                        path.append(Route.VocabularyView(filepath: "/dicts/CET4_T"))
+                        path.append(Route.VocabularyStudyView(filepath: "/dicts/CET4_T"))
                     }
                     
                     // 场景对话 - 小尺寸

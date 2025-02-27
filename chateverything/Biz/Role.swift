@@ -1,5 +1,5 @@
-import Foundation
 import CoreData
+import Foundation
 
 protocol RoleResponseHandler {
     func start(
@@ -32,7 +32,7 @@ class DefaultRoleResponseHandler: RoleResponseHandler {
     ) {
         let loadingMessage = ChatBoxBiz(
             id: UUID(),
-            type: "message", 
+            type: "message",
             created_at: Date(),
             isMe: false,
             payload_id: UUID(),
@@ -45,53 +45,58 @@ class DefaultRoleResponseHandler: RoleResponseHandler {
         print("[BIZ]RoleBiz before chat 1")
         let isStream = role.config.llm["stream"] as? Bool ?? false
 
-        let events = LLMServiceEvents(onStart: {
-            print("[BIZ]RoleBiz onStart")
-        }, onChunk: { chunk in
-            print("[BIZ]RoleBiz onChunk: \(chunk)")
-        }, onFinish: { result in
-            print("[BIZ]RoleBiz onFinish: \(result)")
-			DispatchQueue.main.async {
+        let events = LLMServiceEvents(
+            onStart: {
+                print("[BIZ]RoleBiz onStart")
+            },
+            onChunk: { chunk in
+                print("[BIZ]RoleBiz onChunk: \(chunk)")
+            },
+            onFinish: { result in
+                print("[BIZ]RoleBiz onFinish: \(result)")
+                DispatchQueue.main.async {
+                    session.removeLastBox()
+                    let box = ChatBoxBiz(
+                        id: UUID(),
+                        type: "message",
+                        created_at: Date(),
+                        isMe: false,
+                        payload_id: UUID(),
+                        session_id: session.id,
+                        sender_id: role.id,
+                        payload: ChatPayload.message(ChatMessageBiz2(text: result, nodes: [])),
+                        loading: false,
+                        blurred: role.config.autoBlur
+                    )
+                    session.appendBox(box: box)
+                }
+                if let tts = role.tts, role.config.autoSpeak {
+                    tts.speak(result)
+                }
+            },
+            onError: { error in
+                print("[BIZ]RoleBiz onError: \(error)")
                 session.removeLastBox()
                 let box = ChatBoxBiz(
                     id: UUID(),
-                    type: "message", 
+                    type: "error",
                     created_at: Date(),
                     isMe: false,
                     payload_id: UUID(),
                     session_id: session.id,
                     sender_id: role.id,
-                    payload: ChatPayload.message(ChatMessageBiz2(text: result, nodes: [])),
-                    loading: false,
-                    blurred: role.config.autoBlur
+                    payload: ChatPayload.error(ChatErrorBiz(error: error.localizedDescription)),
+                    loading: false
                 )
                 session.appendBox(box: box)
-            }
-            if let tts = role.tts, role.config.autoSpeak {
-                tts.speak(result)
-            }
-        }, onError: { error in
-            print("[BIZ]RoleBiz onError: \(error)")
-            session.removeLastBox()
-            let box = ChatBoxBiz(
-                id: UUID(),
-                type: "error",
-                created_at: Date(),
-                isMe: false,
-                payload_id: UUID(),
-                session_id: session.id,
-                sender_id: role.id,
-                payload: ChatPayload.error(ChatErrorBiz(error: error.localizedDescription)),
-                loading: false
-            )
-            session.appendBox(box: box)
-        })
+            })
         role.llm?.setEvents(events: events)
         Task {
-            guard let stream = role.llm?.chat(messages: role.buildMessagesWithText(text: text)) else { return }
+            guard let stream = role.llm?.chat(messages: role.buildMessagesWithText(text: text))
+            else { return }
         }
     }
-} 
+}
 
 protocol RolePayloadBuilder {
     func build(
@@ -114,22 +119,46 @@ class DefaultRolePayloadBuilder: RolePayloadBuilder {
         case BoxPayloadTypes.message(let message):
             return ChatPayload.message(ChatMessageBiz2(text: message.text!, nodes: []))
         case BoxPayloadTypes.audio(let audio):
-            return ChatPayload.audio(ChatAudioBiz(text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
+            return ChatPayload.audio(
+                ChatAudioBiz(
+                    text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
         case BoxPayloadTypes.puzzle(let puzzle):
             let opts = puzzle.opts
-            let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map { ChatPuzzleOption(id: $0.id, text: $0.text) }
+            let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption])
+                .map { ChatPuzzleOption(id: $0.id, text: $0.text) }
             let selected = options.first { $0.id == puzzle.answer }
-            return ChatPayload.puzzle(ChatPuzzleBiz(title: puzzle.title!, options: options, answer: puzzle.answer ?? "", selected: selected, corrected: false))
+            return ChatPayload.puzzle(
+                ChatPuzzleBiz(
+                    title: puzzle.title!, options: options, answer: puzzle.answer ?? "",
+                    selected: selected, corrected: false))
         case BoxPayloadTypes.image(let image):
-            return ChatPayload.image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
+            return ChatPayload.image(
+                ChatImageBiz(url: image.url!, width: image.width, height: image.height))
         case BoxPayloadTypes.video(let video):
-            return ChatPayload.video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
+            return ChatPayload.video(
+                ChatVideoBiz(
+                    url: video.url!, thumbnail: video.thumbnail!, width: video.width,
+                    height: video.height, duration: video.duration))
         case BoxPayloadTypes.error(let error):
             return ChatPayload.error(ChatErrorBiz(error: error.error!))
         case BoxPayloadTypes.tipText(let tipText):
             return ChatPayload.tipText(ChatTipTextBiz(content: tipText.content!))
         case BoxPayloadTypes.time(let time):
             return ChatPayload.time(ChatTimeBiz(time: time.time!))
+        case BoxPayloadTypes.dictionary(let dictionary):
+            return ChatPayload.dictionary(
+                ChatDictionaryBiz(
+                    text: dictionary.detected_lang!,
+                    detected_lang: dictionary.detected_lang!,
+                    target_lang: dictionary.target_lang!,
+                    translation: dictionary.translation!,
+                    pronunciation: dictionary.pronunciation!,
+                    pronunciation_tip: dictionary.pronunciation_tip!,
+                    definitions: Array.fromJSON(dictionary.definitions!),
+                    examples: Array.fromJSON(dictionary.examples!),
+                    text_type: dictionary.text_type!
+                )
+            )
         default:
             return nil
         }
@@ -148,7 +177,7 @@ public struct RoleProps {
     var config: RoleConfig = RoleConfig(voice: defaultRoleVoice, llm: defaultRoleLLM)
     var responseHandler: RoleResponseHandler = DefaultRoleResponseHandler()
     var payloadBuilder: RolePayloadBuilder = DefaultRolePayloadBuilder()
-    
+
     public init(id: UUID) {
         self.id = id
     }
@@ -205,7 +234,10 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
     }
 
     // Add convenience init that uses the old parameter list but creates RoleProps internally
-    convenience init(id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String, created_at: Date, config: RoleConfig) {
+    convenience init(
+        id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String,
+        created_at: Date, config: RoleConfig
+    ) {
         var props = RoleProps(id: id)
         props.name = name
         props.desc = desc
@@ -216,23 +248,23 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
         props.config = config
         self.init(props: props)
     }
-    
+
     static func from(_ entity: Role, config: Config) -> RoleBiz? {
         let id = entity.id ?? UUID()
         let config_str = entity.config ?? ""
-        
+
         var props = RoleProps(id: id)
         props.name = entity.name ?? ""
         props.avatar = entity.avatar_uri ?? ""
         props.prompt = entity.prompt ?? ""
         props.created_at = entity.created_at ?? Date()
-        
+
         // 解析 config JSON
         var voice = defaultRoleVoice
         var llmHelper = defaultRoleLLM
-        
+
         props.config = RoleConfig(voice: voice, llm: llmHelper)
-        
+
         return RoleBiz(props: props)
     }
 
@@ -242,13 +274,19 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
 
         let llmConfig = self.config.llm
         print("[BIZ]RoleBiz updateLLM \(llmConfig["provider"]) \(llmConfig["model"])")
-        let llmProviderController = config.llmProviderControllers.first { $0.id == llmConfig["provider"] as? String }
+        let llmProviderController = config.llmProviderControllers.first {
+            $0.id == llmConfig["provider"] as? String
+        }
         for v in config.llmProviderControllers {
-            print("[BIZ]RoleBiz updateLLM provider: \(v.id) \(v.provider.name) \(v.value.apiProxyAddress) \(v.value.apiKey)")
+            print(
+                "[BIZ]RoleBiz updateLLM provider: \(v.id) \(v.provider.name) \(v.value.apiProxyAddress) \(v.value.apiKey)"
+            )
         }
         if let llmProviderController = llmProviderController {
             let value = llmProviderController.build(config: self.config)
-            print("[BIZ]RoleBiz updateLLM value: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)")
+            print(
+                "[BIZ]RoleBiz updateLLM value: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)"
+            )
             llm = LLMService(value: value)
         }
         if llm == nil {
@@ -259,7 +297,9 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
     func updateTTS(config: Config) {
         var ttsConfig = self.config.voice
         print("[BIZ]RoleBiz updateTTS \(ttsConfig["provider"])")
-        let controller = config.ttsProviderControllers.first { $0.id == ttsConfig["provider"] as? String }
+        let controller = config.ttsProviderControllers.first {
+            $0.id == ttsConfig["provider"] as? String
+        }
         guard let controller = controller else {
             return
         }
@@ -320,12 +360,15 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
         }
         responseHandler.start(role: self, session: session, config: config)
     }
-    func response(text: String, session: ChatSessionBiz, config: Config, completion: (([ChatBoxBiz]) -> Void)? = nil) {
+    func response(
+        text: String, session: ChatSessionBiz, config: Config,
+        completion: (([ChatBoxBiz]) -> Void)? = nil
+    ) {
         if self.llm == nil {
             self.updateLLM(config: config)
         }
-        
-        guard let _ = self.llm else {
+
+        guard self.llm != nil else {
             let box = ChatBoxBiz(
                 id: UUID(),
                 type: "error",
@@ -342,17 +385,18 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
             return
         }
 
-        responseHandler.handle(text: text, role: self, session: session, config: config, completion: completion)
+        responseHandler.handle(
+            text: text, role: self, session: session, config: config, completion: completion)
     }
 }
 
 public struct AnyCodable: Codable {
     let value: Any
-    
+
     init(_ value: Any) {
         self.value = value
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
@@ -370,10 +414,11 @@ public struct AnyCodable: Codable {
         } else if let dictionary = try? container.decode([String: AnyCodable].self) {
             self.value = dictionary.mapValues { $0.value }
         } else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "AnyCodable value cannot be decoded")
+            throw DecodingError.dataCorruptedError(
+                in: container, debugDescription: "AnyCodable value cannot be decoded")
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch value {
@@ -392,7 +437,11 @@ public struct AnyCodable: Codable {
         case let dict as [String: Any]:
             try container.encode(dict.mapValues { AnyCodable($0) })
         default:
-            throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: container.codingPath, debugDescription: "AnyCodable value cannot be encoded"))
+            throw EncodingError.invalidValue(
+                value,
+                EncodingError.Context(
+                    codingPath: container.codingPath,
+                    debugDescription: "AnyCodable value cannot be encoded"))
         }
     }
 }
@@ -412,8 +461,10 @@ public class RoleConfig {
     public var llm: [String: Any]
     public var autoSpeak: Bool = true
     public var autoBlur: Bool = true
-    
-    public init(voice: [String: Any], llm: [String: Any], autoSpeak: Bool = true, autoBlur: Bool = true) {
+
+    public init(
+        voice: [String: Any], llm: [String: Any], autoSpeak: Bool = true, autoBlur: Bool = true
+    ) {
         self.voice = voice
         self.llm = llm
         self.autoSpeak = autoSpeak
@@ -453,14 +504,18 @@ public class RoleLLMHelper: Codable {
         let values = config.llmProviderControllers.first { $0.name == provider_name }
 
         for v in config.llmProviderControllers {
-            print("[BIZ]RoleLLMHelper build provider: \(v.name) \(v.value.apiProxyAddress) \(v.provider.apiProxyAddress) \(v.value.apiKey)")
+            print(
+                "[BIZ]RoleLLMHelper build provider: \(v.name) \(v.value.apiProxyAddress) \(v.provider.apiProxyAddress) \(v.value.apiKey)"
+            )
         }
 
         guard let values = values else {
             return nil
         }
 
-        print("[BIZ]RoleLLMHelper build provider: \(values.name) \(values.value.apiProxyAddress) \(values.provider.apiProxyAddress) \(values.value.apiKey)")
+        print(
+            "[BIZ]RoleLLMHelper build provider: \(values.name) \(values.value.apiProxyAddress) \(values.provider.apiProxyAddress) \(values.value.apiKey)"
+        )
 
         let model = values.models.first { $0.name == model_name }
 
@@ -475,12 +530,11 @@ public class RoleLLMHelper: Codable {
             apiKey: values.value.apiKey,
             extra: [
                 "stream": self.stream,
-                "json": self.json
+                "json": self.json,
             ]
         )
     }
 }
-
 
 public class RoleVoice: ObservableObject, Codable {
     // 引擎，目前支持 QCloud、System
@@ -501,7 +555,7 @@ public class RoleVoice: ObservableObject, Codable {
         case style
         case role
     }
-    
+
     required public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.engine = try container.decode(String.self, forKey: .engine)
@@ -510,7 +564,7 @@ public class RoleVoice: ObservableObject, Codable {
         self.style = try container.decode(String.self, forKey: .style)
         self.role = try container.decode(String.self, forKey: .role)
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(engine, forKey: .engine)
@@ -520,7 +574,7 @@ public class RoleVoice: ObservableObject, Codable {
         try container.encode(role, forKey: .role)
     }
 
-    static func GetDefault() -> [String:Any] {
+    static func GetDefault() -> [String: Any] {
         return defaultRoleVoice
     }
 
@@ -532,4 +586,3 @@ public class RoleVoice: ObservableObject, Codable {
         self.role = role
     }
 }
-

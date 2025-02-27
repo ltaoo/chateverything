@@ -2,8 +2,9 @@ import Foundation
 
 public enum Route: Hashable {
     case ChatDetailView(sessionId: UUID)
-    case VocabularyView(filepath: String)
+    case VocabularyStudyView(filepath: String)
     case RoleDetailView(roleId: UUID)
+    case VocabularyReviewView
 }
 
 

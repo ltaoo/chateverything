@@ -29,6 +29,18 @@
         <attribute name="text" optional="YES" attributeType="String"/>
         <attribute name="updated_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
     </entity>
+    <entity name="ChatMsgDictionary" representedClassName=".ChatMsgDictionary" syncable="YES" codeGenerationType="class">
+        <attribute name="definitions" optional="YES" attributeType="String"/>
+        <attribute name="detected_lang" optional="YES" attributeType="String"/>
+        <attribute name="examples" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="pronunciation" optional="YES" attributeType="String"/>
+        <attribute name="pronunciation_tip" optional="YES" attributeType="String"/>
+        <attribute name="target_lang" optional="YES" attributeType="String"/>
+        <attribute name="text" optional="YES" attributeType="String"/>
+        <attribute name="text_type" optional="YES" attributeType="String"/>
+        <attribute name="translation" optional="YES" attributeType="String"/>
+    </entity>
     <entity name="ChatMsgError" representedClassName=".ChatMsgError" syncable="YES" codeGenerationType="class">
         <attribute name="error" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
@@ -114,5 +126,27 @@
         <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="Vocabulary" representedClassName=".Vocabulary" syncable="YES" codeGenerationType="class">
+        <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="from_id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="from_type" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="last_review_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="mastery_level" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="next_review_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="pronunciation" optional="YES" attributeType="String"/>
+        <attribute name="review_count" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="text" optional="YES" attributeType="String"/>
+        <attribute name="text_type" optional="YES" attributeType="String"/>
+        <attribute name="translation" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="VocabularyReviewHistory" representedClassName=".VocabularyReviewHistory" syncable="YES" codeGenerationType="class">
+        <attribute name="created_at" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="prev_score" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="score" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="time_spent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="vocabulary_id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
     </entity>
 </model>

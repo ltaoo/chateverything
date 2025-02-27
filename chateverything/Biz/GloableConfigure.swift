@@ -104,7 +104,8 @@ public let DefaultRoles: [RoleBiz] = [
             llm: defaultRoleLLM
         )
     ),
-    role6
+    role6,
+    role7
 ]
 
 
