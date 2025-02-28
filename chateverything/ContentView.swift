@@ -116,7 +116,7 @@ struct ContentView: View {
                         }
                         .tag(2)
 
-                    MineView()
+                    MineView(config: model.config)
                         .tabItem {
                             Image(systemName: "person.fill")
                             Text("我的")
@@ -371,11 +371,14 @@ struct ChatSessionCardView: View {
             HStack(alignment: .top, spacing: 16) {
                 // 头像部分
                 ZStack(alignment: .topTrailing) {
-                    Avatar(uri: session.avatar_uri, size: 56)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
+                    Avatar(
+                        uri: session.avatar_uri,
+                        size: DesignSystem.AvatarSize.large
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
 
                     if session.unreadCount > 0 {
                         Circle()

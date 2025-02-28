@@ -346,10 +346,10 @@ struct RoleLLMProviderSettingView: View {
     }
 
     func handleChange(controller: LLMProviderController, model: LLMProviderModelController) {
-        let v = ["provider": controller.provider.id, "model": model.name] as [String: Any]
+        let v = ["provider": controller.provider.id, "model": model.id] as [String: Any]
         print("[VIEW]RoleLLMProviderSettingView handleChange \(v)")
         config.updateRoleLLMConfig(roleId: role.id, value: v)
-        role.config.updateLLM(model: model.name)
+        role.config.updateLLM(model: model.id)
         role.updateLLM(config: config)
     }
     var body: some View {
@@ -384,11 +384,12 @@ struct ModelListView: View {
     let onTap: (LLMProviderModelController) -> Void
     
     var body: some View {
-        ForEach(controller.models, id: \.id) { sub in
-            let isSelected = role.config.llm["model"] as? String == sub.name
+        ForEach(controller.models, id: \.id) { (sub: LLMProviderModelController) in
+            let m: LLMProviderModelController = sub
+            let isSelected: Bool = role.config.llm["model"] as? String == m.id
             
             HStack {
-                Text(sub.name)
+                Text(sub.id)
                     .font(DesignSystem.Typography.bodyMedium)
                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.textPrimary)
             }

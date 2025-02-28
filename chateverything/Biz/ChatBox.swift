@@ -87,6 +87,45 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
         self.blurred = false
     }
 
+    func load(payload: BoxPayloadTypes, session: ChatSessionBiz, config: Config) {
+        let sender = RoleBiz.Get(id: self.sender_id, config: config)
+        guard let sender = sender else {
+            return
+        }
+        self.payload = sender.payloadBuilder.build(
+            record: payload, role: sender, session: session,
+            config: config)
+        // switch payload {
+        // case BoxPayloadTypes.message(let message):
+        //     self.payload = sender.payloadBuilder.build(
+        //         record: BoxPayloadTypes.message(message), role: sender, session: session,
+        //         config: config)
+        // case BoxPayloadTypes.audio(let audio):
+        //     self.payload = sender.payloadBuilder.build(
+        //         record: BoxPayloadTypes.audio(audio), role: sender, session: session,
+        //         config: config)
+        // case BoxPayloadTypes.puzzle(let puzzle):
+        //     self.payload = sender.payloadBuilder.build(
+        //         record: BoxPayloadTypes.puzzle(puzzle), role: sender, session: session,
+        //         config: config)
+        // case BoxPayloadTypes.image(let image):
+        //     self.payload = sender.payloadBuilder.build(
+        //         record: BoxPayloadTypes.image(image), role: sender, session: session,
+        //         config: config)
+        // case BoxPayloadTypes.video(let video):
+        //     self.payload = sender.payloadBuilder.build(
+        //         record: BoxPayloadTypes.video(video), role: sender, session: session,
+        //         config: config)
+        // case BoxPayloadTypes.error(let error):
+        //     self.payload = sender.payloadBuilder.build(
+        //         record: BoxPayloadTypes.error(error), role: sender, session: session,
+        //         config: config)
+        // case BoxPayloadTypes.tipText(let tipText):
+        //     self.payload = sender.payloadBuilder.build(
+        //         record: BoxPayloadTypes.tipText(tipText), role: sender, session: session,
+        //         config: config)
+    }
+
     func load(session: ChatSessionBiz, config: Config) {
         let store = config.store
         let sender = RoleBiz.Get(id: self.sender_id, config: config)
@@ -179,7 +218,9 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
             let req = NSFetchRequest<ChatMsgDictionary>(entityName: "ChatMsgDictionary")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
             if let dictionary = try! store.container.viewContext.fetch(req).first {
-                self.payload = sender.payloadBuilder.build(record: BoxPayloadTypes.dictionary(dictionary), role: sender, session: session, config: config)
+                self.payload = sender.payloadBuilder.build(
+                    record: BoxPayloadTypes.dictionary(dictionary), role: sender, session: session,
+                    config: config)
             }
         }
     }

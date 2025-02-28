@@ -157,8 +157,8 @@ public class LLMService: ObservableObject {
     
     public init(value: LLMServiceConfig) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider.Default()
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel.Default()
+        self.provider = LLMServiceProviders.first(where: { $0.id == value.provider }) ?? LLMProvider.Default()
+        self.model = provider.models.first(where: { $0.id == value.model }) ?? LLMProviderModel.Default()
         // self.prompt = prompt
         // self.messages = [Message(role: "system", content: prompt)]
 
@@ -171,8 +171,8 @@ public class LLMService: ObservableObject {
 
     public func update(value: LLMServiceConfig) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.name == value.provider }) ?? LLMProvider.Default()
-        self.model = provider.models.first(where: { $0.name == value.model }) ?? LLMProviderModel.Default()
+        self.provider = LLMServiceProviders.first(where: { $0.id == value.provider }) ?? LLMProvider.Default()
+        self.model = provider.models.first(where: { $0.id == value.model }) ?? LLMProviderModel.Default()
     }
 
     public func fakeChat(content: String) async throws -> String {
@@ -379,11 +379,33 @@ public let LLMServiceProviders: [LLMProvider] = [
     ),
     LLMProvider(
         id: "doubao",
-        name: "doubao",
+        name: "火山引擎",
         logo_uri: "provider_dark_doubao",
         apiKey: "",
         apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-        models: [],
+        models: [
+            LLMProviderModel(
+                id: "doubao-1-5-pro-32k-250115",
+                name: "doubao-1.5-pro",
+                desc: "",
+                type: "对话",
+                tags: []
+            ),
+            LLMProviderModel(
+                id: "doubao-1-5-lite-32k-250115",
+                name: "doubao-1.5-lite",
+                desc: "",
+                type: "对话",
+                tags: []
+            ),
+            LLMProviderModel(
+                id: "deepseek-v3-241226",
+                name: "deepseek-v3",
+                desc: "",
+                type: "对话",
+                tags: []
+            )
+        ],
         responseHandler: { data in
             let decoder = JSONDecoder()
             let response = try decoder.decode(DoubaoChatResponse.self, from: data)

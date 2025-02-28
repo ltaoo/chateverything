@@ -1,26 +1,29 @@
-import SwiftUI
-import Foundation
 import AVFoundation
-import Speech
 import Combine
+import Foundation
+import Speech
+import SwiftUI
+import UIKit
+
 struct DictionaryView: UIViewControllerRepresentable {
     let word: String
-    
+
     func makeUIViewController(context: Context) -> UIReferenceLibraryViewController {
         return UIReferenceLibraryViewController(term: word)
     }
-    
-    func updateUIViewController(_ uiViewController: UIReferenceLibraryViewController, context: Context) {
+
+    func updateUIViewController(
+        _ uiViewController: UIReferenceLibraryViewController, context: Context
+    ) {
     }
 }
-
 
 class ChatDetailViewModel: ObservableObject {
     let config: Config
     let store: ChatStore
     @Published var session: ChatSessionBiz
     @Published var boxes: [ChatBoxBiz] = []
-    
+
     private var cancellables = Set<AnyCancellable>()
 
     @Published var loading = true
@@ -44,7 +47,7 @@ class ChatDetailViewModel: ObservableObject {
             config: ChatSessionConfig(blurMsg: false, autoSpeaking: false),
             store: store
         )
-        
+
         self.session.$boxes
             .sink { [weak self] newBoxes in
                 // print("newBoxes: \(newBoxes.count)")
@@ -64,7 +67,8 @@ class ChatDetailViewModel: ObservableObject {
                 if role.id == config.me.id {
                     continue
                 }
-                let boxes: [ChatBoxBiz] = self.session.getBoxesForMember(roleId: role.id, config: config)
+                let boxes: [ChatBoxBiz] = self.session.getBoxesForMember(
+                    roleId: role.id, config: config)
                 let llmMessages: [LLMServiceMessage?] = boxes.map {
                     print("box: \($0.type) \(String(describing: $0.payload))")
                     guard let payload = $0.payload else {
@@ -72,7 +76,9 @@ class ChatDetailViewModel: ObservableObject {
                     }
                     if $0.type == "message" {
                         if case let .message(message) = $0.payload {
-                            return LLMServiceMessage(role: $0.sender_id == config.me.id ? "user" : "assistant", content: message.text)
+                            return LLMServiceMessage(
+                                role: $0.sender_id == config.me.id ? "user" : "assistant",
+                                content: message.text)
                         } else {
                             print("box: type is message, but payload is not message")
                             // return LLMServiceMessage(role: "assistant", content: "")
@@ -80,7 +86,9 @@ class ChatDetailViewModel: ObservableObject {
                         }
                     } else if $0.type == "audio" {
                         if case let .audio(audio) = $0.payload {
-                            return LLMServiceMessage(role: $0.sender_id == config.me.id ? "user" : "assistant", content: audio.text)
+                            return LLMServiceMessage(
+                                role: $0.sender_id == config.me.id ? "user" : "assistant",
+                                content: audio.text)
                         } else {
                             print("box: type is audio, but payload is not audio")
                             // return LLMServiceMessage(role: "assistant", content: "")
@@ -173,7 +181,7 @@ class ChatDetailViewModel: ObservableObject {
             }
         }
     }
-    
+
     func appendMessage(box: ChatBoxBiz) {
         print("Appending message to session")
         DispatchQueue.main.async {
@@ -195,7 +203,7 @@ struct ChatDetailView: View {
     @StateObject private var recorder: AudioRecorder
 
     @State private var toastMessage: String?
-    
+
     init(sessionId: UUID, config: Config) {
         self.sessionId = sessionId
         self.config = config
@@ -204,7 +212,7 @@ struct ChatDetailView: View {
         _model = StateObject(wrappedValue: model)
         let recorder = AudioRecorder()
         _recorder = StateObject(wrappedValue: recorder)
-       
+
     }
 
     // 将回调设置移到 onAppear
@@ -220,12 +228,12 @@ struct ChatDetailView: View {
             }
             // 开始语音识别
             let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-            
+
             guard let recognizer = recognizer, recognizer.isAvailable else {
                 self.model.showPermissionAlert()
                 return
             }
-            
+
             SFSpeechRecognizer.requestAuthorization { status in
                 DispatchQueue.main.async {
                     switch status {
@@ -240,7 +248,7 @@ struct ChatDetailView: View {
                 }
             }
         }
-        
+
         self.recorder.onBegin = {
             AVAudioSession.sharedInstance().requestRecordPermission { granted in
                 DispatchQueue.main.async {
@@ -256,7 +264,7 @@ struct ChatDetailView: View {
 
     func handleBeginRecording() {
     }
-    
+
     private func playAudioMessage(url: URL) {
         // if self.isPlaying {
         //     audioRecorder.stopPlayback()
@@ -268,18 +276,18 @@ struct ChatDetailView: View {
         //     self.isPlaying = true
         // }
     }
-    
+
     private func recognizeSpeech(url: URL) {
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-        
+
         guard let recognizer = recognizer, recognizer.isAvailable else {
             DispatchQueue.main.async {
                 self.model.showPermissionAlert()
             }
             return
         }
-        
-        SFSpeechRecognizer.requestAuthorization {  status in
+
+        SFSpeechRecognizer.requestAuthorization { status in
             DispatchQueue.main.async {
                 switch status {
                 case .authorized:
@@ -293,46 +301,47 @@ struct ChatDetailView: View {
             }
         }
     }
-    
+
     private func performSpeechRecognition(recognizer: SFSpeechRecognizer, url: URL) {
         let request = SFSpeechURLRecognitionRequest(url: url)
         request.shouldReportPartialResults = false
-        
+
         // 获取音频时长
         let audioPlayer = try? AVAudioPlayer(contentsOf: url)
         let duration = audioPlayer?.duration ?? 0
-        
-        recognizer.recognitionTask(with: request) {  result, error in
+
+        recognizer.recognitionTask(with: request) { result, error in
             if let error = error {
                 print("Recognition failed with error: \(error.localizedDescription)")
                 return
             }
-            
+
             guard let result = result, result.isFinal else { return }
-            
+
             let recognizedText = result.bestTranscription.formattedString
-            self.handleRecognizedSpeech(recognizedText: recognizedText, audioURL: url, duration: duration)
+            self.handleRecognizedSpeech(
+                recognizedText: recognizedText, audioURL: url, duration: duration)
         }
     }
-    
-    private func handleRecognizedSpeech(recognizedText: String, audioURL: URL, duration: TimeInterval) {
+
+    private func handleRecognizedSpeech(
+        recognizedText: String, audioURL: URL, duration: TimeInterval
+    ) {
         if recognizedText.isEmpty {
             print("recognizedText is empty")
             return
         }
         // print("handleRecognizedSpeech \(recognizedText)")
-        let viewModel = self.model
         self.model.sendAudioMessage(text: recognizedText, url: audioURL, duration: duration)
     }
-    
-    
+
     private func formatDuration(from startTime: Date) -> String {
         let duration = Int(-startTime.timeIntervalSinceNow)
         return String(format: "%d:%02d", duration / 60, duration % 60)
     }
 
     func onMounted() {
-        
+
     }
 
     var body: some View {
@@ -355,8 +364,7 @@ struct ChatDetailView: View {
             Rectangle()
                 .frame(height: 0.5)
                 .foregroundColor(Color(uiColor: .systemGray4))
-            .offset(y: -1)
-        , alignment: .top
+                .offset(y: -1), alignment: .top
         )
         // 添加导航栏背景色
         .sheet(isPresented: $model.roleDetailVisible) {
@@ -366,13 +374,19 @@ struct ChatDetailView: View {
         }
         .onAppear {
             setupRecorderCallbacks()
-            model.load()
-
-            for member in model.session.members {
+            self.model.load()
+            for member in self.model.session.members {
                 if let role = member.role {
+                    if role.disabled {
+                        continue
+                    }
+                    if role.id == config.me.id {
+                        continue
+                    }
                     role.start(session: model.session, config: config)
                 }
             }
+
         }
         .onDisappear {
             self.recorder.cleanup()
@@ -389,22 +403,17 @@ private struct ChatDetailContentView: View {
     let config: Config
     let recorder: AudioRecorder
     let onDismiss: () -> Void
-    
+
     var body: some View {
-        ZStack(alignment: .bottom) {
-            VStack {
-                ChatMessageList(
-                    model: model,
-                    recorder: recorder
-                )
-            }
-            .background(DesignSystem.Colors.background)
-            
-            VStack {
-                Spacer()
-                InputBarView(config: config, model: model, recorder: recorder)
-            }
+        VStack {
+            ChatMessageList(
+                model: model,
+                recorder: recorder
+            )
+            Spacer()
+            InputBarView(config: config, model: model, recorder: recorder)
         }
+        .background(DesignSystem.Colors.background)
     }
 }
 
@@ -412,11 +421,41 @@ private struct ChatDetailContentView: View {
 private struct ChatMessageList: View {
     @ObservedObject var model: ChatDetailViewModel
     let recorder: AudioRecorder
-    
+    @State private var isLoadingMore = false
+    @State private var scrollViewHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    @State private var scrollOffset: CGFloat = 0
+    @State private var initialLoad = true
+    @State private var autoScrollToBottom = true
+    @State private var lastVisibleMessageID: UUID?
+
     var body: some View {
         ScrollView {
+
             ScrollViewReader { proxy in
                 LazyVStack(spacing: 12) {
+
+                    if model.session.helper.hasMore {
+                        HStack {
+                            Spacer()
+                            if isLoadingMore {
+                                ProgressView()
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                        // .onAppear {
+                        //     if self.initialLoad {
+                        //         return
+                        //     }
+                        //     print("prepare loadMore: \(self.initialLoad)")
+                        //     model.session.loadMoreMessages(config: model.config)
+                        //     if let lastID = lastVisibleMessageID {
+                        //         proxy.scrollTo(lastID, anchor: .top)
+                        //     }
+                        // }
+                    }
+
                     ForEach(Array(model.boxes.enumerated()), id: \.element.id) { index, box in
                         ChatBoxView(
                             box: model.boxes[index],
@@ -426,26 +465,64 @@ private struct ChatMessageList: View {
                     }
                 }
                 .padding()
+
                 Color.clear
-                    .frame(height: 180)
+                    .frame(height: 24)
                     .id("bottomSpacer")
-                .onChange(of: model.boxes) { newBoxes in
-                    print("Messages updated in view: \(newBoxes.count)")
-                    if let lastMessage = newBoxes.last {
-                        withAnimation {
+                    .onChange(of: model.boxes) { newBoxes in
+                        // print("newBoxes: \(newBoxes.count)")
+                        if initialLoad {
                             proxy.scrollTo("bottomSpacer", anchor: .bottom)
+                            initialLoad = false
+                            return
+                        }
+                        // // 只有在新消息时才自动滚动到底部
+                        if let lastBox = newBoxes.last,
+                            let previousLastBox = model.boxes.dropLast().last,
+                            lastBox.id != previousLastBox.id,
+                            self.autoScrollToBottom
+                        {
+                            withAnimation {
+                                proxy.scrollTo("bottomSpacer", anchor: .bottom)
+                            }
                         }
                     }
-                }
             }
+            // GeometryReader { geometry in
+            //     Color.clear.preference(
+            //         key: ScrollOffsetPreferenceKey.self,
+            //         value: geometry.frame(in: .named("scrollView")).minY
+            //     )
+            //     .onAppear {
+            //         let frame = geometry.frame(in: .named("scrollView"))
+            //         lastVisibleMessageID = model.boxes.first?.id
+            //         print("初始 Frame: \(frame)")  // 检查是否有效算法
+            //     }
+            //     .frame(width: UIScreen.main.bounds.width, height: 0)  // 确保横向占满
+
+            // }
+            // .frame(width: 0, height: 0)
         }
+        // .coordinateSpace(name: "scrollView")
+        // .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+        //     scrollOffset = value
+        //     print("scrollOffset: \(scrollOffset)")
+        // }
+    }
+}
+
+// 添加 ScrollOffsetPreferenceKey
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
 // 拆分出工具栏按钮
 private struct ChatDetailToolbarButton: View {
     let model: ChatDetailViewModel
-    
+
     var body: some View {
         Button(action: {
             model.showRoleDetail()
@@ -465,9 +542,9 @@ struct PromptListView: View {
         "帮我总结一下要点",
         "给我一些具体的例子",
         "这个问题可以换个角度思考吗？",
-        "能详细说明一下吗？"
+        "能详细说明一下吗？",
     ]
-    
+
     var body: some View {
         List(prompts, id: \.self) { prompt in
             Button(action: {
@@ -482,9 +559,6 @@ struct PromptListView: View {
     }
 }
 
-
-
-
 // 添加一个新的 WavyLine Shape
 struct WavyLine: Shape {
     func path(in rect: CGRect) -> Path {
@@ -492,18 +566,18 @@ struct WavyLine: Shape {
         let width = rect.width
         let height = rect.height
         let midHeight = height / 2
-        let wavelength = 6.0 // 波长
-        let amplitude = height // 波的高度
-        
+        let wavelength = 6.0  // 波长
+        let amplitude = height  // 波的高度
+
         path.move(to: CGPoint(x: 0, y: midHeight))
-        
+
         // 创建波浪形状
         for x in stride(from: 0, through: width, by: 1) {
             let relativeX = x / wavelength
             let y = sin(relativeX * .pi * 2) * amplitude / 2 + midHeight
             path.addLine(to: CGPoint(x: x, y: y))
         }
-        
+
         return path
     }
 }
@@ -512,19 +586,19 @@ struct WavyLine: Shape {
 private struct Triangle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let radius: CGFloat = 2 // 圆角半径
-        
+        let radius: CGFloat = 2  // 圆角半径
+
         // 计算三角形的三个点
         let tip = CGPoint(x: rect.minX, y: rect.midY)
         let top = CGPoint(x: rect.maxX, y: rect.minY)
         let bottom = CGPoint(x: rect.maxX, y: rect.maxY)
-        
+
         // 绘制带圆角的路径
         path.move(to: tip)
         path.addQuadCurve(to: top, control: CGPoint(x: tip.x + radius, y: top.y + radius))
         path.addLine(to: bottom)
         path.addQuadCurve(to: tip, control: CGPoint(x: tip.x + radius, y: bottom.y - radius))
-        
+
         return path
     }
 }
@@ -533,14 +607,14 @@ private struct Triangle: Shape {
 private struct DictionaryPopoverView: View {
     let word: String
     @State private var definition: String = "Loading..."
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(word)
                 .font(.headline)
-            
+
             Divider()
-            
+
             Text(definition)
                 .font(.body)
                 .multilineTextAlignment(.leading)
@@ -561,7 +635,7 @@ struct TextNodeView: View {
     let node: MsgTextNode
     let color: Color
     var onTap: (MsgTextNode) -> Void
-    
+
     var body: some View {
         Text(node.text)
             .foregroundColor(color)
@@ -580,7 +654,7 @@ struct TextNodeView: View {
                 }
             }
     }
-    
+
     private var underlineColor: Color {
         print("node.error: \(String(describing: node.error?.type))")
         guard node.error != nil else { return .clear }
@@ -592,12 +666,11 @@ struct TextNodeView: View {
     }
 }
 
-
 // 更新 LoadingView 组件
 private struct LoadingView: View {
     @State private var isAnimating = false
     private let dotCount = 3
-    
+
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.xxSmall) {
             ForEach(0..<dotCount, id: \.self) { index in
@@ -632,11 +705,14 @@ private struct MessageContentView: View {
     @ObservedObject var data: ChatMessageBiz2
     let recorder: AudioRecorder
 
+    // 添加菜单显示状态
+    @State private var showingMenu = false
+
     var body: some View {
         VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
             HStack {
                 if box.isMe { Spacer() }
-                
+
                 if box.loading {
                     LoadingView()
                 } else {
@@ -650,16 +726,32 @@ private struct MessageContentView: View {
                                 .rotationEffect(.degrees(45))
                                 .offset(x: 12)
                         }
-                        
-                        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
+
+                        VStack(
+                            alignment: box.isMe ? .trailing : .leading,
+                            spacing: DesignSystem.Spacing.xxSmall
+                        ) {
+                            // 更新消息文本部分，添加长按手势和上下文菜单
                             Text(data.text)
                                 .font(DesignSystem.Typography.bodyMedium)
-                                .foregroundColor(box.isMe ? .white : DesignSystem.Colors.textPrimary)
+                                .foregroundColor(
+                                    box.isMe ? .white : DesignSystem.Colors.textPrimary)
                         }
                         .padding(DesignSystem.Spacing.medium)
-                        .background(box.isMe ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)
+                        .background(
+                            box.isMe
+                                ? DesignSystem.Colors.primary
+                                : DesignSystem.Colors.secondaryBackground
+                        )
                         .cornerRadius(DesignSystem.Radius.large)
-                        
+                        .contextMenu {
+                            Button(action: {
+                                UIPasteboard.general.string = data.text
+                            }) {
+                                Label("复制", systemImage: "doc.on.doc")
+                            }
+                        }
+
                         if box.isMe {
                             // 右侧小矩形
                             Rectangle()
@@ -671,7 +763,7 @@ private struct MessageContentView: View {
                         }
                     }
                 }
-                
+
                 if !box.isMe { Spacer() }
             }
             .blur(radius: box.blurred ? 4 : 0)
@@ -697,7 +789,7 @@ private struct AudioContentView: View {
         VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
             HStack {
                 if box.isMe { Spacer() }
-                
+
                 if box.loading {
                     LoadingView()
                 } else {
@@ -711,15 +803,23 @@ private struct AudioContentView: View {
                                 .rotationEffect(.degrees(45))
                                 .offset(x: 12)
                         }
-                        
-                        VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
+
+                        VStack(
+                            alignment: box.isMe ? .trailing : .leading,
+                            spacing: DesignSystem.Spacing.xxSmall
+                        ) {
                             Text(data.text)
-                                .foregroundColor(box.isMe ? .white : DesignSystem.Colors.textPrimary)
+                                .foregroundColor(
+                                    box.isMe ? .white : DesignSystem.Colors.textPrimary)
                         }
                         .padding(DesignSystem.Spacing.medium)
-                        .background(box.isMe ? DesignSystem.Colors.primary : DesignSystem.Colors.secondaryBackground)
+                        .background(
+                            box.isMe
+                                ? DesignSystem.Colors.primary
+                                : DesignSystem.Colors.secondaryBackground
+                        )
                         .cornerRadius(DesignSystem.Radius.large)
-                        
+
                         if box.isMe {
                             // 右侧小矩形
                             Rectangle()
@@ -730,9 +830,9 @@ private struct AudioContentView: View {
                                 .offset(x: -12)
                         }
                     }
-                    .zIndex(1) // 确保小矩形显示在正确的层级
+                    .zIndex(1)  // 确保小矩形显示在正确的层级
                 }
-                
+
                 if !box.isMe { Spacer() }
             }
             .blur(radius: box.blurred ? 4 : 0)
@@ -757,7 +857,7 @@ private struct AudioContentView: View {
 // 更新 TipContentView 组件
 private struct TipContentView: View {
     let data: ChatTipBiz
-    
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "lightbulb.fill")
@@ -802,7 +902,7 @@ struct ChatBoxView: View {
     init(box: ChatBoxBiz, recorder: AudioRecorder) {
         self.box = box
         self.recorder = recorder
-        print("box \(box.type)")
+        // print("box \(box.type)")
     }
 
     // 操作函数
@@ -811,26 +911,26 @@ struct ChatBoxView: View {
         // NSPasteboard.general.clearContents()
         // NSPasteboard.general.setString(message.content, forType: .string)
     }
-    
+
     func translateMessage() {
         // 模拟翻译
-//        isShowingTranslation = true
-//        translatedText = "Translated text will appear here"
+        //        isShowingTranslation = true
+        //        translatedText = "Translated text will appear here"
         // 实际应该调用翻译 API
     }
-    
+
     func optimizeMessage() {
         // 实现优化逻辑
     }
-    
+
     func checkErrors() {
         // 实现查错逻辑
     }
-    
+
     var body: some View {
-        
+
         VStack(alignment: .leading, spacing: 16) {
-             if box.type == "error" {
+            if box.type == "error" {
                 if case let .error(data) = box.payload {
                     ErrorContentView(data: data)
                 }
@@ -866,7 +966,7 @@ struct ChatBoxView: View {
             }
         }
     }
-    
+
 }
 
 struct DictionaryContentView: View {
@@ -880,20 +980,21 @@ struct DictionaryContentView: View {
                 Text(data.translation)
                     .font(DesignSystem.Typography.headingSmall)
                     .foregroundColor(DesignSystem.Colors.textPrimary)
-                
+
                 Spacer()
-                
+
                 // 仅在文本类型为句子时显示收藏按钮
                 if data.text_type == "word" {
                     Button(action: {
                         isFavorited.toggle()
                     }) {
                         Image(systemName: isFavorited ? "star.fill" : "star")
-                            .foregroundColor(isFavorited ? .yellow : DesignSystem.Colors.textSecondary)
+                            .foregroundColor(
+                                isFavorited ? .yellow : DesignSystem.Colors.textSecondary)
                     }
                 }
             }
-            
+
             // 发音区域
             if !data.pronunciation.isEmpty {
                 HStack(spacing: DesignSystem.Spacing.small) {
@@ -901,23 +1002,23 @@ struct DictionaryContentView: View {
                         .font(DesignSystem.Typography.bodySmall)
                         .foregroundColor(DesignSystem.Colors.textSecondary)
                 }
-                
+
                 if !data.pronunciation_tip.isEmpty {
                     Text(data.pronunciation_tip)
                         .font(DesignSystem.Typography.caption)
                 }
             }
-            
+
             // 分隔线
             Divider()
                 .padding(.vertical, DesignSystem.Spacing.small)
-            
+
             // 定义列表
             if !data.definitions.isEmpty {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
                     Text("释义")
                         .foregroundColor(DesignSystem.Colors.textSecondary)
-                    
+
                     ForEach(data.definitions, id: \.self) { definition in
                         Text(definition)
                             .font(DesignSystem.Typography.bodySmall)
@@ -925,13 +1026,13 @@ struct DictionaryContentView: View {
                     }
                 }
             }
-            
+
             // 例句列表
             if !data.examples.isEmpty {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
                     Text("例句")
                         .foregroundColor(DesignSystem.Colors.textSecondary)
-                    
+
                     ForEach(data.examples, id: \.self) { example in
                         Text(example)
                             .font(DesignSystem.Typography.bodySmall)
@@ -947,7 +1048,6 @@ struct DictionaryContentView: View {
     }
 }
 
-
 // 错误提示视图
 private struct ErrorContentView: View {
     let data: ChatErrorBiz
@@ -957,12 +1057,12 @@ private struct ErrorContentView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundColor(DesignSystem.Colors.error)
                 .font(.system(size: 24))
-            
+
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxSmall) {
                 Text("出错了")
                     .font(DesignSystem.Typography.headingSmall)
                     .foregroundColor(DesignSystem.Colors.error)
-                
+
                 Text(data.error)
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundColor(DesignSystem.Colors.textSecondary)
@@ -989,14 +1089,16 @@ struct PuzzleContentView: View {
     @State private var selectedOption: UUID?
     @State private var showResult: Bool = false
     @State private var attempts: Int = 0
-    
+
     var columns: [GridItem] {
-        return data.options.count > 2 ? [
-            GridItem(.flexible())
-        ] : [
-            GridItem(.flexible()),
-            GridItem(.flexible())
-        ]
+        return data.options.count > 2
+            ? [
+                GridItem(.flexible())
+            ]
+            : [
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+            ]
     }
     private func getBackgroundColor(for option: ChatPuzzleOption) -> Color {
         if data.isSelected(option: option) {
@@ -1008,7 +1110,7 @@ struct PuzzleContentView: View {
         }
         return DesignSystem.Colors.background
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.small) {
@@ -1016,7 +1118,7 @@ struct PuzzleContentView: View {
                     .font(DesignSystem.Typography.headingSmall)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
-            
+
             LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.small) {
                 ForEach(data.options) { option in
                     Button(action: {
@@ -1030,8 +1132,13 @@ struct PuzzleContentView: View {
                                 .lineLimit(2)
                             Spacer()
                             if data.isSelected(option: option) {
-                                Image(systemName: data.isCorrect(option: option) ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundColor(data.isCorrect(option: option) ? DesignSystem.Colors.success : DesignSystem.Colors.error)
+                                Image(
+                                    systemName: data.isCorrect(option: option)
+                                        ? "checkmark.circle.fill" : "xmark.circle.fill"
+                                )
+                                .foregroundColor(
+                                    data.isCorrect(option: option)
+                                        ? DesignSystem.Colors.success : DesignSystem.Colors.error)
                             }
                         }
                         .padding(DesignSystem.Spacing.medium)
@@ -1042,20 +1149,20 @@ struct PuzzleContentView: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: DesignSystem.Radius.medium)
-                                .stroke(DesignSystem.Colors.textSecondary.opacity(0.2), lineWidth: 1)
+                                .stroke(
+                                    DesignSystem.Colors.textSecondary.opacity(0.2), lineWidth: 1)
                         )
                     }
                     .disabled(data.isSelected(option: option) && !data.isCorrect(option: option))
                 }
             }
-            
+
         }
         .padding(DesignSystem.Spacing.medium)
         .background(DesignSystem.Colors.secondaryBackground)
         .cornerRadius(DesignSystem.Radius.large)
     }
 }
-
 
 struct RecordButton: View {
     @ObservedObject var recorder: AudioRecorder
@@ -1074,7 +1181,7 @@ struct RecordButton: View {
             return Color.blue.opacity(0.1)
         }
     }
-    
+
     var color2: Color {
         if cancelHighlighted {
             return Color.red
@@ -1086,7 +1193,7 @@ struct RecordButton: View {
             return Color.blue
         }
     }
-    
+
     var text: String {
         if cancelHighlighted {
             return "取消"
@@ -1098,7 +1205,7 @@ struct RecordButton: View {
             return "按住说话"
         }
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
@@ -1122,30 +1229,36 @@ struct RecordButton: View {
                             .onEnded { _ in
                                 recorder.startRecording()
                             }
-                            .simultaneously(with: DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    print("value \(value.translation.width) \(value.translation.height)")
-                                    // Remove dragOffset update to prevent button movement
-                                    cancelHighlighted = value.translation.width < -100 && value.translation.height < -100
-                                    insertHighlighted = value.translation.width > 50
-                                }
-                                .onEnded { value in
-                                    if value.translation.width < -100 && value.translation.height < -100 {
-                                        recorder.cancelRecording()
-                                    } else if value.translation.width > 50 {
-                                        recorder.stopRecording() { url in
-                                            print("Recording completed for text insertion")
-                                        }
-                                    } else {
-                                        recorder.stopRecording() { url in
-                                            print("Recording completed for sending")
-                                        }
+                            .simultaneously(
+                                with: DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        print(
+                                            "value \(value.translation.width) \(value.translation.height)"
+                                        )
+                                        // Remove dragOffset update to prevent button movement
+                                        cancelHighlighted =
+                                            value.translation.width < -100
+                                            && value.translation.height < -100
+                                        insertHighlighted = value.translation.width > 50
                                     }
-                                    cancelHighlighted = false
-                                    insertHighlighted = false
-                                })
+                                    .onEnded { value in
+                                        if value.translation.width < -100
+                                            && value.translation.height < -100
+                                        {
+                                            recorder.cancelRecording()
+                                        } else if value.translation.width > 50 {
+                                            recorder.stopRecording { url in
+                                                print("Recording completed for text insertion")
+                                            }
+                                        } else {
+                                            recorder.stopRecording { url in
+                                                print("Recording completed for sending")
+                                            }
+                                        }
+                                        cancelHighlighted = false
+                                        insertHighlighted = false
+                                    })
                     )
-
 
                 // 录音状态提示
                 // 使用 opacity 而不是条件渲染来避免布局变化
@@ -1166,13 +1279,13 @@ struct RecordButton: View {
                         Spacer()
                     }
                     .opacity(recorder.isRecording ? 1 : 0)
-                    .frame(height: 46) // 固定 RecordButton 的高度
+                    .frame(height: 46)  // 固定 RecordButton 的高度
                     .offset(y: -160)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: 46) // 固定 RecordButton 的高度
+        .frame(height: 46)  // 固定 RecordButton 的高度
     }
 }
 
@@ -1183,20 +1296,22 @@ struct InputBarView: View {
     @ObservedObject var recorder: AudioRecorder
     @State private var isKeyboardMode = false
     @State private var inputText = ""
-    
+    @FocusState private var isFocused: Bool
+
     var body: some View {
         ZStack {
             // Background color
             Color(uiColor: .systemBackground)
                 .edgesIgnoringSafeArea(.bottom)
-            
-            HStack(alignment: .center, spacing: 8) { // Ensure .center alignment
+
+            HStack(alignment: .center, spacing: 8) {
                 Spacer()
-                
+
                 // Middle area - vertically center the content
-                HStack(alignment: .center) { // Add HStack with .center alignment
+                HStack(alignment: .center) {
                     if isKeyboardMode {
                         TextField("说点什么...", text: $inputText)
+                            .focused($isFocused)
                             .submitLabel(.send)
                             .onSubmit {
                                 if !inputText.isEmpty {
@@ -1212,18 +1327,21 @@ struct InputBarView: View {
                         RecordButton(recorder: recorder)
                     }
                 }
-                
+
                 // Right keyboard/voice toggle button
                 HStack(alignment: .center) {
                     Button(action: {
                         isKeyboardMode.toggle()
+                        if isKeyboardMode {
+                            isFocused = true
+                        }
                     }) {
-                    Image(systemName: isKeyboardMode ? "mic" : "keyboard")
-                        .font(.system(size: 24))
-                        .foregroundColor(.gray)
+                        Image(systemName: isKeyboardMode ? "mic" : "keyboard")
+                            .font(.system(size: 24))
+                            .foregroundColor(.gray)
                     }
                 }
-                .frame(width: 44, height: 44) // 固定尺寸
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
             }
             .padding(.horizontal, 12)
@@ -1232,7 +1350,6 @@ struct InputBarView: View {
         .frame(height: 70)
     }
 }
-
 
 private struct UserMessageActions: View {
     let recorder: AudioRecorder
@@ -1245,7 +1362,7 @@ private struct UserMessageActions: View {
             }
         }
     }
-    
+
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             if case let .audio(data) = box.payload {
@@ -1275,15 +1392,15 @@ private struct UserMessageActions: View {
 
 private struct BotMessageActions: View {
     @ObservedObject var box: ChatBoxBiz
-    
+
     func handleSpeak() {
-//        if let tts = box.role.tts {
-//            if let text = box.payload?.text {
-//                tts.speak(text)
-//            }
-//        }
+        //        if let tts = box.role.tts {
+        //            if let text = box.payload?.text {
+        //                tts.speak(text)
+        //            }
+        //        }
     }
-    
+
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             Button(action: {
@@ -1302,7 +1419,7 @@ private struct BotMessageActions: View {
                 .background(DesignSystem.Colors.textSecondary.opacity(0.1))
                 .cornerRadius(DesignSystem.Radius.medium)
             }
-            
+
             Button(action: {
                 self.handleSpeak()
             }) {
@@ -1319,7 +1436,7 @@ private struct BotMessageActions: View {
                 .background(DesignSystem.Colors.textSecondary.opacity(0.1))
                 .cornerRadius(DesignSystem.Radius.medium)
             }
-            
+
             Spacer()
         }
         .padding(.horizontal, DesignSystem.Spacing.xxSmall)
@@ -1327,18 +1444,17 @@ private struct BotMessageActions: View {
     }
 }
 
-
 struct FlowLayout: Layout {
     let spacing: CGFloat
-    
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
         let maxWidth = proposal.width ?? .infinity
-        
+
         var totalHeight: CGFloat = 0
         var lineWidth: CGFloat = 0
         var lineHeight: CGFloat = 0
-        
+
         for size in sizes {
             if lineWidth + size.width + spacing > maxWidth {
                 totalHeight += lineHeight + spacing
@@ -1352,23 +1468,25 @@ struct FlowLayout: Layout {
         totalHeight += lineHeight
         return CGSize(width: maxWidth, height: totalHeight)
     }
-    
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+
+    func placeSubviews(
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) {
         var x = bounds.minX
         var y = bounds.minY
         var lineHeight: CGFloat = 0
-        
+
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            
+
             if x + size.width > bounds.maxX {
                 x = bounds.minX
                 y += lineHeight + spacing
                 lineHeight = 0
             }
-            
+
             subview.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: .unspecified)
-            
+
             x += size.width + spacing
             lineHeight = max(lineHeight, size.height)
         }

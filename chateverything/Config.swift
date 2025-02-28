@@ -119,7 +119,7 @@ class Config: ObservableObject {
                         let models1Data = v["models1"] as? [[String: Any]] ?? []
                         let models1 = models1Data.map { dict in
                             LLMProviderModelValue(
-                                name: dict["name"] as? String ?? "",
+                                id: dict["id"] as? String ?? "",
                                 enabled: dict["enabled"] as? Bool ?? true
                             )
                         }
@@ -192,11 +192,30 @@ class Config: ObservableObject {
             self.ttsProviderControllers = ttsControllers
     }
 
+    func updateMeName(name: String) {
+        self.me.name = name
+        var existing: [String: Any] = UserDefaults.standard.object(forKey: "me") as? [String: Any] ?? [:]
+        existing["name"] = name
+        UserDefaults.standard.set(existing, forKey: "me")
+    }
+
+    func updateMeAvatar(avatar: Data) {
+        // Save the image data to UserDefaults
+        // self.me.avatar = avatar
+        // var existing: [String: Any] = UserDefaults.standard.object(forKey: "me") as? [String: Any] ?? [:]
+        // existing["avatar"] = avatar
+        // UserDefaults.standard.set(existing, forKey: "me")
+        
+        // Update the avatar in memory
+        // Note: We're keeping the existing avatar string in case it's a network URL or asset name
+        // The presence of avatarData in UserDefaults will take precedence when displaying
+    }
+
     func updateSingleLLMProviderValue(id: String, value: LLMProviderValue) {
         self.llmProviderValues[id] = value
         let models1Data = value.models1.map { model -> [String: Any] in
             return [
-                "name": model.name,
+                "id": model.id,
                 "enabled": model.enabled
             ]
         }

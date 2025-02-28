@@ -112,8 +112,9 @@ let role7 = RoleBiz(
                     payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
                     loading: true
                 )
-                session.appendTmpBox(box: loadingMessage)
-
+                DispatchQueue.main.async {
+                    session.appendTmpBox(box: loadingMessage)
+                }
                 let events = LLMServiceEvents(
                     onStart: {
                         print("[BIZ]RoleBiz onStart")

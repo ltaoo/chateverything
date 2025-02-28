@@ -277,16 +277,11 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
         let llmProviderController = config.llmProviderControllers.first {
             $0.id == llmConfig["provider"] as? String
         }
-        for v in config.llmProviderControllers {
-            print(
-                "[BIZ]RoleBiz updateLLM provider: \(v.id) \(v.provider.name) \(v.value.apiProxyAddress) \(v.value.apiKey)"
-            )
-        }
         if let llmProviderController = llmProviderController {
             let value = llmProviderController.build(config: self.config)
-            print(
-                "[BIZ]RoleBiz updateLLM value: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)"
-            )
+            // print(
+            //     "[BIZ]RoleBiz updateLLM value: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)"
+            // )
             llm = LLMService(value: value)
         }
         if llm == nil {
@@ -329,9 +324,9 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
 
     func load(config: Config) {
         print("[BIZ]RoleBiz load \(self.id)")
-        let m = DefaultRoles.first { $0.id == self.id }
+        let m = config.roles.first { $0.id == self.id }
         guard let m = m else {
-            print("[BIZ]RoleBiz load error: role not found")
+            print("[BIZ]RoleBiz load error: role not found \(self.id)")
             self.loading = false
             return
         }
@@ -344,8 +339,10 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
             self.language = m.language
             self.created_at = m.created_at
             self.config = m.config
-            self.updateLLM(config: config)
-            self.updateTTS(config: config)
+            if m.id != config.me.id {
+                self.updateLLM(config: config)
+                self.updateTTS(config: config)
+            }
             self.loading = false  // 移到最后，确保所有数据都加载完成
         }
     }
@@ -499,13 +496,13 @@ public class RoleLLMHelper: Codable {
     }
 
     func build(config: Config) -> LLMServiceConfig? {
-        let provider_name = self.provider
-        let model_name = self.model
-        let values = config.llmProviderControllers.first { $0.name == provider_name }
+        let provider_id = self.provider
+        let model_id = self.model
+        let values = config.llmProviderControllers.first { $0.id == provider_id }
 
         for v in config.llmProviderControllers {
             print(
-                "[BIZ]RoleLLMHelper build provider: \(v.name) \(v.value.apiProxyAddress) \(v.provider.apiProxyAddress) \(v.value.apiKey)"
+                "[BIZ]RoleLLMHelper build provider: \(v.id) \(v.value.apiProxyAddress) \(v.provider.apiProxyAddress) \(v.value.apiKey)"
             )
         }
 
@@ -514,18 +511,18 @@ public class RoleLLMHelper: Codable {
         }
 
         print(
-            "[BIZ]RoleLLMHelper build provider: \(values.name) \(values.value.apiProxyAddress) \(values.provider.apiProxyAddress) \(values.value.apiKey)"
+            "[BIZ]RoleLLMHelper build provider: \(values.id) \(values.value.apiProxyAddress) \(values.provider.apiProxyAddress) \(values.value.apiKey)"
         )
 
-        let model = values.models.first { $0.name == model_name }
+        let model = values.models.first { $0.id == model_id }
 
         guard let model = model else {
             return nil
         }
 
         return LLMServiceConfig(
-            provider: values.name,
-            model: model.name,
+            provider: values.id,
+            model: model.id,
             apiProxyAddress: values.value.apiProxyAddress ?? values.provider.apiProxyAddress,
             apiKey: values.value.apiKey,
             extra: [

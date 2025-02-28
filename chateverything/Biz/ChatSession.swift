@@ -1,6 +1,5 @@
-import Foundation
 import CoreData
-
+import Foundation
 
 public class ChatSessionConfig: ObservableObject {
     @Published var blurMsg: Bool
@@ -20,16 +19,11 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     @Published var updated_at: Date
     @Published var title: String
     @Published var avatar_uri: String
-    @Published private(set) var boxes: [ChatBoxBiz] {
-        willSet {
-            objectWillChange.send()
-        }
-    }
+    @Published private(set) var boxes: [ChatBoxBiz] = []
     @Published var members: [ChatSessionMemberBiz]
     @Published var config: ChatSessionConfig
-    @Published var hasMoreHistory = true
-    private var currentPage = 1
-    private let pageSize = 20
+
+    let helper = ListHelper(service: FetchBoxesOfSession)
 
     var unreadCount: Int {
         return 0
@@ -53,11 +47,13 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
 
         let config = ChatSessionConfig(blurMsg: false, autoSpeaking: false)
 
-        return ChatSessionBiz(id: id, created_at: created_at, updated_at: updated_at, title: title, avatar_uri: avatar_uri, boxes: [], members: [], config: config, store: store)
+        return ChatSessionBiz(
+            id: id, created_at: created_at, updated_at: updated_at, title: title,
+            avatar_uri: avatar_uri, boxes: [], members: [], config: config, store: store)
     }
     static func delete(session: ChatSessionBiz, in store: ChatStore) {
         let ctx = store.container.viewContext
-        
+
         // Delete all member records
         let memberReq = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
         memberReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
@@ -66,7 +62,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
                 ctx.delete(member)
             }
         }
-        
+
         // Delete all box payloads and boxes
         let boxReq = NSFetchRequest<ChatBox>(entityName: "ChatBox")
         boxReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
@@ -80,7 +76,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
                 ctx.delete(box)
             }
         }
-        
+
         // Delete the session record
         let sessionReq = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         sessionReq.predicate = NSPredicate(format: "id == %@", session.id as CVarArg)
@@ -89,7 +85,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
             // Save changes
             try? ctx.save()
         }
-        
+
     }
     static func from(_ record: ChatSession, in store: ChatStore) -> ChatSessionBiz {
         let id = record.id ?? UUID()
@@ -114,7 +110,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
 
     func load(id: UUID, config: Config) {
         let ctx = config.store.container.viewContext
-        
+
         let req = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         req.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         let session = try! ctx.fetch(req).first
@@ -125,9 +121,10 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
         }
 
         let role_req = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
-        role_req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id ])
-        let role_records = try! ctx.fetch(role_req)
-        let members: [ChatSessionMemberBiz] = role_records.map {
+        role_req.predicate = NSPredicate(
+            format: "%K == %@", argumentArray: ["session_id", session.id])
+        let member_records = try! ctx.fetch(role_req)
+        let members: [ChatSessionMemberBiz] = member_records.map {
             let r = ChatSessionMemberBiz.from($0, store: store)
             let role = RoleBiz.Get(id: $0.role_id!, config: config)
             r.role = role
@@ -136,34 +133,62 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
             }
             return r
         }
-         let fetchBatchSize = 20
-        let box_req = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-        box_req.predicate = NSPredicate(format: "session_id == %@", id as CVarArg)
-        box_req.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: true)]
-        box_req.fetchBatchSize = fetchBatchSize
-        box_req.fetchLimit = 20
-        let box_records = try! ctx.fetch(box_req)
-        let boxes: [ChatBoxBiz] = box_records.map {
-            let box = ChatBoxBiz.from($0, store: store)
-            print("[BIZ]ChatSessionBiz.load: box: \(box.type) \(box.sender_id)")
+        self.members = members
+
+        // 修改消息加载逻辑，只加载最新的消息
+        helper.setParams(
+            params: ListHelperParams(
+                page: 1,
+                pageSize: 1000,
+                sorts: ["created_at": "desc"],
+                search: ["session_id": session.id]
+            )
+        )
+        let boxes = helper.load(config: config)
+
+        let boxesPrepared = boxes.map {
+            let box = ChatBoxBiz.from($0.box, store: store)
             if box.sender_id == config.me.id {
                 box.isMe = true
             }
-            box.load(session: self, config: config)
+            box.load(payload: $0.payload, session: self, config: config)
             return box
         }
 
-        // print("[BIZ]ChatSessionBiz.load: boxes: \(boxes.count)")
+        DispatchQueue.main.async {
+            self.boxes = boxesPrepared.reversed()
+            // for box in boxesPrepared {
+            //     self.boxes.insert(box, at: 0)
+            // }
+        }
 
         self.created_at = session.created_at ?? Date()
         self.updated_at = session.updated_at ?? Date()
         self.title = session.title ?? ""
         self.avatar_uri = session.avatar_uri ?? ""
-        self.boxes = boxes
-        self.members = members
     }
 
-    init(id: UUID, created_at: Date, updated_at: Date, title: String, avatar_uri: String, boxes: [ChatBoxBiz], members: [ChatSessionMemberBiz], config: ChatSessionConfig, store: ChatStore) {
+    func loadMoreMessages(config: Config) {
+        let boxes = helper.loadMore(config: config)
+        let boxesPrepared = boxes.map {
+            let box = ChatBoxBiz.from($0.box, store: store)
+            if box.sender_id == config.me.id {
+                box.isMe = true
+            }
+            box.load(payload: $0.payload, session: self, config: config)
+            return box
+        }
+
+        DispatchQueue.main.async {
+            self.boxes = boxesPrepared.reversed() + self.boxes
+        }
+    }
+
+    init(
+        id: UUID, created_at: Date, updated_at: Date, title: String, avatar_uri: String,
+        boxes: [ChatBoxBiz], members: [ChatSessionMemberBiz], config: ChatSessionConfig,
+        store: ChatStore
+    ) {
         self.id = id
         self.created_at = created_at
         self.updated_at = updated_at
@@ -179,6 +204,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
         self.boxes = boxes
     }
     func appendTmpBox(box: ChatBoxBiz) {
+        print("[BIZ]ChatSessionBiz.appendTmpBox: \(box.type)")
         self.boxes.append(box)
     }
     func appendBox(box: ChatBoxBiz) {
@@ -204,12 +230,15 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
         completion?(self.boxes)
     }
     func removeLastBox() {
-        self.boxes.removeLast()
+        print("[BIZ]ChatSessionBiz.removeLastBox \(self.boxes.count)")
+        if self.boxes.count > 0 {
+            self.boxes.removeLast()
+        }
     }
 
     func save() {
         let viewContext = self.store.container.viewContext
-        
+
         let record = ChatSession(context: viewContext)
         record.id = self.id
         record.created_at = self.created_at
@@ -231,7 +260,8 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
 
     func getBoxesForMember(roleId: UUID, config: Config) -> [ChatBoxBiz] {
         return boxes.filter { box in
-            (box.sender_id == roleId || box.sender_id == config.me.id) && (box.type == "message" || box.type == "audio")
+            (box.sender_id == roleId || box.sender_id == config.me.id)
+                && (box.type == "message" || box.type == "audio")
         }.sorted { $0.created_at < $1.created_at }
     }
 }

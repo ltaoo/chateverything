@@ -117,22 +117,21 @@ struct LLMProviderSettingView: View {
                         }
                     }
 
-                    Divider()
+                    // Divider()
 
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("校验")
-                                .font(DesignSystem.Typography.bodyMedium)
-                                .foregroundColor(DesignSystem.Colors.textPrimary)
-                        }
-                        Spacer()
-                        Button("Check") {
-                            // TODO: Implement connectivity check
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(DesignSystem.Colors.primary)
-                        .controlSize(.small)
-                    }
+                    // HStack {
+                    //     VStack(alignment: .leading, spacing: 2) {
+                    //         Text("校验")
+                    //             .font(DesignSystem.Typography.bodyMedium)
+                    //             .foregroundColor(DesignSystem.Colors.textPrimary)
+                    //     }
+                    //     Spacer()
+                    //     Button("Check") {
+                    //     }
+                    //     .buttonStyle(.borderedProminent)
+                    //     .tint(DesignSystem.Colors.primary)
+                    //     .controlSize(.small)
+                    // }
                 }
                 .padding(.vertical, DesignSystem.Spacing.cardPadding)
                 .padding(.horizontal, DesignSystem.Spacing.cardPadding)
@@ -143,7 +142,7 @@ struct LLMProviderSettingView: View {
         .sheet(isPresented: $showingAddModelDialog) {
             NavigationView {
                 Form {
-                    TextField("模型名称", text: $newModelName)
+                    TextField("模型id", text: $newModelName)
                         .font(DesignSystem.Typography.bodyMedium)
                 }
                 .navigationTitle("添加自定义模型")
@@ -155,7 +154,7 @@ struct LLMProviderSettingView: View {
                     .foregroundColor(DesignSystem.Colors.primary),
                     trailing: Button("确定") {
                         if !newModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            controller.addCustomModel(name: newModelName)
+                            controller.addCustomModel(id: newModelName)
                             config.updateSingleLLMProviderValue(id: provider.id, value: value)
                         }
                         newModelName = ""
@@ -177,14 +176,14 @@ struct ModelToggleRow: View {
     
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
-            Text(model.name)
+            Text(model.id)
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundColor(DesignSystem.Colors.textPrimary)
             if !model.isDefault {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(DesignSystem.Colors.error)
                     .onTapGesture {
-                        controller.removeCustomModel(name: model.name)
+                        controller.removeCustomModel(id: model.id)
                         onChange()
                     }
             }

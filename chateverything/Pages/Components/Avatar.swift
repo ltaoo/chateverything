@@ -1,45 +1,75 @@
 import SwiftUI
 
-struct Avatar: View {
-    let uri: String
-    var size: CGFloat = 40 // 默认大小
+enum AvatarSource {
+    case asset(String)         // For images in Assets
+    case network(String)       // For network URLs
+    case data(Data)           // For image data
+    
+    var stringValue: String {
+        switch self {
+        case .asset(let name): return "asset://" + name
+        case .network(let url): return url
+        case .data(_): return "data://avatar"
+        }
+    }
+    
+    static func from(_ string: String) -> AvatarSource {
+        if string.hasPrefix("http://") || string.hasPrefix("https://") {
+            return .network(string)
+        }
+        return .asset(string)
+    }
+} 
 
-    init(uri: String, size: CGFloat = 40) {
-        self.uri = uri
+struct Avatar: View {
+    let source: AvatarSource
+    var size: CGFloat = 40
+    
+    init(source: AvatarSource, size: CGFloat = 40) {
+        self.source = source
         self.size = size
     }
     
-    private var isNetworkImage: Bool {
-        uri.hasPrefix("http://") || uri.hasPrefix("https://")
+    // Convenience initializer for string-based avatars
+    init(uri: String, size: CGFloat = 40) {
+        self.init(source: AvatarSource.from(uri), size: size)
     }
     
     var body: some View {
         Group {
-            if isNetworkImage {
-                // 网络图片
-                AsyncImage(url: URL(string: uri)) { phase in
+            switch source {
+            case .network(let url):
+                AsyncImage(url: URL(string: url)) { phase in
                     switch phase {
                     case .success(let image):
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     case .failure(_):
-                        // 加载失败时显示默认图片
                         Image(systemName: "person.circle.fill")
                             .resizable()
                     case .empty:
-                        // 加载中显示进度指示器
                         ProgressView()
                     @unknown default:
                         Image(systemName: "person.circle.fill")
                             .resizable()
                     }
                 }
-            } else {
-                // 本地图片
-                Image(uri)
+                
+            case .asset(let name):
+                Image(name)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                
+            case .data(let imageData):
+                if let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .resizable()
+                }
             }
         }
         .frame(width: size, height: size)
@@ -47,18 +77,22 @@ struct Avatar: View {
     }
 }
 
-// 预览
+// Preview
 struct Avatar_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 20) {
-            // 本地图片预览
-            Avatar(uri: "default_avatar", size: 60)
+            // Asset image preview
+            Avatar(source: .asset("default_avatar"), size: 60)
             
-            // 网络图片预览
-            Avatar(uri: "https://example.com/avatar.jpg", size: 80)
+            // Network image preview
+            Avatar(source: .network("https://example.com/avatar.jpg"), size: 80)
             
-            // 默认大小预览
+            // Data image preview
+            Avatar(source: .data(UIImage(systemName: "person")!.pngData()!), size: 100)
+            
+            // String-based initialization
             Avatar(uri: "default_avatar")
+            Avatar(uri: "https://example.com/avatar.jpg")
         }
     }
 }

@@ -1,17 +1,16 @@
 import Foundation
 
 public class LLMProviderModelValue: Identifiable, Codable {
-    public var id: String { name }
-    var name: String
+    public var id: String
     var enabled: Bool = true
     
     enum CodingKeys: String, CodingKey {
-        case name
+        case id
         case enabled
     }
 
-    public init(name: String, enabled: Bool) {
-        self.name = name
+    public init(id: String, enabled: Bool) {
+        self.id = id
         self.enabled = enabled
     }
 

@@ -1,16 +1,14 @@
 import Foundation
 
 public class LLMProviderModelController: ObservableObject, Identifiable, Hashable {
-    public var id: String { name }
-    // 默认模型
+    public let id: String
     let isDefault: Bool
     @Published public var enabled: Bool
-    @Published public var name: String
 
-    public init(isDefault: Bool, enabled: Bool, name: String) {
+    public init(isDefault: Bool, enabled: Bool, id: String) {
         self.isDefault = isDefault
         self.enabled = enabled
-        self.name = name
+        self.id = id
     }
 
     public static func == (lhs: LLMProviderModelController, rhs: LLMProviderModelController) -> Bool {
@@ -33,8 +31,8 @@ public class LLMProviderController: ObservableObject, Identifiable, Hashable {
     public init(provider: LLMProvider, value: LLMProviderValue) {
         self.provider = provider
         self.value = value
-        let models1 = value.models1.map { LLMProviderModelController(isDefault: false, enabled: $0.enabled, name: $0.name) }
-        let models2 = provider.models.map { LLMProviderModelController(isDefault: true, enabled: value.models2.contains($0.name), name: $0.name) }
+        let models1: [LLMProviderModelController] = value.models1.map { LLMProviderModelController(isDefault: false, enabled: $0.enabled, id: $0.id) }
+        let models2: [LLMProviderModelController] = provider.models.map { LLMProviderModelController(isDefault: true, enabled: value.models2.contains($0.id), id: $0.id) }
         self.models = models2 + models1
     }
 
@@ -62,22 +60,22 @@ public class LLMProviderController: ObservableObject, Identifiable, Hashable {
                 return true
             }
             return false
-         }.map { LLMProviderModelValue(name: $0.name, enabled: $0.enabled) }
+         }.map { LLMProviderModelValue(id: $0.id, enabled: $0.enabled) }
         value.models2 = models.filter { 
             if $0.isDefault && $0.enabled {
                 return true
             }
             return false
-         }.map { $0.name }
+         }.map { $0.id }
     }
 
-    public func addCustomModel(name: String) {
-        self.models.append(LLMProviderModelController(isDefault: false, enabled: true, name: name))
+    public func addCustomModel(id: String) {
+        self.models.append(LLMProviderModelController(isDefault: false, enabled: true, id: id))
         self.updateValueModels()
     }
 
-    public func removeCustomModel(name: String) {
-        self.models.removeAll { $0.name == name }
+    public func removeCustomModel(id: String) {
+        self.models.removeAll { $0.id == id }
         self.updateValueModels()
     }
     
