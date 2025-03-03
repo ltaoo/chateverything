@@ -18,7 +18,6 @@ struct chateverythingTests {
         // 创建一个字符串输入
         let input = StringInput(
             id: "test",
-            placeholder: "Enter text",
             defaultValue: "hello",
             maxLength: 10
         )

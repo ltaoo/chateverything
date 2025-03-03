@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>ChatEverything - AI 英语对话助手</title>
+	<style>
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+			margin: 0;
+			padding: 0;
+			background-color: #f5f5f7;
+		}
+
+		.container {
+			max-width: 1200px;
+			margin: 0 auto;
+			padding: 20px;
+		}
+
+		header {
+			text-align: center;
+			padding: 40px 0;
+		}
+
+		h1 {
+			font-size: 2.5em;
+			color: #1d1d1f;
+			margin-bottom: 20px;
+		}
+
+		.description {
+			font-size: 1.2em;
+			color: #515154;
+			margin-bottom: 40px;
+			line-height: 1.6;
+			max-width: 800px;
+			margin-left: auto;
+			margin-right: auto;
+		}
+
+		.features {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 30px;
+			margin: 40px 0;
+			padding: 0 20px;
+		}
+
+		.feature {
+			text-align: center;
+			padding: 20px;
+			background: white;
+			border-radius: 12px;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+		}
+
+		.feature h3 {
+			color: #1d1d1f;
+			margin-bottom: 10px;
+		}
+
+		.feature p {
+			color: #515154;
+			line-height: 1.5;
+		}
+
+		.screenshots {
+			position: relative;
+			width: 100%;
+			overflow-x: auto;
+			padding: 20px 0;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.screenshots-container {
+			display: flex;
+			gap: 20px;
+			padding: 0 20px;
+		}
+
+		.screenshot {
+			flex: 0 0 300px;
+			background: white;
+			border-radius: 12px;
+			overflow: hidden;
+			box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+			transition: transform 0.3s ease;
+		}
+
+		.screenshot:hover {
+			transform: translateY(-5px);
+		}
+
+		.screenshot img {
+			width: 100%;
+			height: auto;
+			display: block;
+		}
+
+		footer {
+			text-align: center;
+			padding: 40px 0;
+			color: #86868b;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="container">
+		<header>
+			<h1>ChatEverything</h1>
+			<p class="description">专业的 AI 英语对话助手，支持自定义大语言模型，让英语学习和练习更有趣、更高效</p>
+		</header>
+
+		<div class="features">
+			<div class="feature">
+				<h3>自定义大模型</h3>
+				<p>支持多种主流大语言模型，可根据需求自由切换和配置</p>
+			</div>
+			<div class="feature">
+				<h3>场景化对话</h3>
+				<p>提供丰富的英语对话场景，帮助您提升口语和写作能力</p>
+			</div>
+			<div class="feature">
+				<h3>智能反馈</h3>
+				<p>实时语言纠错和建议，让您的英语水平持续提升</p>
+			</div>
+		</div>
+
+		<div class="screenshots">
+			<div class="screenshots-container">
+				<div class="screenshot">
+					<img src="/public/01.png" alt="ChatEverything 对话界面">
+				</div>
+				<div class="screenshot">
+					<img src="/public/02.png" alt="ChatEverything 场景选择">
+				</div>
+				<div class="screenshot">
+					<img src="/public/03.png" alt="ChatEverything 模型配置">
+				</div>
+				<div class="screenshot">
+					<img src="/public/04.png" alt="ChatEverything 学习反馈">
+				</div>
+				<div class="screenshot">
+					<img src="/public/05.png" alt="ChatEverything 进度追踪">
+				</div>
+				<div class="screenshot">
+					<img src="/public/06.png" alt="ChatEverything 个性化设置">
+				</div>
+			</div>
+		</div>
+
+		<footer>
+			<p>© 2024 ChatEverything. 保留所有权利。</p>
+			<p><a href="/privacy.html" style="color: #86868b; text-decoration: underline;">隐私政策</a></p>
+		</footer>
+	</div>
+</body>
+
+</html>
