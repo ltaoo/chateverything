@@ -44,7 +44,7 @@ class ChatDetailViewModel: ObservableObject {
             avatar_uri: "",
             boxes: [],
             members: [],
-            config: ChatSessionConfig(blurMsg: false, autoSpeaking: false),
+            config: ChatSessionConfig(autoBlur: true, autoSpeak: true, stream: true),
             store: store
         )
 
@@ -66,6 +66,9 @@ class ChatDetailViewModel: ObservableObject {
                 }
                 if role.id == config.me.id {
                     continue
+                }
+                if let prompt = self.session.prompt {
+                    role.setMessages(messages: [LLMServiceMessage(role: "system", content: prompt)])
                 }
                 let boxes: [ChatBoxBiz] = self.session.getBoxesForMember(
                     roleId: role.id, config: config)
@@ -101,10 +104,22 @@ class ChatDetailViewModel: ObservableObject {
                 }
                 let msgs = llmMessages.compactMap { $0 }
                 print("llmMessages: \(msgs.count)")
-                role.setMessages(messages: msgs)
+                role.appendMessages(messages: msgs)
             }
         }
         self.boxes = self.session.boxes
+        for member in self.session.members {
+            if let role = member.role {
+                if role.disabled {
+                    continue
+                }
+                if role.id == config.me.id {
+                    continue
+                }
+                print("before role.start \(self.session.boxes.count)")
+                role.start(session: self.session, config: config)
+            }
+        }
     }
     func showPermissionAlert() {
         self.permissionAlertVisible = true
@@ -125,16 +140,17 @@ class ChatDetailViewModel: ObservableObject {
             session_id: self.session.id,
             sender_id: config.me.id,
             payload: ChatPayload.message(
-                ChatMessageBiz2(
+                ChatTextMsgBiz(
                     text: text,
                     nodes: []
                 )
             ),
-            loading: false,
-            blurred: false
+            loading: false
         )
         self.session.appendBox(box: userMessage)
-
+        print(
+            "[PAGE]ChatDetailView sendTextMessage before member.response \(self.session.members.count)"
+        )
         for member in self.session.members {
             if let role = member.role {
                 if role.disabled {
@@ -164,13 +180,16 @@ class ChatDetailViewModel: ObservableObject {
                     duration: duration
                 )
             ),
-            loading: false,
-            blurred: false
+            loading: false
         )
         self.session.appendBox(box: userMessage)
+        print(
+            "[PAGE]ChatDetailView sendAudioMessage before member.response \(self.session.members.count)"
+        )
 
         for member in self.session.members {
             if let role = member.role {
+                print("role \(role.id) \(role.name) \(role.name) \(role.disabled)")
                 if role.disabled {
                     continue
                 }
@@ -187,6 +206,20 @@ class ChatDetailViewModel: ObservableObject {
         DispatchQueue.main.async {
             self.objectWillChange.send()
             self.session.appendBox(box: box)
+        }
+    }
+
+    func destroy() {
+        for member in self.session.members {
+            if let role = member.role {
+                if role.disabled {
+                    continue
+                }
+                if role.id == config.me.id {
+                    continue
+                }
+                role.tts?.stop()
+            }
         }
     }
 }
@@ -278,6 +311,7 @@ struct ChatDetailView: View {
     }
 
     private func recognizeSpeech(url: URL) {
+        print("[PAGE]ChatDetailView recognizeSpeech")
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
 
         guard let recognizer = recognizer, recognizer.isAvailable else {
@@ -309,7 +343,7 @@ struct ChatDetailView: View {
         // 获取音频时长
         let audioPlayer = try? AVAudioPlayer(contentsOf: url)
         let duration = audioPlayer?.duration ?? 0
-
+        print("[PAGE]ChatDetailView before recognizer.recognitionTask")
         recognizer.recognitionTask(with: request) { result, error in
             if let error = error {
                 print("Recognition failed with error: \(error.localizedDescription)")
@@ -320,7 +354,10 @@ struct ChatDetailView: View {
 
             let recognizedText = result.bestTranscription.formattedString
             self.handleRecognizedSpeech(
-                recognizedText: recognizedText, audioURL: url, duration: duration)
+                recognizedText: recognizedText,
+                audioURL: url,
+                duration: duration
+            )
         }
     }
 
@@ -352,11 +389,11 @@ struct ChatDetailView: View {
             onDismiss: { dismiss() }
         )
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                ChatDetailToolbarButton(model: model)
-            }
-        }
+        // .toolbar {
+        //     ToolbarItem(placement: .navigationBarTrailing) {
+        //         ChatDetailToolbarButton(model: model)
+        //     }
+        // }
         // 添加导航栏底部分隔线
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Color(uiColor: .systemBackground), for: .navigationBar)
@@ -375,20 +412,10 @@ struct ChatDetailView: View {
         .onAppear {
             setupRecorderCallbacks()
             self.model.load()
-            for member in self.model.session.members {
-                if let role = member.role {
-                    if role.disabled {
-                        continue
-                    }
-                    if role.id == config.me.id {
-                        continue
-                    }
-                    role.start(session: model.session, config: config)
-                }
-            }
 
         }
         .onDisappear {
+            self.model.destroy()
             self.recorder.cleanup()
         }
         .onReceive(model.session.$boxes) { newBoxes in
@@ -699,10 +726,10 @@ private struct LoadingView: View {
     }
 }
 
-// 更新 MessageContentView 中的 loading 视图
-private struct MessageContentView: View {
+// 更新 TextMsgView 中的 loading 视图
+private struct TextMsgView: View {
     @ObservedObject var box: ChatBoxBiz
-    @ObservedObject var data: ChatMessageBiz2
+    @ObservedObject var data: ChatTextMsgBiz
     let recorder: AudioRecorder
 
     // 添加菜单显示状态
@@ -712,7 +739,6 @@ private struct MessageContentView: View {
         VStack(alignment: box.isMe ? .trailing : .leading, spacing: DesignSystem.Spacing.xxSmall) {
             HStack {
                 if box.isMe { Spacer() }
-
                 if box.loading {
                     LoadingView()
                 } else {
@@ -766,12 +792,12 @@ private struct MessageContentView: View {
 
                 if !box.isMe { Spacer() }
             }
-            .blur(radius: box.blurred ? 4 : 0)
-            .animation(.easeInOut(duration: 0.2), value: box.blurred)
+            .blur(radius: data.blurred ? 4 : 0)
+            .animation(.easeInOut(duration: 0.2), value: data.blurred)
 
             if !box.loading && !box.isMe {
                 BotMessageActions(
-                    box: box
+                    data: data
                 )
                 .offset(x: 12)
             }
@@ -779,8 +805,8 @@ private struct MessageContentView: View {
     }
 }
 
-// 更新 AudioContentView 中的 loading 视图
-private struct AudioContentView: View {
+// 更新 AudioMsgView 中的 loading 视图
+private struct AudioMsgView: View {
     @ObservedObject var box: ChatBoxBiz
     @ObservedObject var data: ChatAudioBiz
     let recorder: AudioRecorder
@@ -835,28 +861,29 @@ private struct AudioContentView: View {
 
                 if !box.isMe { Spacer() }
             }
-            .blur(radius: box.blurred ? 4 : 0)
-            .animation(.easeInOut(duration: 0.2), value: box.blurred)
+            .blur(radius: data.blurred ? 4 : 0)
+            .animation(.easeInOut(duration: 0.2), value: data.blurred)
 
-            if box.isMe && data.url != nil {
-                UserMessageActions(
-                    recorder: recorder,
-                    box: box
-                )
-                .offset(x: -12)
-            } else if !box.isMe {
-                BotMessageActions(
-                    box: box
-                )
-                .offset(x: -12)
-            }
+            // if box.isMe && data.url != nil {
+            //     UserMessageActions(
+            //         recorder: recorder,
+            //         box: box
+            //     )
+            //     .offset(x: -12)
+            // }
+            //            if !box.isMe {
+            //                BotMessageActions(
+            //                    data: data
+            //                )
+            //                .offset(x: -12)
+            //            }
         }
     }
 }
 
-// 更新 TipContentView 组件
-private struct TipContentView: View {
-    let data: ChatTipBiz
+// 更新 TipMsgView 组件
+private struct TipMsgView: View {
+    let data: ChatTipMsgBiz
 
     var body: some View {
         HStack(spacing: 8) {
@@ -880,8 +907,8 @@ private struct TipContentView: View {
     }
 }
 
-struct TipTextContentView: View {
-    let data: ChatTipTextBiz
+struct TipTextMsgView: View {
+    let data: ChatTipTextMsgBiz
 
     var body: some View {
         Text(data.content)
@@ -928,15 +955,14 @@ struct ChatBoxView: View {
     }
 
     var body: some View {
-
         VStack(alignment: .leading, spacing: 16) {
             if box.type == "error" {
                 if case let .error(data) = box.payload {
-                    ErrorContentView(data: data)
+                    ErrorMsgView(data: data)
                 }
             } else if box.type == "audio" {
                 if case let .audio(data) = box.payload {
-                    AudioContentView(
+                    AudioMsgView(
                         box: box,
                         data: data,
                         recorder: recorder
@@ -944,24 +970,26 @@ struct ChatBoxView: View {
                 }
             } else if box.type == "message" {
                 if case let .message(data) = box.payload {
-                    MessageContentView(box: box, data: data, recorder: recorder)
+                    TextMsgView(box: box, data: data, recorder: recorder)
                 }
             } else if box.type == "puzzle" {
                 if case let .puzzle(data) = box.payload {
-                    PuzzleContentView(data: data)
+                    PuzzleMsgView(data: data)
                         .frame(maxWidth: .infinity)
                 }
             } else if box.type == "tip" {
                 if case let .tip(data) = box.payload {
-                    TipContentView(data: data)
+                    TipMsgView(data: data)
                 }
             } else if box.type == "tipText" {
                 if case let .tipText(data) = box.payload {
-                    TipTextContentView(data: data)
+                    TipTextMsgView(data: data)
                 }
             } else if box.type == "dictionary" {
-                if case let ChatPayload.dictionary(data) = box.payload! {
-                    DictionaryContentView(data: data)
+                if box.payload != nil {
+                    if case let ChatPayload.dictionary(data) = box.payload! {
+                        DictionaryMsgView(data: data)
+                    }
                 }
             }
         }
@@ -969,8 +997,8 @@ struct ChatBoxView: View {
 
 }
 
-struct DictionaryContentView: View {
-    let data: ChatDictionaryBiz
+struct DictionaryMsgView: View {
+    let data: ChatDictionaryMsgBiz
     @State private var isFavorited = false
 
     var body: some View {
@@ -984,15 +1012,15 @@ struct DictionaryContentView: View {
                 Spacer()
 
                 // 仅在文本类型为句子时显示收藏按钮
-                if data.text_type == "word" {
-                    Button(action: {
-                        isFavorited.toggle()
-                    }) {
-                        Image(systemName: isFavorited ? "star.fill" : "star")
-                            .foregroundColor(
-                                isFavorited ? .yellow : DesignSystem.Colors.textSecondary)
-                    }
-                }
+                // if data.text_type == "word" {
+                //     Button(action: {
+                //         isFavorited.toggle()
+                //     }) {
+                //         Image(systemName: isFavorited ? "star.fill" : "star")
+                //             .foregroundColor(
+                //                 isFavorited ? .yellow : DesignSystem.Colors.textSecondary)
+                //     }
+                // }
             }
 
             // 发音区域
@@ -1049,8 +1077,8 @@ struct DictionaryContentView: View {
 }
 
 // 错误提示视图
-private struct ErrorContentView: View {
-    let data: ChatErrorBiz
+private struct ErrorMsgView: View {
+    let data: ChatErrorMsgBiz
 
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.medium) {
@@ -1082,9 +1110,9 @@ private struct ErrorContentView: View {
     }
 }
 
-// 更新 PuzzleContentView 组件
-struct PuzzleContentView: View {
-    @ObservedObject var data: ChatPuzzleBiz
+// 更新 PuzzleMsgView 组件
+struct PuzzleMsgView: View {
+    @ObservedObject var data: ChatPuzzleMsgBiz
 
     @State private var selectedOption: UUID?
     @State private var showResult: Bool = false
@@ -1370,13 +1398,13 @@ private struct UserMessageActions: View {
                     play()
                 }) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
-                        Image(systemName: box.playing ? "stop.circle.fill" : "play.circle.fill")
-                            .frame(width: 16, height: 16)
-                            .imageScale(.medium)
-                            .foregroundColor(DesignSystem.Colors.primary)
-                        Text(box.playing ? "停止" : "回放")
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundColor(DesignSystem.Colors.primary)
+                        //                        Image(systemName: box.playing ? "stop.circle.fill" : "play.circle.fill")
+                        //                            .frame(width: 16, height: 16)
+                        //                            .imageScale(.medium)
+                        //                            .foregroundColor(DesignSystem.Colors.primary)
+                        //                        Text(box.playing ? "停止" : "回放")
+                        //                            .font(DesignSystem.Typography.caption)
+                        //                            .foregroundColor(DesignSystem.Colors.primary)
                     }
                     .padding(.vertical, DesignSystem.Spacing.xxSmall)
                     .padding(.horizontal, DesignSystem.Spacing.small)
@@ -1391,26 +1419,18 @@ private struct UserMessageActions: View {
 }
 
 private struct BotMessageActions: View {
-    @ObservedObject var box: ChatBoxBiz
-
-    func handleSpeak() {
-        //        if let tts = box.role.tts {
-        //            if let text = box.payload?.text {
-        //                tts.speak(text)
-        //            }
-        //        }
-    }
+    @ObservedObject var data: ChatTextMsgBiz
 
     var body: some View {
         HStack(spacing: DesignSystem.Spacing.small) {
             Button(action: {
-                box.blurred.toggle()
+                data.blurred.toggle()
             }) {
                 HStack(spacing: DesignSystem.Spacing.xxSmall) {
-                    Image(systemName: box.blurred ? "eye.slash.fill" : "eye.fill")
+                    Image(systemName: data.blurred ? "eye.slash.fill" : "eye.fill")
                         .frame(width: 16, height: 16)
                         .imageScale(.medium)
-                    Text(box.blurred ? "显示" : "隐藏")
+                    Text(data.blurred ? "显示" : "隐藏")
                         .font(DesignSystem.Typography.caption)
                 }
                 .foregroundColor(DesignSystem.Colors.textSecondary)
@@ -1421,13 +1441,13 @@ private struct BotMessageActions: View {
             }
 
             Button(action: {
-                self.handleSpeak()
+                data.handleSpeak()
             }) {
                 HStack(spacing: DesignSystem.Spacing.xxSmall) {
-                    Image(systemName: box.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                    Image(systemName: data.speaking ? "speaker.wave.2.fill" : "speaker.wave.2")
                         .frame(width: 16, height: 16)
                         .imageScale(.medium)
-                    Text(box.speaking ? "停止" : "朗读")
+                    Text(data.speaking ? "停止" : "朗读")
                         .font(DesignSystem.Typography.caption)
                 }
                 .foregroundColor(DesignSystem.Colors.textSecondary)

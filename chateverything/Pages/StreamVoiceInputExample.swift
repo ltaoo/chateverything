@@ -222,8 +222,7 @@ struct StreamVoiceInputExample: View {
                     duration: duration
                 )
             ),
-            loading: false,
-            blurred: false
+            loading: false
         )
         viewModel.session.appendBox(box: userMessage)
 

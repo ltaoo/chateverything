@@ -113,6 +113,7 @@ iOSInjectionProject/
 
 
 .DS_Store
+.env
 
 # Resources
 **/dicts/*.json

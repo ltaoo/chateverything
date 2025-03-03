@@ -51,7 +51,7 @@ struct MineView: View {
                         .padding(.top, 20)
 
                     // 设置列表
-                    SettingsList()
+                    SettingsList(config: self.config)
                 }
                 .padding(.bottom, DesignSystem.Spacing.medium)
             }
@@ -261,6 +261,7 @@ struct ImagePicker: UIViewControllerRepresentable {
 
 // 设置列表视图
 struct SettingsList: View {
+    let config: Config
     @AppStorage("isDarkMode") private var isDarkMode = false
     @Environment(\.colorScheme) var colorScheme
 
@@ -274,7 +275,11 @@ struct SettingsList: View {
     var body: some View {
         VStack(spacing: 0) {
             Group {
-                SettingsRow(icon: "gear", title: "通用设置")
+                NavigationLink {
+                    GeneralSettingsPage(config: config)
+                } label: {
+                    SettingsRow(icon: "gear", title: "通用设置")
+                }
                 NavigationLink {
                     LLMProviderSettingsPage()
                 } label: {

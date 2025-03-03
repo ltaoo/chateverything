@@ -21,11 +21,10 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
     var payload_id: UUID
     var session_id: UUID
     var sender_id: UUID
-    @Published var loading: Bool = true
-    @Published var blurred: Bool = false
-    @Published var speaking: Bool = false
-    @Published var playing: Bool = false
+
+    @Published var loading: Bool = false
     @Published var payload: ChatPayload?
+    var sender: RoleBiz?
 
     enum CodingKeys: String, CodingKey {
         case id, payload_id, session_id, receiver_id, sender_id, type, created_at
@@ -40,8 +39,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
         session_id: UUID,
         sender_id: UUID,
         payload: ChatPayload?,
-        loading: Bool = false,
-        blurred: Bool = false
+        loading: Bool = false
     ) {
         self.id = id
         self.type = type
@@ -52,7 +50,6 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
         self.sender_id = sender_id
         self.payload = payload
         self.loading = loading
-        self.blurred = blurred
     }
 
     static func == (lhs: ChatBoxBiz, rhs: ChatBoxBiz) -> Bool {
@@ -79,21 +76,14 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
         )
     }
 
-    func blur() {
-        self.blurred = true
-    }
-
-    func unblur() {
-        self.blurred = false
-    }
-
-    func load(payload: BoxPayloadTypes, session: ChatSessionBiz, config: Config) {
+    func load(record: BoxPayloadTypes, session: ChatSessionBiz, config: Config) {
         let sender = RoleBiz.Get(id: self.sender_id, config: config)
         guard let sender = sender else {
             return
         }
+        self.sender = sender
         self.payload = sender.payloadBuilder.build(
-            record: payload, role: sender, session: session,
+            record: record, role: sender, session: session,
             config: config)
         // switch payload {
         // case BoxPayloadTypes.message(let message):
@@ -131,6 +121,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
         let sender = RoleBiz.Get(id: self.sender_id, config: config)
         print("[BIZ]ChatBox.load: \(self.type) \(self.sender_id)")
         guard let sender = sender else { return }
+        self.sender = sender
         if self.type == "message" {
             let req = NSFetchRequest<ChatMsgContent>(entityName: "ChatMsgContent")
             req.predicate = NSPredicate(format: "%K == %@", argumentArray: ["id", self.payload_id])
@@ -158,9 +149,9 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                     record: BoxPayloadTypes.puzzle(puzzle), role: sender, session: session,
                     config: config)
                 // let opts = puzzle.opts
-                // let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map { ChatPuzzleOption(id: $0.id, text: $0.text) }
+                // let options = (ChatPuzzleMsgBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map { ChatPuzzleOption(id: $0.id, text: $0.text) }
                 // let selected = options.first { $0.id == puzzle.answer }
-                // self.payload = .puzzle(ChatPuzzleBiz(title: puzzle.title!, options: options, answer: puzzle.answer ?? "", selected: selected, corrected: false))
+                // self.payload = .puzzle(ChatPuzzleMsgBiz(title: puzzle.title!, options: options, answer: puzzle.answer ?? "", selected: selected, corrected: false))
             }
         }
         if self.type == "image" {
@@ -170,7 +161,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                 self.payload = sender.payloadBuilder.build(
                     record: BoxPayloadTypes.image(image), role: sender, session: session,
                     config: config)
-                // self.payload = .image(ChatImageBiz(url: image.url!, width: image.width, height: image.height))
+                // self.payload = .image(ChatImageMsgBiz(url: image.url!, width: image.width, height: image.height))
             }
         }
         if self.type == "video" {
@@ -180,7 +171,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                 self.payload = sender.payloadBuilder.build(
                     record: BoxPayloadTypes.video(video), role: sender, session: session,
                     config: config)
-                // self.payload = .video(ChatVideoBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
+                // self.payload = .video(ChatVideoMsgBiz(url: video.url!, thumbnail: video.thumbnail!, width: video.width, height: video.height, duration: video.duration))
             }
         }
         if self.type == "error" {
@@ -190,7 +181,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                 self.payload = sender.payloadBuilder.build(
                     record: BoxPayloadTypes.error(error), role: sender, session: session,
                     config: config)
-                // self.payload = .error(ChatErrorBiz(error: error.error!))
+                // self.payload = .error(ChatErrorMsgBiz(error: error.error!))
             }
         }
         if self.type == "tipText" {
@@ -200,7 +191,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                 self.payload = sender.payloadBuilder.build(
                     record: BoxPayloadTypes.tipText(tipText), role: sender, session: session,
                     config: config)
-                // self.payload = .tipText(ChatTipTextBiz(content: tipText.content!))
+                // self.payload = .tipText(ChatTipTextMsgBiz(content: tipText.content!))
             }
         }
         if self.type == "time" {
@@ -210,7 +201,7 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
                 self.payload = sender.payloadBuilder.build(
                     record: BoxPayloadTypes.time(time), role: sender, session: session,
                     config: config)
-                // self.payload = .time(ChatTimeBiz(time: time.time!))
+                // self.payload = .time(ChatTimeMsgBiz(time: time.time!))
             }
         }
 
@@ -437,7 +428,6 @@ class ChatBoxBiz: ObservableObject, Identifiable, Equatable {
     func updatePayload(payload: ChatPayload, store: ChatStore) {
         payload.update(id: self.payload_id, store: store)
     }
-
 }
 
 struct ChatMessageStruct: Codable {
@@ -508,17 +498,17 @@ struct ChatDictionaryStruct: Codable {
 
 // MARK: - 消息载荷类型
 enum ChatPayload: Encodable {
-    case message(ChatMessageBiz2)
-    case image(ChatImageBiz)
-    case video(ChatVideoBiz)
-    case puzzle(ChatPuzzleBiz)
+    case message(ChatTextMsgBiz)
+    case image(ChatImageMsgBiz)
+    case video(ChatVideoMsgBiz)
+    case puzzle(ChatPuzzleMsgBiz)
     case audio(ChatAudioBiz)
-    case estimate(ChatStatsBiz)
-    case error(ChatErrorBiz)
-    case tip(ChatTipBiz)
-    case time(ChatTimeBiz)
-    case tipText(ChatTipTextBiz)
-    case dictionary(ChatDictionaryBiz)
+    case estimate(ChatStatsMsgBiz)
+    case error(ChatErrorMsgBiz)
+    case tip(ChatTipMsgBiz)
+    case time(ChatTimeMsgBiz)
+    case tipText(ChatTipTextMsgBiz)
+    case dictionary(ChatDictionaryMsgBiz)
     case unknown(type: String)
 
     // 自定义解码逻辑（关键部分）
@@ -529,37 +519,37 @@ enum ChatPayload: Encodable {
         switch type {
         case "message":
             let message = try ChatMessageStruct(from: decoder)
-            self = .message(ChatMessageBiz2.from(data: message))
+            self = .message(ChatTextMsgBiz.from(data: message))
         case "audio":
             let audio = try ChatAudioStruct(from: decoder)
             self = .audio(ChatAudioBiz.from(data: audio))
         case "image":
             let image = try ChatImageStruct(from: decoder)
-            self = .image(ChatImageBiz.from(data: image))
+            self = .image(ChatImageMsgBiz.from(data: image))
         case "video":
             let video = try ChatVideoStruct(from: decoder)
-            self = .video(ChatVideoBiz.from(data: video))
+            self = .video(ChatVideoMsgBiz.from(data: video))
         case "puzzle":
             let puzzle = try ChatPuzzleStruct(from: decoder)
-            self = .puzzle(ChatPuzzleBiz.from(data: puzzle))
+            self = .puzzle(ChatPuzzleMsgBiz.from(data: puzzle))
         case "estimate":
             let estimate = try ChatStatsStruct(from: decoder)
-            self = .estimate(ChatStatsBiz.from(data: estimate))
+            self = .estimate(ChatStatsMsgBiz.from(data: estimate))
         case "error":
             let error = try ChatErrorStruct(from: decoder)
-            self = .error(ChatErrorBiz.from(data: error))
+            self = .error(ChatErrorMsgBiz.from(data: error))
         case "tip":
             let tip = try ChatTipStruct(from: decoder)
-            self = .tip(ChatTipBiz.from(data: tip))
+            self = .tip(ChatTipMsgBiz.from(data: tip))
         case "time":
             let time = try ChatTimeStruct(from: decoder)
-            self = .time(ChatTimeBiz.from(data: time))
+            self = .time(ChatTimeMsgBiz.from(data: time))
         case "tipText":
             let tipText = try ChatTipTextStruct(from: decoder)
-            self = .tipText(ChatTipTextBiz.from(data: tipText))
+            self = .tipText(ChatTipTextMsgBiz.from(data: tipText))
         case "dictionary":
             let dictionary = try ChatDictionaryStruct(from: decoder)
-            self = ChatPayload.dictionary(ChatDictionaryBiz.from(data: dictionary))
+            self = ChatPayload.dictionary(ChatDictionaryMsgBiz.from(data: dictionary))
         default:
             self = .unknown(type: type)
         }
@@ -729,12 +719,20 @@ class ChatAudioBiz: ObservableObject, Encodable {
     @Published var url: URL
     @Published var duration: TimeInterval
     @Published var ok = false
+    @Published var blurred = false
 
     init(text: String, nodes: [MsgTextNode], url: URL, duration: TimeInterval) {
         self.text = text
         self.nodes = nodes
         self.url = url
         self.duration = duration
+    }
+
+    func blur() {
+        self.blurred = true
+    }
+    func unblur() {
+        self.blurred = false
     }
 
     enum CodingKeys: String, CodingKey {
@@ -753,22 +751,76 @@ class ChatAudioBiz: ObservableObject, Encodable {
     }
 }
 
+// protocol ChatTextHandler {
+//     func setPayload(_ payload: ChatPayload)
+//     func setSender(_ sender: RoleBiz, _ config: Config)
+//     func handleSpeak()
+// }
+
+// class ChatTextMsgBizHandler: ChatTextHandler {
+//     var payload: ChatPayload?
+//     var sender: RoleBiz?
+//     var config: Config?
+//     var speaking: Bool = false
+//     var ttsEvents = TTSCallback()
+
+//     init() {
+//         self.ttsEvents = TTSCallback(
+//             onComplete: {
+//                 DispatchQueue.main.async {
+//                     self.speaking = false
+//                 }
+//             },
+//             onCancel: {
+//                 DispatchQueue.main.async {
+//                     self.speaking = false
+//                 }
+//             }
+//         )
+//     }
+
+// }
+
 // MARK: - 具体消息类型实现
-class ChatMessageBiz2: ObservableObject, Encodable {
-    static func from(data: ChatMessageStruct) -> ChatMessageBiz2 {
-        return ChatMessageBiz2(text: data.text, nodes: [])
+class ChatTextMsgBiz: ObservableObject, Encodable {
+    static func from(data: ChatMessageStruct) -> ChatTextMsgBiz {
+        return ChatTextMsgBiz(text: data.text, nodes: [])
     }
 
     let contentType = "message"
+    var sender: RoleBiz?
+    var config: Config?
+    var ttsEvents = TTSCallback()
+
     @Published var text: String
     @Published var nodes: [MsgTextNode]
     @Published var ok = false
+    @Published var blurred: Bool = false
+    @Published var speaking: Bool = false
+
+    //    var handler: ChatTextHandler = ChatTextMsgBizHandler()
 
     init(text: String, nodes: [MsgTextNode]) {
         self.text = text
         self.nodes = nodes
 
-        // self.split(text: text)
+        self.ttsEvents = TTSCallback(
+            onComplete: {
+                DispatchQueue.main.async {
+                    self.speaking = false
+                }
+            },
+            onCancel: {
+                DispatchQueue.main.async {
+                    self.speaking = false
+                }
+            },
+            onError: { err in
+                DispatchQueue.main.async {
+                    self.speaking = false
+                }
+            }
+        )
     }
 
     func split(text: String) {
@@ -778,7 +830,37 @@ class ChatMessageBiz2: ObservableObject, Encodable {
     func updateText(text: String, config: Config) {
         self.text = text
         self.split(text: text)
-
+    }
+    func stopSpeak() {
+        self.speaking = false
+    }
+    func setSender(_ sender: RoleBiz, _ config: Config) {
+        self.sender = sender
+        self.config = config
+    }
+    func handleSpeak() {
+        print("[BIZ]ChatTextMsgBizHandler handleSpeak \(self.sender)")
+        guard let role = self.sender else {
+            return
+        }
+        guard let config = self.config else {
+            return
+        }
+        if self.speaking {
+            DispatchQueue.main.async {
+                self.speaking = false
+                role.tts?.stop()
+            }
+            return
+        }
+        role.updateTTS(config: config)
+        role.tts?.setEvents(callback: self.ttsEvents)
+        print("[BIZ]ChatTextMsgBizHandler handleSpeak after setEvents")
+        let text = self.text
+        DispatchQueue.main.async {
+            self.speaking = true
+        }
+        role.tts?.speak(text)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -795,9 +877,9 @@ class ChatMessageBiz2: ObservableObject, Encodable {
     }
 }
 
-class ChatImageBiz: Encodable {
-    static func from(data: ChatImageStruct) -> ChatImageBiz {
-        return ChatImageBiz(url: data.url, width: data.width, height: data.height)
+class ChatImageMsgBiz: Encodable {
+    static func from(data: ChatImageStruct) -> ChatImageMsgBiz {
+        return ChatImageMsgBiz(url: data.url, width: data.width, height: data.height)
     }
 
     let contentType = "image"
@@ -827,9 +909,9 @@ class ChatImageBiz: Encodable {
     }
 }
 
-class ChatVideoBiz: Encodable {
-    static func from(data: ChatVideoStruct) -> ChatVideoBiz {
-        return ChatVideoBiz(
+class ChatVideoMsgBiz: Encodable {
+    static func from(data: ChatVideoStruct) -> ChatVideoMsgBiz {
+        return ChatVideoMsgBiz(
             url: data.url, thumbnail: data.thumbnail, width: data.width, height: data.height,
             duration: data.duration)
     }
@@ -866,19 +948,18 @@ class ChatVideoBiz: Encodable {
 }
 
 protocol ChatPuzzleHandler {
-    func select(puzzle: ChatPuzzleBiz, option: ChatPuzzleOption)
+    func select(puzzle: ChatPuzzleMsgBiz, option: ChatPuzzleOption)
 }
 class DefaultChatPuzzleHandler: ChatPuzzleHandler {
-    func select(puzzle: ChatPuzzleBiz, option: ChatPuzzleOption) {
+    func select(puzzle: ChatPuzzleMsgBiz, option: ChatPuzzleOption) {
         puzzle.selected = option
         puzzle.attempts += 1
         puzzle.corrected = puzzle.answer == option.id
     }
 }
-
-class ChatPuzzleBiz: ObservableObject, Encodable {
-    static func from(data: ChatPuzzleStruct) -> ChatPuzzleBiz {
-        return ChatPuzzleBiz(
+class ChatPuzzleMsgBiz: ObservableObject, Encodable {
+    static func from(data: ChatPuzzleStruct) -> ChatPuzzleMsgBiz {
+        return ChatPuzzleMsgBiz(
             title: data.title, options: data.options, answer: data.answer, selected: nil,
             corrected: false)
     }
@@ -907,7 +988,7 @@ class ChatPuzzleBiz: ObservableObject, Encodable {
     }
 
     func selectOption(option: ChatPuzzleOption) {
-        print("[BIZ]ChatPuzzleBiz selectOption: \(option.text) \(selected == nil)")
+        print("[BIZ]ChatPuzzleMsgBiz selectOption: \(option.text) \(selected == nil)")
         if selected == nil {
             self.handler.select(puzzle: self, option: option)
         }
@@ -964,7 +1045,6 @@ class ChatPuzzleBiz: ObservableObject, Encodable {
         }
     }
 }
-
 class ChatPuzzleOption: Codable, Equatable, Identifiable {
     let id: String
     let text: String
@@ -979,9 +1059,9 @@ class ChatPuzzleOption: Codable, Equatable, Identifiable {
     }
 }
 
-class ChatStatsBiz: Encodable {
-    static func from(data: ChatStatsStruct) -> ChatStatsBiz {
-        return ChatStatsBiz(title: data.title, priceRange: data.priceRange)
+class ChatStatsMsgBiz: Encodable {
+    static func from(data: ChatStatsStruct) -> ChatStatsMsgBiz {
+        return ChatStatsMsgBiz(title: data.title, priceRange: data.priceRange)
     }
 
     let contentType = "stats"
@@ -1007,9 +1087,9 @@ class ChatStatsBiz: Encodable {
     }
 }
 
-class ChatErrorBiz: Encodable {
-    static func from(data: ChatErrorStruct) -> ChatErrorBiz {
-        return ChatErrorBiz(error: data.error)
+class ChatErrorMsgBiz: Encodable {
+    static func from(data: ChatErrorStruct) -> ChatErrorMsgBiz {
+        return ChatErrorMsgBiz(error: data.error)
     }
 
     let contentType = "error"
@@ -1031,9 +1111,9 @@ class ChatErrorBiz: Encodable {
     }
 }
 
-class ChatTipBiz: Encodable {
-    static func from(data: ChatTipStruct) -> ChatTipBiz {
-        return ChatTipBiz(title: data.title, content: data.content, type: data.type)
+class ChatTipMsgBiz: Encodable {
+    static func from(data: ChatTipStruct) -> ChatTipMsgBiz {
+        return ChatTipMsgBiz(title: data.title, content: data.content, type: data.type)
     }
 
     let contentType = "tip"
@@ -1063,9 +1143,9 @@ class ChatTipBiz: Encodable {
     }
 }
 
-class ChatTipTextBiz: Encodable {
-    static func from(data: ChatTipTextStruct) -> ChatTipTextBiz {
-        return ChatTipTextBiz(content: data.content)
+class ChatTipTextMsgBiz: Encodable {
+    static func from(data: ChatTipTextStruct) -> ChatTipTextMsgBiz {
+        return ChatTipTextMsgBiz(content: data.content)
     }
 
     let contentType = "tipText"
@@ -1087,9 +1167,9 @@ class ChatTipTextBiz: Encodable {
     }
 }
 
-class ChatTimeBiz: Encodable {
-    static func from(data: ChatTimeStruct) -> ChatTimeBiz {
-        return ChatTimeBiz(time: data.time)
+class ChatTimeMsgBiz: Encodable {
+    static func from(data: ChatTimeStruct) -> ChatTimeMsgBiz {
+        return ChatTimeMsgBiz(time: data.time)
     }
 
     let contentType = "time"
@@ -1113,21 +1193,21 @@ class ChatTimeBiz: Encodable {
 
 protocol ChatDictionaryHandler {
     func setPayload(_ payload: ChatPayload)
-    func speak(dictionary: ChatDictionaryBiz)
+    func speak(dictionary: ChatDictionaryMsgBiz)
 }
 class DefaultChatDictionaryHandler: ChatDictionaryHandler {
     var payload: ChatPayload?
     func setPayload(_ payload: ChatPayload) {
         self.payload = payload
     }
-    func speak(dictionary: ChatDictionaryBiz) {
+    func speak(dictionary: ChatDictionaryMsgBiz) {
         // TODO: 播放发音
     }
 }
 
-class ChatDictionaryBiz: Encodable {
-    static func from(data: ChatDictionaryStruct) -> ChatDictionaryBiz {
-        return ChatDictionaryBiz(
+class ChatDictionaryMsgBiz: Encodable {
+    static func from(data: ChatDictionaryStruct) -> ChatDictionaryMsgBiz {
+        return ChatDictionaryMsgBiz(
             text: data.text,
             detected_lang: data.detected_lang,
             target_lang: data.target_lang,

@@ -9,9 +9,8 @@ let MockMessages = [
             payload_id: UUID(),
             session_id: UUID(),
             sender_id: UUID(),
-            payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: [])),
-            loading: false,
-            blurred: false
+            payload: ChatPayload.message(ChatTextMsgBiz(text: "你好，我是小明，很高兴认识你。", nodes: [])),
+            loading: false
         )
         // LocalChatBox(
         //     id: UUID(),
@@ -26,7 +25,7 @@ let MockMessages = [
         //         isMe: false,
         //         payload_id: UUID(),
         //         session_id: UUID(),
-        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。", nodes: []))
+        //         payload: ChatPayload.message(ChatTextMsgBiz(text: "你好，我是小明，很高兴认识你。", nodes: []))
         //     )
         // ),
         // LocalChatBox(
@@ -42,7 +41,7 @@ let MockMessages = [
         //         isMe: true,
         //         payload_id: UUID(),
         //         session_id: UUID(),
-        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
+        //         payload: ChatPayload.message(ChatTextMsgBiz(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
         //     )
         // ),
         // LocalChatBox(
@@ -58,7 +57,7 @@ let MockMessages = [
         //         isMe: true,
         //         payload_id: UUID(),
         //         session_id: UUID(),
-        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
+        //         payload: ChatPayload.message(ChatTextMsgBiz(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
         //     )
         // ),
         // LocalChatBox(
@@ -74,7 +73,7 @@ let MockMessages = [
         //         isMe: true,
         //         payload_id: UUID(),
         //         session_id: UUID(),
-        //         payload: ChatPayload.message(ChatMessageBiz2(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
+        //         payload: ChatPayload.message(ChatTextMsgBiz(text: "你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。你好，我是小明，很高兴认识你。", nodes: []))
         //     )
         // ),
 ]

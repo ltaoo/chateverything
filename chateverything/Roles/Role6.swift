@@ -2,10 +2,10 @@ import Foundation
 
 let role6 = RoleBiz(
     props: {
-        var props = RoleProps(id: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!)
+        var props = RoleProps(id: UUID(uuidString: "00000000-0000-0000-0000-200000000001")!)
         props.name = "逃生小游戏"
-        props.desc = "你是一个逃生游戏系统，正在通过短信指导被困在大火中的角色逃出 30 层大厦。"
-        props.avatar = "avatar4"
+        props.desc = "根据指引逃离大厦"
+        props.avatar = "avatar14"
         props.prompt = """
             角色设定：
             你是一个逃生游戏系统（B），正在通过短信指导被困在大火中的角色 （A）逃出 30 层大厦。
@@ -30,9 +30,11 @@ let role6 = RoleBiz(
             不干涉：无论 A 选择什么，B 都保持中立态度，不干涉 A 的选择，只需给出指引和结局。
             紧迫感：每步提示中需体现时间或火势压迫（例如 "浓烟更浓了""头顶传来爆炸声"）。
             """
+        props.type = "tool"
         props.config = RoleConfig(
-            voice: defaultRoleVoice,
+            voice: defaultRoleTTS,
             llm: defaultRoleLLM,
+            stream: false,
             autoSpeak: false,
             autoBlur: false
         )
@@ -44,7 +46,7 @@ let role6 = RoleBiz(
             func setPayload(_ payload: ChatPayload) {
                 self.currentPayload = payload
             }
-            func select(puzzle: ChatPuzzleBiz, option: ChatPuzzleOption) {
+            func select(puzzle: ChatPuzzleMsgBiz, option: ChatPuzzleOption) {
                 print("[BIZ]RoleBiz select: \(option.text)")
                 puzzle.selected = option
                 puzzle.attempts += 1
@@ -72,11 +74,11 @@ let role6 = RoleBiz(
                 if case .puzzle(let puzzle) = record {
                     let opts = puzzle.opts
                     let options =
-                        (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map
+                        (ChatPuzzleMsgBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption]).map
                     { ChatPuzzleOption(id: $0.id, text: $0.text) }
                     let selected = options.first { $0.id == puzzle.answer }
                     let payload = ChatPayload.puzzle(
-                        ChatPuzzleBiz(
+                        ChatPuzzleMsgBiz(
                             title: "你的选择",
                             options: options,
                             answer: puzzle.answer ?? "",
@@ -100,13 +102,13 @@ let role6 = RoleBiz(
                     return payload
                 }
                 if case .message(let message) = record {
-                    return ChatPayload.message(ChatMessageBiz2(text: message.text!, nodes: []))
+                    return ChatPayload.message(ChatTextMsgBiz(text: message.text!, nodes: []))
                 }
                 if case .tipText(let tipText) = record {
-                    return ChatPayload.tipText(ChatTipTextBiz(content: tipText.content!))
+                    return ChatPayload.tipText(ChatTipTextMsgBiz(content: tipText.content!))
                 }
                 if case .error(let error) = record {
-                    return ChatPayload.error(ChatErrorBiz(error: error.error!))
+                    return ChatPayload.error(ChatErrorMsgBiz(error: error.error!))
                 }
                 return nil
             }
@@ -135,7 +137,7 @@ let role6 = RoleBiz(
                     payload_id: UUID(),
                     session_id: session.id,
                     sender_id: role.id,
-                    payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
+                    payload: ChatPayload.message(ChatTextMsgBiz(text: "", nodes: [])),
                     loading: true
                 )
                 DispatchQueue.main.async {
@@ -178,7 +180,7 @@ let role6 = RoleBiz(
                                         session_id: session.id,
                                         sender_id: role.id,
                                         payload: ChatPayload.tipText(
-                                            ChatTipTextBiz(content: data.scene)),
+                                            ChatTipTextMsgBiz(content: data.scene)),
                                         loading: false
                                     )
                                     let box1 = ChatBoxBiz(
@@ -190,14 +192,14 @@ let role6 = RoleBiz(
                                         session_id: session.id,
                                         sender_id: role.id,
                                         payload: ChatPayload.message(
-                                            ChatMessageBiz2(text: data.text, nodes: [])),
+                                            ChatTextMsgBiz(text: data.text, nodes: [])),
                                         loading: false
                                     )
                                     session.appendBoxes(boxes: [box, box1])
                                     if data.options.count > 0 {
                                         let puzzleHandler = Role1PuzzleHandler()
                                         let payload = ChatPayload.puzzle(
-                                            ChatPuzzleBiz(
+                                            ChatPuzzleMsgBiz(
                                                 title: "你的选择",
                                                 options: data.options.map {
                                                     ChatPuzzleOption(id: $0.value, text: $0.text)
@@ -249,7 +251,7 @@ let role6 = RoleBiz(
                             session_id: session.id,
                             sender_id: role.id,
                             payload: ChatPayload.error(
-                                ChatErrorBiz(error: error.localizedDescription)),
+                                ChatErrorMsgBiz(error: error.localizedDescription)),
                             loading: false
                         )
                         session.appendBox(box: box)

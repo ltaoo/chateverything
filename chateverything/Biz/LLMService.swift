@@ -3,7 +3,7 @@ import Foundation
 public struct LLMServiceMessage: Codable {
     public let role: String
     public let content: String
-    
+
     public init(role: String, content: String) {
         self.role = role
         self.content = content
@@ -15,7 +15,7 @@ public struct LLMServiceRequest: Codable {
     public let messages: [LLMServiceMessage]
     public let format: String
     public let stream: Bool
-    
+
     public init(model: String, messages: [LLMServiceMessage], format: String, stream: Bool) {
         self.model = model
         self.messages = messages
@@ -31,7 +31,12 @@ public class LLMServiceEvents {
     public let onFinish: (String) -> Void
     public let onError: (Error) -> Void
 
-    public init(onStart: @escaping () -> Void, onChunk: @escaping (String) -> Void, onFinish: @escaping (String) -> Void, onError: @escaping (Error) -> Void) {
+    public init(
+        onStart: @escaping () -> Void,
+        onChunk: @escaping (String) -> Void,
+        onFinish: @escaping (String) -> Void,
+        onError: @escaping (Error) -> Void
+    ) {
         self.onStart = onStart
         self.onChunk = onChunk
         self.onFinish = onFinish
@@ -47,7 +52,7 @@ public struct LLMProvider: Identifiable, Hashable {
     public let apiProxyAddress: String
     public var models: [LLMProviderModel]
     public let responseHandler: (Data) throws -> String
-
+    public var extra: [String: Any]
     static func Default() -> LLMProvider {
         return LLMProvider(
             id: "openai",
@@ -64,11 +69,21 @@ public struct LLMProvider: Identifiable, Hashable {
                     tags: []
                 )
             ],
-            responseHandler: LLMServiceDefaultHandler
+            responseHandler: LLMServiceDefaultHandler,
+            extra: [:]
         )
     }
 
-    public init(id: String, name: String, logo_uri: String, apiKey: String, apiProxyAddress: String, models: [LLMProviderModel], responseHandler: @escaping (Data) throws -> String = LLMServiceDefaultHandler) {
+    public init(
+        id: String,
+        name: String,
+        logo_uri: String,
+        apiKey: String,
+        apiProxyAddress: String,
+        models: [LLMProviderModel],
+        responseHandler: @escaping (Data) throws -> String = LLMServiceDefaultHandler,
+        extra: [String: Any] = [:]
+    ) {
         self.id = id
         self.name = name
         self.logo_uri = logo_uri
@@ -76,9 +91,10 @@ public struct LLMProvider: Identifiable, Hashable {
         self.apiKey = apiKey
         self.apiProxyAddress = apiProxyAddress
         self.responseHandler = responseHandler
+        self.extra = extra
     }
 
-     // 实现 Hashable 协议
+    // 实现 Hashable 协议
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(name)
@@ -94,7 +110,7 @@ public struct LLMProviderModel: Identifiable, Hashable {
     public let desc: String
     // 类型 对话、视频、音频、图片
     public let type: String
-    // 标签 
+    // 标签
     public let tags: [String]
 
     static func Default() -> LLMProviderModel {
@@ -113,13 +129,13 @@ public struct LLMProviderModel: Identifiable, Hashable {
         self.type = type
         self.tags = tags
     }
-    
+
     // 实现 Hashable 协议
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(name)
     }
-    
+
     // 实现 Equatable 协议（Hashable 需要）
     public static func == (lhs: LLMProviderModel, rhs: LLMProviderModel) -> Bool {
         return lhs.id == rhs.id && lhs.name == rhs.name
@@ -132,9 +148,15 @@ public struct LLMServiceConfig {
     public var apiProxyAddress: String?
     public var apiKey: String?
     public var extra: [String: Any]
-    
+
     // 添加公共初始化器
-    public init(provider: String, model: String, apiProxyAddress: String?, apiKey: String?, extra: [String: Any] = [:]) {
+    public init(
+        provider: String,
+        model: String,
+        apiProxyAddress: String?,
+        apiKey: String?,
+        extra: [String: Any] = [:]
+    ) {
         self.provider = provider
         self.model = model
         self.apiProxyAddress = apiProxyAddress
@@ -148,21 +170,26 @@ public class LLMService: ObservableObject {
     private var provider: LLMProvider
     private var model: LLMProviderModel
     public var events: LLMServiceEvents?
-    
+
     // 添加一个属性来存储当前的数据任务
     private var currentTask: URLSessionDataTask?
-    
+
     // Add new callback type
     public typealias ChatCallback = (String) -> Void
-    
+
     public init(value: LLMServiceConfig) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.id == value.provider }) ?? LLMProvider.Default()
-        self.model = provider.models.first(where: { $0.id == value.model }) ?? LLMProviderModel.Default()
+        self.provider =
+            LLMServiceProviders.first(where: { $0.id == value.provider }) ?? LLMProvider.Default()
+        self.model =
+            provider.models.first(where: { $0.id == value.model }) ?? LLMProviderModel.Default()
         // self.prompt = prompt
         // self.messages = [Message(role: "system", content: prompt)]
 
-        print("[Package]LLM init: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)")
+        print(
+            "[Package]LLM init: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)"
+        )
+        print("[Package]LLM init: \(self.provider.extra["api_key"])")
     }
 
     public func setEvents(events: LLMServiceEvents) {
@@ -171,8 +198,10 @@ public class LLMService: ObservableObject {
 
     public func update(value: LLMServiceConfig) {
         self.value = value
-        self.provider = LLMServiceProviders.first(where: { $0.id == value.provider }) ?? LLMProvider.Default()
-        self.model = provider.models.first(where: { $0.id == value.model }) ?? LLMProviderModel.Default()
+        self.provider =
+            LLMServiceProviders.first(where: { $0.id == value.provider }) ?? LLMProvider.Default()
+        self.model =
+            provider.models.first(where: { $0.id == value.model }) ?? LLMProviderModel.Default()
     }
 
     public func fakeChat(content: String) async throws -> String {
@@ -190,32 +219,44 @@ public class LLMService: ObservableObject {
         print("[Package]LLM chat: \(messages)")
 
         let stream = self.value.extra["stream"] as? Bool ?? false
-        
-        return AsyncThrowingStream { continuation in
-            let apiProxyAddress = self.value.apiProxyAddress ?? provider.apiProxyAddress
-            let apiKey = self.value.apiKey ?? provider.apiKey
-            print("[Package]LLM chat: \(self.value.provider) \(self.value.model) \(apiProxyAddress) \(apiKey) \(stream)")
+
+        return AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { continuation in
+            let extra = self.provider.extra
+            let apiProxyAddress = self.value.apiProxyAddress ?? self.provider.apiProxyAddress
+            // let apiKey = self.value.apiKey ?? extra["api_key"] ?? self.provider.apiKey
+            let apiKey = {
+                if let key = self.value.apiKey, !key.isEmpty {
+                    return key
+                }
+                return (extra["api_key"] as? String) ?? self.provider.apiKey
+            }()
+            print(
+                "[Package]LLM chat: \(self.value.provider) \(self.value.model) \(apiProxyAddress) \(apiKey) \(stream)"
+            )
 
             self.events?.onStart()
 
             guard let url = URL(string: apiProxyAddress) else {
-                self.events?.onError(NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]))
-                continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]))
+                let err = NSError(
+                    domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]
+                )
+                self.events?.onError(err)
+                continuation.finish(throwing: err)
                 return
             }
-            
+
             let requestBody = LLMServiceRequest(
                 model: self.value.model,
                 messages: messages,
                 format: "text",
                 stream: stream
             )
-            
+
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            
+
             do {
                 request.httpBody = try JSONEncoder().encode(requestBody)
             } catch {
@@ -227,48 +268,66 @@ public class LLMService: ObservableObject {
                 Task {
                     var buffer = ""
                     var fullContent = ""
-                    
+
                     do {
                         let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                        
-                        guard let httpResponse = response as? HTTPURLResponse,
-                              httpResponse.statusCode == 200 else {
-                            self.events?.onError(NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"]))
-                            continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"]))
+                        guard let resp = response as? HTTPURLResponse else {
+                            let err = NSError(
+                                domain: "", code: 301,
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: "No response found"
+                                ]
+                            )
+                            self.events?.onError(err)
+                            continuation.finish(throwing: err)
                             return
                         }
-                        
+                        guard resp.statusCode == 200 else {
+                            let err = NSError(
+                                domain: "", code: 301,
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: "Invalid response status code"
+                                ]
+                            )
+                            self.events?.onError(err)
+                            continuation.finish(throwing: err)
+                            return
+                        }
+
                         for try await byte in bytes {
                             if Task.isCancelled {
                                 self.events?.onFinish(fullContent)
                                 continuation.finish()
                                 return
                             }
-                            
-                            self.events?.onChunk(String(bytes: [byte], encoding: .utf8) ?? "")
+
                             buffer += String(bytes: [byte], encoding: .utf8) ?? ""
-                            
+
                             if buffer.contains("\n") {
                                 let lines = buffer.components(separatedBy: "\n")
                                 buffer = lines.last ?? ""  // Keep the incomplete line
-                                
+
                                 for line in lines.dropLast() where !line.isEmpty {
                                     if line == "data: [DONE]" {
                                         // let assistantMessage = Message(role: "assistant", content: fullContent)
                                         // self.messages.append(assistantMessage)
+                                        self.events?.onFinish(fullContent)
                                         continuation.finish()
                                         return
                                     }
-                                    
+
                                     if line.hasPrefix("data: ") {
                                         let jsonString = String(line.dropFirst(6))
                                         if let jsonData = jsonString.data(using: .utf8),
-                                           let response = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                                           let choices = response["choices"] as? [[String: Any]],
-                                           let delta = choices.first?["delta"] as? [String: Any],
-                                           let content = delta["content"] as? String {
-                                            
+                                            let response = try? JSONSerialization.jsonObject(
+                                                with: jsonData) as? [String: Any],
+                                            let choices = response["choices"] as? [[String: Any]],
+                                            let delta = choices.first?["delta"] as? [String: Any],
+                                            let content = delta["content"] as? String
+                                        {
+
                                             fullContent += content
+                                            self.events?.onChunk(fullContent)
                                             continuation.yield(fullContent)  // Only yield the new content
                                         }
                                     }
@@ -281,28 +340,49 @@ public class LLMService: ObservableObject {
                     }
                 }
             } else {
-                request.timeoutInterval = 30 // 设置30秒超时
+                request.timeoutInterval = 10  // 设置10秒超时
                 // 非流式响应
                 let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                    if let d = data {
+                        let tmp = String(data: d, encoding: .utf8)
+                        print("the response that not stream \(tmp)")
+                    }
                     do {
                         if let error = error {
                             self.events?.onError(error)
                             continuation.finish(throwing: error)
                             return
                         }
-                        
-                        guard let data = data,
-                              let httpResponse = response as? HTTPURLResponse,
-                              httpResponse.statusCode == 200 else {
-                            continuation.finish(throwing: NSError(domain: "", code: 301, userInfo: [NSLocalizedDescriptionKey: "Invalid response"]))
+                        guard let resp = response as? HTTPURLResponse else {
+                            let err = NSError(
+                                domain: "", code: 301,
+                                userInfo: [NSLocalizedDescriptionKey: "No response found"]
+                            )
+                            self.events?.onError(err)
+                            continuation.finish(throwing: err)
                             return
                         }
-                        
-                        let result = try self.provider.responseHandler(data)
-                        
-                        // let assistantMessage = Message(role: "assistant", content: result)
-                        // self.messages.append(assistantMessage)
-                        
+                        guard resp.statusCode == 200 else {
+                            let err = NSError(
+                                domain: "", code: resp.statusCode,
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: "Invalid response status code"
+                                ]
+                            )
+                            self.events?.onError(err)
+                            continuation.finish(throwing: err)
+                            return
+                        }
+                        guard let data = data else {
+                            let err = NSError(
+                                domain: "", code: 301,
+                                userInfo: [NSLocalizedDescriptionKey: "No response data found"]
+                            )
+                            self.events?.onError(err)
+                            continuation.finish(throwing: err)
+                            return
+                        }
+                        let result: String = try self.provider.responseHandler(data)
                         self.events?.onFinish(result)
                         continuation.yield(result)
                         continuation.finish()
@@ -313,7 +393,7 @@ public class LLMService: ObservableObject {
                 }
                 task.resume()
             }
-            
+
             continuation.onTermination = { @Sendable _ in
                 self.currentTask?.cancel()
             }
@@ -327,7 +407,7 @@ public let LLMServiceDefaultHandler: LLMServiceResponseHandler = { data in
     return response.choices[0].message.content
 }
 
-public let LLMServiceProviders: [LLMProvider] = [
+public var LLMServiceProviders: [LLMProvider] = [
     LLMProvider(
         id: "openai",
         name: "openai",
@@ -348,10 +428,10 @@ public let LLMServiceProviders: [LLMProvider] = [
                 desc: "",
                 type: "对话",
                 tags: []
-            )
+            ),
         ],
-        responseHandler: LLMServiceDefaultHandler
-
+        responseHandler: LLMServiceDefaultHandler,
+        extra: [:]
     ),
     LLMProvider(
         id: "deepseek",
@@ -373,9 +453,10 @@ public let LLMServiceProviders: [LLMProvider] = [
                 desc: "",
                 type: "对话",
                 tags: []
-            )
+            ),
         ],
-        responseHandler: LLMServiceDefaultHandler
+        responseHandler: LLMServiceDefaultHandler,
+        extra: [:]
     ),
     LLMProvider(
         id: "doubao",
@@ -404,13 +485,14 @@ public let LLMServiceProviders: [LLMProvider] = [
                 desc: "",
                 type: "对话",
                 tags: []
-            )
+            ),
         ],
         responseHandler: { data in
             let decoder = JSONDecoder()
             let response = try decoder.decode(DoubaoChatResponse.self, from: data)
             return response.choices[0].message.content
-        }
+        },
+        extra: [:]
     ),
     LLMProvider(
         id: "siliconflow",
@@ -446,9 +528,9 @@ public let LLMServiceProviders: [LLMProvider] = [
                 desc: "",
                 type: "对话",
                 tags: []
-            )
+            ),
         ],
-        responseHandler: LLMServiceDefaultHandler
+        responseHandler: LLMServiceDefaultHandler,
+        extra: [:]
     ),
 ]
-

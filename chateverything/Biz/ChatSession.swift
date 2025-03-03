@@ -2,13 +2,27 @@ import CoreData
 import Foundation
 
 public class ChatSessionConfig: ObservableObject {
-    @Published var blurMsg: Bool
-    @Published var autoSpeaking: Bool
+    @Published var autoBlur: Bool
+    @Published var autoSpeak: Bool
+    @Published var stream: Bool
 
-    init(blurMsg: Bool, autoSpeaking: Bool) {
-        self.blurMsg = blurMsg
-        self.autoSpeaking = autoSpeaking
+    init(autoBlur: Bool, autoSpeak: Bool, stream: Bool) {
+        self.autoBlur = autoBlur
+        self.autoSpeak = autoSpeak
+        self.stream = stream
     }
+
+    enum CodingKeys: String, CodingKey {
+        case autoBlur = "auto_blur"
+        case autoSpeak = "auto_speak"
+        case stream
+    }
+}
+
+struct ChatSessionCreatePayload {
+    var title: String?
+    var prompt: String?
+    var roles: [RoleBiz]
 }
 
 public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
@@ -19,6 +33,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     @Published var updated_at: Date
     @Published var title: String
     @Published var avatar_uri: String
+    @Published var prompt: String?
     @Published private(set) var boxes: [ChatBoxBiz] = []
     @Published var members: [ChatSessionMemberBiz]
     @Published var config: ChatSessionConfig
@@ -28,63 +43,107 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     var unreadCount: Int {
         return 0
     }
-    static func create(role: RoleBiz, in store: ChatStore) -> ChatSessionBiz {
+    static func Create(payload: ChatSessionCreatePayload, in store: ChatStore) -> ChatSessionBiz? {
+        //        guard let role1 = talker else {
+        //            return nil
+        //        }
+        //        guard let role2 = me else {
+        //            return nil
+        //        }
+        let talker = payload.roles[0]
+        let me = payload.roles[1]
+
         let id = UUID()
         let created_at = Date()
         let updated_at = Date()
-        let title = role.name
-        let avatar_uri = role.avatar
+        let config: [String: Any] = [
+            "auto_speak": talker.config.autoSpeak,
+            "auto_blur": talker.config.autoBlur,
+            "stream": talker.config.stream,
+        ]
 
         let ctx = store.container.viewContext
         let record = ChatSession(context: ctx)
+
         record.id = id
         record.created_at = created_at
         record.updated_at = updated_at
-        record.title = title
-        record.avatar_uri = avatar_uri
+        record.title = payload.title ?? talker.name
+        record.avatar_uri = talker.avatar
+        record.prompt = payload.prompt
+        record.config = JSON.stringify(config)
         ctx.insert(record)
-        try! ctx.save()
 
-        let config = ChatSessionConfig(blurMsg: false, autoSpeaking: false)
+        let session = ChatSessionBiz(
+            id: id,
+            created_at: created_at,
+            updated_at: updated_at,
+            title: record.title!,
+            avatar_uri: record.avatar_uri!,
+            boxes: [],
+            members: [],
+            config: ChatSessionConfig(
+                autoBlur: talker.config.autoBlur,
+                autoSpeak: talker.config.autoSpeak,
+                stream: talker.config.stream
+            ),
+            store: store
+        )
 
-        return ChatSessionBiz(
-            id: id, created_at: created_at, updated_at: updated_at, title: title,
-            avatar_uri: avatar_uri, boxes: [], members: [], config: config, store: store)
+        ChatSessionMemberBiz.Create(role: talker, session: session, in: store)
+        ChatSessionMemberBiz.Create(role: me, session: session, in: store)
+
+        do {
+            try ctx.save()
+            return session
+        } catch {
+            print(error)
+        }
+
+        return nil
     }
-    static func delete(session: ChatSessionBiz, in store: ChatStore) {
+    static func Remove(session: ChatSessionBiz, in store: ChatStore) {
         let ctx = store.container.viewContext
 
-        // Delete all member records
-        let memberReq = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
-        memberReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
-        if let members = try? ctx.fetch(memberReq) {
-            for member in members {
-                ctx.delete(member)
-            }
-        }
-
-        // Delete all box payloads and boxes
-        let boxReq = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-        boxReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
-        if let boxes = try? ctx.fetch(boxReq) {
-            for box in boxes {
-                // Delete associated payload based on box type
-                if let payloadId = box.payload_id {
-                    let biz = ChatBoxBiz.from(box, store: store)
-                    biz.deletePayload(store: store)
-                }
-                ctx.delete(box)
-            }
-        }
-
-        // Delete the session record
         let sessionReq = NSFetchRequest<ChatSession>(entityName: "ChatSession")
         sessionReq.predicate = NSPredicate(format: "id == %@", session.id as CVarArg)
         if let sessionRecord = try? ctx.fetch(sessionReq).first {
-            ctx.delete(sessionRecord)
+            sessionRecord.hidden = true
             // Save changes
             try? ctx.save()
         }
+
+        // Delete all member records
+        // let memberReq = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
+        // memberReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
+        // if let members = try? ctx.fetch(memberReq) {
+        //     for member in members {
+        //         ctx.delete(member)
+        //     }
+        // }
+
+        // // Delete all box payloads and boxes
+        // let boxReq = NSFetchRequest<ChatBox>(entityName: "ChatBox")
+        // boxReq.predicate = NSPredicate(format: "session_id == %@", session.id as CVarArg)
+        // if let boxes = try? ctx.fetch(boxReq) {
+        //     for box in boxes {
+        //         // Delete associated payload based on box type
+        //         if let payloadId = box.payload_id {
+        //             let biz = ChatBoxBiz.from(box, store: store)
+        //             biz.deletePayload(store: store)
+        //         }
+        //         ctx.delete(box)
+        //     }
+        // }
+
+        // // Delete the session record
+        // let sessionReq = NSFetchRequest<ChatSession>(entityName: "ChatSession")
+        // sessionReq.predicate = NSPredicate(format: "id == %@", session.id as CVarArg)
+        // if let sessionRecord = try? ctx.fetch(sessionReq).first {
+        //     ctx.delete(sessionRecord)
+        //     // Save changes
+        //     try? ctx.save()
+        // }
 
     }
     static func from(_ record: ChatSession, in store: ChatStore) -> ChatSessionBiz {
@@ -93,7 +152,12 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
         let updated_at = record.updated_at ?? Date()
         let title = record.title ?? ""
         let avatar_uri = record.avatar_uri ?? ""
-        let config = ChatSessionConfig(blurMsg: false, autoSpeaking: false)
+
+        let config_data = JSON.parse(record.config ?? "{}") as? [String: Any] ?? [:]
+        let autoBlur = config_data["auto_blur"] as? Bool ?? true
+        let autoSpeak = config_data["auto_speak"] as? Bool ?? true
+        let stream = config_data["stream"] as? Bool ?? true
+        let config = ChatSessionConfig(autoBlur: autoBlur, autoSpeak: autoSpeak, stream: stream)
 
         return ChatSessionBiz(
             id: id,
@@ -119,6 +183,20 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
             print("[BIZ]ChatSessionBiz.load: session not found")
             return
         }
+        self.created_at = session.created_at ?? Date()
+        self.updated_at = session.updated_at ?? Date()
+        self.title = session.title ?? ""
+        self.avatar_uri = session.avatar_uri ?? ""
+        self.prompt = session.prompt
+        let config_str = session.config ?? "{}"
+        let config_data = JSON.parse(config_str) as? [String: Any] ?? [:]
+        self.config = ChatSessionConfig(
+            autoBlur: config_data["auto_blur"] as? Bool ?? true,
+            autoSpeak: config_data["auto_speak"] as? Bool ?? true,
+            stream: config_data["stream"] as? Bool ?? true
+        )
+
+        print("preview the config \(self.config.autoBlur) \(self.config.autoSpeak) \(self.config.stream)")
 
         let role_req = NSFetchRequest<ChatSessionMember>(entityName: "ChatSessionMember")
         role_req.predicate = NSPredicate(
@@ -130,6 +208,9 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
             r.role = role
             if let r = role {
                 r.load(config: config)
+                r.config.stream = self.config.stream
+                // r.config.autoSpeak = self.config.autoSpeak
+                // r.config.autoBlur = self.config.autoBlur
             }
             return r
         }
@@ -151,21 +232,14 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
             if box.sender_id == config.me.id {
                 box.isMe = true
             }
-            box.load(payload: $0.payload, session: self, config: config)
+            box.load(record: $0.payload, session: self, config: config)
             return box
         }
 
-        DispatchQueue.main.async {
             self.boxes = boxesPrepared.reversed()
             // for box in boxesPrepared {
             //     self.boxes.insert(box, at: 0)
             // }
-        }
-
-        self.created_at = session.created_at ?? Date()
-        self.updated_at = session.updated_at ?? Date()
-        self.title = session.title ?? ""
-        self.avatar_uri = session.avatar_uri ?? ""
     }
 
     func loadMoreMessages(config: Config) {
@@ -175,7 +249,7 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
             if box.sender_id == config.me.id {
                 box.isMe = true
             }
-            box.load(payload: $0.payload, session: self, config: config)
+            box.load(record: $0.payload, session: self, config: config)
             return box
         }
 
@@ -185,8 +259,14 @@ public class ChatSessionBiz: ObservableObject, Equatable, Identifiable {
     }
 
     init(
-        id: UUID, created_at: Date, updated_at: Date, title: String, avatar_uri: String,
-        boxes: [ChatBoxBiz], members: [ChatSessionMemberBiz], config: ChatSessionConfig,
+        id: UUID,
+        created_at: Date,
+        updated_at: Date,
+        title: String,
+        avatar_uri: String,
+        boxes: [ChatBoxBiz],
+        members: [ChatSessionMemberBiz],
+        config: ChatSessionConfig,
         store: ChatStore
     ) {
         self.id = id

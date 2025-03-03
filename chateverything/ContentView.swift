@@ -35,8 +35,10 @@ class ContentViewModel: ObservableObject {
 
     func fetchSessions() {
         service.setParams(
-            params: ListHelperParams(page: 1, pageSize: 20, sorts: ["updated_at": "desc"]))
+            params: ListHelperParams(page: 1, pageSize: 20, sorts: ["updated_at": "desc"])
+        )
         let records = service.load(config: config)
+        print("[PAGE]Home fetchSessions - after service.load \(records.count)")
         let sessions = records.map {
             let session = ChatSessionBiz.from($0.session, in: store)
             if let box = $0.box {
@@ -102,7 +104,7 @@ struct ContentView: View {
                         }
                         .tag(0)
 
-                    SceneView()
+                    SceneView(path: $model.path, config: model.config)
                         .tabItem {
                             Image(systemName: "safari.fill")
                             Text("探索")
@@ -181,6 +183,9 @@ struct ContentView: View {
                         .environmentObject(model.config)
                 case .VocabularyReviewView:
                     VocabularyReviewPage(config: model.config).environmentObject(model.config)
+                case .RoleCreateView:
+                    RoleCreatePage(path: model.path, config: model.config).environmentObject(
+                        model.config)
                 }
             }
             .environmentObject(model.store)
@@ -203,15 +208,43 @@ struct ChatListView: View {
             ZStack {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
+                        // MenuButton(
+                        //     icon: "🤖", text: "想法",
+                        //     onTap: {
+                        //         model.showingChatConfig = true
+                        //     })
+                        // MenuButton(
+                        //     icon: "📚", text: "生词表",
+                        //     onTap: {
+                        //         model.path.append(Route.VocabularyReviewView)
+                        //     })
                         MenuButton(
-                            icon: "🤖", text: "想法",
+                            icon: "🔍", text: "单词查询",
                             onTap: {
-                                model.showingChatConfig = true
+                                // model.path.append(Route.VocabularyReviewView)
+                                let payload = ChatSessionCreatePayload(roles: [
+                                    role7, self.model.config.me,
+                                ])
+                                let session = ChatSessionBiz.Create(
+                                    payload: payload, in: self.model.config.store)
+                                guard let session = session else {
+                                    return
+                                }
+                                self.model.path.append(Route.ChatDetailView(sessionId: session.id))
                             })
                         MenuButton(
-                            icon: "📚", text: "生词表",
+                            icon: "🎮", text: "小游戏",
                             onTap: {
-                                model.path.append(Route.VocabularyReviewView)
+                                // model.path.append(Route.VocabularyReviewView)
+                                let payload = ChatSessionCreatePayload(roles: [
+                                    role6, self.model.config.me,
+                                ])
+                                let session = ChatSessionBiz.Create(
+                                    payload: payload, in: self.model.config.store)
+                                guard let session = session else {
+                                    return
+                                }
+                                self.model.path.append(Route.ChatDetailView(sessionId: session.id))
                             })
                         MenuButton(
                             icon: "📅", text: "日历",
@@ -226,33 +259,33 @@ struct ChatListView: View {
                 }
                 .zIndex(10.0)
                 // 渐变背景
-                Rectangle()
-                    .frame(width: 1, height: 1)
-                    .overlay(
-                        Circle()
-                            .fill(.blue)
-                            .opacity(0.8)
-                            .blur(radius: 30)
-                            .frame(width: 240, height: 240)
-                            .offset(x: 40, y: -280)
-                            .allowsHitTesting(false),  // 允许点击穿透
-                        alignment: .topLeading
-                    )
-                    .zIndex(9.0)
-                // 渐变背景
-                Rectangle()
-                    .frame(width: 1, height: 1)
-                    .overlay(
-                        Circle()
-                            .fill(.red)
-                            .opacity(0.8)
-                            .blur(radius: 30)
-                            .frame(width: 240, height: 240)
-                            .offset(x: -320, y: -280)
-                            .allowsHitTesting(false),  // 允许点击穿透
-                        alignment: .topLeading
-                    )
-                    .zIndex(9.0)
+                // Rectangle()
+                //     .frame(width: 1, height: 1)
+                //     .overlay(
+                //         Circle()
+                //             .fill(.blue)
+                //             .opacity(0.8)
+                //             .blur(radius: 30)
+                //             .frame(width: 240, height: 240)
+                //             .offset(x: 0, y: -340)
+                //             .allowsHitTesting(false),  // 允许点击穿透
+                //         alignment: .topLeading
+                //     )
+                //     .zIndex(9.0)
+                // // 渐变背景
+                // Rectangle()
+                //     .frame(width: 1, height: 1)
+                //     .overlay(
+                //         Circle()
+                //             .fill(.green)
+                //             .opacity(0.8)
+                //             .blur(radius: 30)
+                //             .frame(width: 240, height: 240)
+                //             .offset(x: -360, y: -280)
+                //             .allowsHitTesting(false),  // 允许点击穿透
+                //         alignment: .topLeading
+                //     )
+                //     .zIndex(9.0)
             }
 
             Group {
@@ -272,7 +305,7 @@ struct ChatListView: View {
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                     Button(role: .destructive) {
                                         withAnimation {
-                                            ChatSessionBiz.delete(
+                                            ChatSessionBiz.Remove(
                                                 session: session, in: model.store)
                                         }
                                     } label: {
@@ -375,10 +408,10 @@ struct ChatSessionCardView: View {
                         uri: session.avatar_uri,
                         size: DesignSystem.AvatarSize.large
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
+                    // .overlay(
+                    //     RoundedRectangle(cornerRadius: 12)
+                    //         .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    // )
 
                     if session.unreadCount > 0 {
                         Circle()
@@ -454,8 +487,10 @@ struct ChatMsgPreview: View {
                         Text("[tip]\(data.title)")
                     }
                 case "dictionary":
-                    if case let ChatPayload.dictionary(data) = box.payload! {
-                        Text("[dictionary]\(data.text)")
+                    if box.payload != nil {
+                        if case let ChatPayload.dictionary(data) = box.payload! {
+                            Text("[dictionary]\(data.text)")
+                        }
                     }
                 default:
                     Text("未知消息类型: \(box.type)")

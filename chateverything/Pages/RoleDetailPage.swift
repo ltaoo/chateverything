@@ -120,7 +120,7 @@ struct RoleTTSProviderSettingView: View {
             }
             }
             .onChange(of: selectedProviderController) { controller in
-                print("[VIEW]RoleTTSProviderSettingView selectedProviderController is changed \(controller)")
+                // print("[VIEW]RoleTTSProviderSettingView selectedProviderController is changed \(controller)")
                 self.handleChange()
             }
             if let provider = selectedProvider {
@@ -297,15 +297,15 @@ struct VoiceTestButton: View {
                             .padding(.trailing, 8)
                     }
                     Text(isLoading ? "生成语音中..." : "测试语音")
-                        .font(DesignSystem.Typography.bodyLarge)
+                        .font(DesignSystem.Typography.bodyMedium)
                         .foregroundColor(.white)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, DesignSystem.Spacing.medium)
+                .padding(.vertical, DesignSystem.Spacing.xSmall)
             }
             .buttonStyle(.plain)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 8)
                     .fill(DesignSystem.Colors.primary)
             )
             .disabled(isLoading)
@@ -318,8 +318,10 @@ struct VoiceTestButton: View {
                     .padding(.horizontal, 4)
             }
         }
+        .onDisappear() {
+            tts?.stop()
+        }
     }
-    
 }
 
 struct RoleLLMProviderSettingView: View {
@@ -382,11 +384,17 @@ struct ModelListView: View {
     @ObservedObject var role: RoleBiz
     let controller: LLMProviderController
     let onTap: (LLMProviderModelController) -> Void
+
+    var models: [LLMProviderModelController] {
+        return controller.models.filter { $0.enabled }
+    }
     
     var body: some View {
-        ForEach(controller.models, id: \.id) { (sub: LLMProviderModelController) in
+        ForEach(models, id: \.id) { (sub: LLMProviderModelController) in
             let m: LLMProviderModelController = sub
-            let isSelected: Bool = role.config.llm["model"] as? String == m.id
+            let provider = role.config.llm["provider"] as? String
+            let model = role.config.llm["model"] as? String
+            let isSelected: Bool = provider == controller.provider.id && model == m.id
             
             HStack {
                 Text(sub.id)
@@ -477,11 +485,11 @@ struct ObservableSlider: View {
             HStack {
                 Slider(value: Binding(
                     get: {
-                        print("[VIEW]InputSlider in getter \(field.label) \(v)")
+                        // print("[VIEW]InputSlider in getter \(field.label) \(v)")
                         return v
                     },
                     set: { (newValue: Double) in
-                        print("[VIEW]formField \(field.label) \(newValue)")
+                        // print("[VIEW]formField \(field.label) \(newValue)")
                         v = newValue
                         input.setValue(value: newValue)
                         onChange(newValue)

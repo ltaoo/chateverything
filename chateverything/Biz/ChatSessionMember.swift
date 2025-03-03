@@ -8,7 +8,9 @@ class ChatSessionMemberBiz: ObservableObject, Identifiable {
     public var role: RoleBiz?
     public var store: ChatStore
 
-    static func create(role: RoleBiz, session: ChatSessionBiz, in store: ChatStore) -> ChatSessionMemberBiz {
+    static func Create(role: RoleBiz, session: ChatSessionBiz, in store: ChatStore)
+        -> ChatSessionMemberBiz
+    {
         let ctx = store.container.viewContext
         let record = ChatSessionMember(context: ctx)
         record.id = UUID()
@@ -17,9 +19,14 @@ class ChatSessionMemberBiz: ObservableObject, Identifiable {
         record.role_id = role.id
         record.session_id = session.id
         ctx.insert(record)
-        try! ctx.save()
 
-        return ChatSessionMemberBiz(id: record.id!, name: role.name, avatar: role.avatar, store: store, role: nil)
+        return ChatSessionMemberBiz(
+            id: record.id!,
+            name: role.name,
+            avatar: role.avatar,
+            store: store,
+            role: role
+        )
     }
 
     static func from(_ record: ChatSessionMember, store: ChatStore) -> ChatSessionMemberBiz {

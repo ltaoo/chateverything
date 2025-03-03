@@ -17,13 +17,15 @@ struct RoleListPage: View {
     init(path: Binding<NavigationPath>, config: Config) {
         self.config = config
         _path = path
-        _roles = State(initialValue: config.roles)
+        _roles = State(initialValue: config.roles.filter { $0.type == "chat" })
     }
 
     func handleClickRole(role: RoleBiz) {
-        let session = ChatSessionBiz.create(role: role, in: self.config.store)
-        ChatSessionMemberBiz.create(role: role, session: session, in: self.config.store)
-        ChatSessionMemberBiz.create(role: self.config.me, session: session, in: self.config.store)
+        let payload = ChatSessionCreatePayload(roles: [role, self.config.me])
+        let session = ChatSessionBiz.Create(payload: payload, in: self.config.store)
+        guard let session = session else {
+            return
+        }
         self.path.append(Route.ChatDetailView(sessionId: session.id))
     }
 
@@ -32,8 +34,9 @@ struct RoleListPage: View {
             return roles
         }
         return roles.filter { role in
-            role.name.localizedCaseInsensitiveContains(searchText) ||
-            role.desc.localizedCaseInsensitiveContains(searchText)
+            role.type == "chat"
+                && (role.name.localizedCaseInsensitiveContains(searchText)
+                    || role.desc.localizedCaseInsensitiveContains(searchText))
         }
     }
 
@@ -50,6 +53,14 @@ struct RoleListPage: View {
                 .padding(.vertical, DesignSystem.Spacing.small)
                 .background(DesignSystem.Colors.secondaryBackground)
                 .cornerRadius(DesignSystem.Radius.xLarge)
+
+                // Button(action: {
+                //     path.append(Route.RoleCreateView)
+                // }) {
+                //     Image(systemName: "plus.circle.fill")
+                //         .font(.system(size: 24))
+                //         .foregroundColor(DesignSystem.Colors.primary)
+                // }
             }
             .padding(DesignSystem.Spacing.medium)
             .background(DesignSystem.Colors.background)
@@ -58,11 +69,15 @@ struct RoleListPage: View {
                 LazyVStack(spacing: DesignSystem.Spacing.medium) {
                     ForEach(filteredRoles) { role in
                         if !role.disabled {
-                            RoleCardInListPage(role: role, onTap: {
-                                handleClickRole(role: role)
-                            }, onSecondaryTap: {
-                                path.append(Route.RoleDetailView(roleId: role.id))
-                            })
+                            RoleCardInListPage(
+                                role: role,
+                                onTap: {
+                                    handleClickRole(role: role)
+                                },
+                                onSecondaryTap: {
+                                    path.append(Route.RoleDetailView(roleId: role.id))
+                                }
+                            )
                             .transition(.opacity.combined(with: .scale))
                         }
                     }
@@ -79,10 +94,10 @@ struct RoleCardInListPage: View {
     let role: RoleBiz
     let onTap: () -> Void
     let onSecondaryTap: () -> Void
-    
+
     @State private var isPressed = false
     @State private var isLoading = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
             HStack(spacing: DesignSystem.Spacing.medium) {
@@ -101,31 +116,31 @@ struct RoleCardInListPage: View {
                     //     .background(DesignSystem.Colors.secondary.opacity(0.2))
                     //     .cornerRadius(DesignSystem.Radius.small)
                 }
-                
+
                 Spacer()
-                
+
                 if isLoading {
                     ProgressView()
                         .scaleEffect(1.2)
                 }
             }
-            
+
             Text(role.desc)
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundColor(DesignSystem.Colors.textSecondary)
                 .lineLimit(3)
                 .padding(.leading, DesignSystem.Spacing.xxxSmall)
-            
+
             Divider()
-            
+
             HStack {
                 Spacer()
-                
+
                 Button(action: onSecondaryTap) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
                         Image(systemName: "info.circle")
                         Text("详情")
-                        .font(DesignSystem.Typography.bodySmall)
+                            .font(DesignSystem.Typography.bodySmall)
                     }
                     .padding(.vertical, DesignSystem.Spacing.xSmall)
                     .padding(.horizontal, DesignSystem.Spacing.xSmall)
@@ -136,8 +151,8 @@ struct RoleCardInListPage: View {
                 Button(action: onTap) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
                         Image(systemName: "message.fill")
-                        Text("开始聊天")
-                        .font(DesignSystem.Typography.bodySmall)
+                        Text("开始新对话")
+                            .font(DesignSystem.Typography.bodySmall)
                     }
                     .padding(.vertical, DesignSystem.Spacing.xSmall)
                     .padding(.horizontal, DesignSystem.Spacing.xSmall)

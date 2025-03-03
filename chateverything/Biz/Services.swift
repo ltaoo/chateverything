@@ -13,6 +13,11 @@ func FetchSessions(params: ListHelperParams, config: Config) -> [ChatSessionWith
     request.fetchLimit = params.pageSize
     request.fetchOffset = params.pageSize * (params.page - 1)
 
+    request.predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+        NSPredicate(format: "hidden == false"),
+        NSPredicate(format: "hidden == nil")
+    ])
+
     request.sortDescriptors = [] as! [NSSortDescriptor]
 
     if params.sorts.count > 0 {
@@ -28,8 +33,9 @@ func FetchSessions(params: ListHelperParams, config: Config) -> [ChatSessionWith
 
         for session in fetchedSessions {
             let request = NSFetchRequest<ChatBox>(entityName: "ChatBox")
-            request.predicate = NSPredicate(
-                format: "%K == %@", argumentArray: ["session_id", session.id])
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "%K == %@", argumentArray: ["session_id", session.id])
+            ])
             request.sortDescriptors = [NSSortDescriptor(key: "created_at", ascending: false)]
             request.fetchBatchSize = 1
             var box: ChatBox? = nil
@@ -74,7 +80,7 @@ func FetchBoxesOfSession(params: ListHelperParams, config: Config) -> [ChatBoxWi
             request.sortDescriptors!.append(NSSortDescriptor(key: key, ascending: value == "asc"))
         }
     }
-    
+
     let store = config.store
 
     do {

@@ -54,6 +54,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				HandwritingView.swift,
+				Info.plist,
 			);
 			target = A6778D6C2D5352EC00447C17 /* chateverything */;
 		};
@@ -441,12 +442,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BUILDIN_API_KEY = "0e0900ed-f493-45c5-af79-133afca9e864";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"chateverything/Preview Content\"";
 				DEVELOPMENT_TEAM = YG658VL4QS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = chateverything/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ChatEverything;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "生成头像等图片";
@@ -482,12 +485,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BUILDIN_API_KEY = "0e0900ed-f493-45c5-af79-133afca9e864";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"chateverything/Preview Content\"";
 				DEVELOPMENT_TEAM = YG658VL4QS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = chateverything/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ChatEverything;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSCameraUsageDescription = "生成头像等图片";

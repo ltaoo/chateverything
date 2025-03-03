@@ -2,10 +2,10 @@ import Foundation
 
 let role7 = RoleBiz(
     props: {
-        var props = RoleProps(id: UUID(uuidString: "00000000-0000-0000-0000-000000000007")!)
+        var props = RoleProps(id: UUID(uuidString: "00000000-0000-0000-0000-200000000002")!)
         props.name = "AI字典"
-        props.desc = "单词查询"
-        props.avatar = "avatar4"
+        props.desc = "AI 驱动的单词查询，可以输入中文或英文"
+        props.avatar = "avatar15"
         // props.disabled = true
         props.prompt = """
             你是一个高效的多语言词典AI，请按以下规则处理所有输入：
@@ -26,9 +26,11 @@ let role7 = RoleBiz(
             "text_type": "sentence 或 word"
             }
             """
+        props.type = "tool"
         props.config = RoleConfig(
-            voice: defaultRoleVoice,
+            voice: defaultRoleTTS,
             llm: defaultRoleLLM,
+            stream: false,
             autoSpeak: false,
             autoBlur: false
         )
@@ -44,11 +46,11 @@ let role7 = RoleBiz(
         }
         class Handler: ChatDictionaryHandler {
             var payload: ChatPayload?
-            var onSelect: ((ChatDictionaryBiz) -> Void)?
+            var onSelect: ((ChatDictionaryMsgBiz) -> Void)?
             func setPayload(_ payload: ChatPayload) {
                 self.payload = payload
             }
-            func speak(dictionary: ChatDictionaryBiz) {
+            func speak(dictionary: ChatDictionaryMsgBiz) {
                 //
             }
         }
@@ -68,7 +70,7 @@ let role7 = RoleBiz(
                 let handler = Handler()
                 if case BoxPayloadTypes.dictionary(let dictionary) = record {
                     let payload = ChatPayload.dictionary(
-                        ChatDictionaryBiz(
+                        ChatDictionaryMsgBiz(
                             text: dictionary.text!,
                             detected_lang: dictionary.detected_lang!,
                             target_lang: dictionary.target_lang!,
@@ -85,15 +87,11 @@ let role7 = RoleBiz(
                     }
                     return payload
                 }
-                if case .message(let message) = record {
-                    return ChatPayload.message(ChatMessageBiz2(text: message.text!, nodes: []))
-                }
-                if case .error(let error) = record {
-                    return ChatPayload.error(ChatErrorBiz(error: error.error!))
-                }
-                return nil
+                return DefaultRolePayloadBuilder().build(
+                    record: record, role: role, session: session, config: config)
             }
         }
+
         class ResponseHandler: RoleResponseHandler {
             func request(
                 text: String,
@@ -109,7 +107,7 @@ let role7 = RoleBiz(
                     payload_id: UUID(),
                     session_id: session.id,
                     sender_id: role.id,
-                    payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
+                    payload: ChatPayload.message(ChatTextMsgBiz(text: "", nodes: [])),
                     loading: true
                 )
                 DispatchQueue.main.async {
@@ -140,19 +138,19 @@ let role7 = RoleBiz(
                                         payload_id: UUID(),
                                         session_id: session.id,
                                         sender_id: role.id,
-                                        payload: ChatPayload.dictionary(ChatDictionaryBiz(
-                                            text: text,
-                                            detected_lang: data.detected_lang,
-                                            target_lang: data.target_lang,
-                                            translation: data.translation,
-                                            pronunciation: data.pronunciation,
-                                            pronunciation_tip: data.pronunciation_tip,
-                                            definitions: data.definitions,
-                                            examples: data.examples,
-                                            text_type: data.text_type
-                                        )),
-                                        loading: false,
-                                        blurred: role.config.autoBlur
+                                        payload: ChatPayload.dictionary(
+                                            ChatDictionaryMsgBiz(
+                                                text: text,
+                                                detected_lang: data.detected_lang,
+                                                target_lang: data.target_lang,
+                                                translation: data.translation,
+                                                pronunciation: data.pronunciation,
+                                                pronunciation_tip: data.pronunciation_tip,
+                                                definitions: data.definitions,
+                                                examples: data.examples,
+                                                text_type: data.text_type
+                                            )),
+                                        loading: false
                                     )
                                     session.appendBox(box: box)
                                 }
@@ -173,13 +171,14 @@ let role7 = RoleBiz(
                             session_id: session.id,
                             sender_id: role.id,
                             payload: ChatPayload.error(
-                                ChatErrorBiz(error: error.localizedDescription)),
+                                ChatErrorMsgBiz(error: error.localizedDescription)),
                             loading: false
                         )
                         session.appendBox(box: box)
                     }
                 )
                 role.llm?.setEvents(events: events)
+//                role.llm?.value["stream"] = false
 
                 Task {
                     guard
@@ -196,6 +195,23 @@ let role7 = RoleBiz(
                 session: ChatSessionBiz,
                 config: Config
             ) {
+                if session.boxes.count == 0 {
+                DispatchQueue.main.async {
+                    let box = ChatBoxBiz(
+                        id: UUID(),
+                        type: "tipText",
+                        created_at: Date(),
+                        isMe: false,
+                        payload_id: UUID(),
+                        session_id: session.id,
+                        sender_id: role.id,
+                        payload: ChatPayload.tipText(
+                            ChatTipTextMsgBiz(content: "请输入要查询的单词或句子")),
+                        loading: false
+                    )
+                    session.appendTmpBox(box: box)
+                }
+                }
             }
             public func handle(
                 text: String,

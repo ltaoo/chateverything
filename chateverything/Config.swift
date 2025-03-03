@@ -5,21 +5,27 @@ public enum Route: Hashable {
     case VocabularyStudyView(filepath: String)
     case RoleDetailView(roleId: UUID)
     case VocabularyReviewView
+    case RoleCreateView
 }
 
 
 class Config: ObservableObject {
     let store: ChatStore
+    let envs = Bundle.main.infoDictionary?["LSEnvironment"] as? [String:Any] ?? [:]
     let permissionManager: PermissionManager
 
     var me: RoleBiz
     var roles: [RoleBiz] = []
     var llmProviders: [LLMProvider]
+    // 角色们的 llm 配置
     var llmProviderValues: [String:LLMProviderValue] = [:]
     var llmProviderControllers: [LLMProviderController]
     var ttsProviders: [TTSProvider]
+    // 角色们的 tts 配置
     var ttsProviderValues: [String:TTSProviderValue] = [:]
     var ttsProviderControllers: [TTSProviderController]
+    @Published var llmConfig: [String:Any] = defaultRoleLLM
+    @Published var ttsConfig: [String:Any] = defaultRoleTTS
 
     public var enabledLLMProviders: [LLMProviderController] {
         return llmProviderControllers.filter { $0.value.enabled }
@@ -29,6 +35,8 @@ class Config: ObservableObject {
     }
 
     init(store: ChatStore) {
+        // print("[]Config \(self.envs["BUILDIN_API_KEY"])")
+
         self.store = store
         self.permissionManager = PermissionManager.shared
 // loadMe
@@ -44,7 +52,8 @@ class Config: ObservableObject {
                     created_at: mm["created_at"] as? Date ?? Date(),
                     config: RoleConfig(
                         voice: RoleVoice.GetDefault(),
-                        llm: defaultRoleLLM
+                        llm: defaultRoleLLM,
+                        autoBlur: false
                     )
                 )
             } else {
@@ -58,7 +67,8 @@ class Config: ObservableObject {
                     created_at: Date(),
                     config: RoleConfig(
                         voice: RoleVoice.GetDefault(),
-                        llm: defaultRoleLLM
+                        llm: defaultRoleLLM,
+                        autoBlur: false
                     )
                 )
                 let data = [
@@ -89,7 +99,7 @@ class Config: ObservableObject {
                                 voice!["provider"] = "system"
                             }
                         } else {
-                            voice = defaultRoleVoice
+                            voice = defaultRoleTTS
                         }
                         if var l = llm {
                             if l["provider"] == nil {
@@ -99,17 +109,33 @@ class Config: ObservableObject {
                             llm = defaultRoleLLM
                         }
                         role.config = RoleConfig(
-                            voice: voice ?? defaultRoleVoice,
+                            voice: voice ?? defaultRoleTTS,
                             llm: llm ?? defaultRoleLLM
                         )
                         print("role: \(role.name) voice: \(voice) llm: \(llm)")
                     }
                 }
             }
-            self.roles = DefaultRoles + [self.me]
-            print("roles: \(roles.count)")
+            self.roles = DefaultRoles + [self.me] + scenarios.map { $0.talker }
+            // print("roles: \(roles.count)")
 
 // loadLLMProviders
+            LLMServiceProviders = [
+                LLMProvider(
+                    id: "build-in",
+                    name: "体验服务",
+                    logo_uri: "chateverything",
+                    apiKey: "",
+                    apiProxyAddress: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+                    models: [
+                        LLMProviderModel(
+                            id: "deepseek-v3-241226",
+                            name: "测试对话", desc: "", type: "", tags: [])
+                    ],
+                    responseHandler: LLMServiceDefaultHandler,
+                    extra: ["api_key": self.envs["BUILDIN_API_KEY"] ?? ""]
+                ),
+            ] + LLMServiceProviders
             self.llmProviders = LLMServiceProviders
             if var llmProviderValues: [String:Any] = UserDefaults.standard.object(forKey: "llm_provider_values") as? [String:Any] {
                 var values: [String: LLMProviderValue] = [:]
@@ -136,6 +162,7 @@ class Config: ObservableObject {
                 }
                 self.llmProviderValues = values
             }
+            let defaultEnabledProviders = ["openai", "deepseek", "build-in"]
             var llmControllers: [LLMProviderController] = []
             for llmProvider in LLMServiceProviders {
                 let value = self.llmProviderValues[llmProvider.id]
@@ -146,11 +173,11 @@ class Config: ObservableObject {
                         provider: llmProvider,
                         value: LLMProviderValue(
                             id: llmProvider.id,
-                            enabled: (llmProvider.id == "openai" || llmProvider.id == "deepseek") ? true : false,
+                            enabled: defaultEnabledProviders.contains(llmProvider.id) ? true : false,
                             apiProxyAddress: nil,
                             apiKey: "",
                             models1: [],
-                            models2: (llmProvider.id == "openai" || llmProvider.id == "deepseek") ? llmProvider.models.map { $0.id } : []
+                            models2: defaultEnabledProviders.contains(llmProvider.id) ? llmProvider.models.map { $0.id } : []
                         )
                     ))
                 }
@@ -190,6 +217,10 @@ class Config: ObservableObject {
                 }
             }
             self.ttsProviderControllers = ttsControllers
+
+
+        self.ttsConfig = UserDefaults.standard.object(forKey: "tts_config") as? [String:Any] ?? defaultRoleTTS
+        self.llmConfig = UserDefaults.standard.object(forKey: "llm_config") as? [String:Any] ?? defaultRoleLLM
     }
 
     func updateMeName(name: String) {
@@ -270,5 +301,14 @@ class Config: ObservableObject {
             configs[roleId.uuidString] = ["voice": value, "llm": defaultRoleLLM]
         }
         UserDefaults.standard.set(configs, forKey: "role_configs")
+    }
+
+    func updateLLMConfig(value: [String:Any]) {
+        self.llmConfig = value
+        UserDefaults.standard.set(value, forKey: "llm_config")
+    }
+    func updateTTSConfig(value: [String:Any]) {
+        self.ttsConfig = value
+        UserDefaults.standard.set(value, forKey: "tts_config")
     }
 }

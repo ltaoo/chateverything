@@ -1,71 +1,56 @@
 import SwiftUI
 
-// 场景分类
-enum SceneCategory: String, CaseIterable {
-    case daily = "日常生活"
-    case business = "商务职场"
-    case travel = "旅游出行"
-    case study = "学习教育"
-}
-
-// 场景数据结构
-struct LearningScenario: Identifiable {
-    let id = UUID()
-    let title: String
-    let description: String
-    let category: SceneCategory
-    let background: String?
-}
-
 struct SceneView: View {
+    @Binding var path: NavigationPath
+    let config: Config
+
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var selectedCategory: SceneCategory = .daily
-    
-    
-    // 场景数据
-    let scenarios: [LearningScenario] = [
-        // 日常生活场景
-        LearningScenario(title: "At the Restaurant", description: "餐厅用餐场景对话", category: .daily, background: "background1"),
-        LearningScenario(title: "Shopping", description: "购物场景对话", category: .daily, background: nil),
-        LearningScenario(title: "Making Friends", description: "社交场景对话", category: .daily, background: nil),
-        
-        // 商务职场场景
-        LearningScenario(title: "Job Interview", description: "求职面试对话", category: .business, background: nil),
-        LearningScenario(title: "Business Meeting", description: "商务会议对话", category: .business, background: nil),
-        LearningScenario(title: "Office Communication", description: "办公室交流", category: .business, background: nil),
-        
-        // 旅游场景
-        LearningScenario(title: "At the Airport", description: "机场场景对话", category: .travel, background: nil),
-        LearningScenario(title: "Hotel Check-in", description: "酒店入住对话", category: .travel, background: nil),
-        LearningScenario(title: "Asking Directions", description: "问路场景对话", category: .travel, background: nil),
-        
-        // 学习场景
-        LearningScenario(title: "In the Classroom", description: "课堂场景对话", category: .study, background: nil),
-        LearningScenario(title: "Group Discussion", description: "小组讨论对话", category: .study, background: nil),
-        LearningScenario(title: "Library", description: "图书馆场景对话", category: .study, background: nil)
-    ]
-    
+
+    func handleClickScenario(scenario: LearningScenario) {
+        let role = scenario.talker
+        let payload = ChatSessionCreatePayload(
+            title: scenario.title,
+            prompt: "\(scenario.description)\n\(role.prompt)",
+            roles: [role, self.config.me]
+        )
+        let session = ChatSessionBiz.Create(payload: payload, in: self.config.store)
+        guard let session = session else {
+            return
+        }
+        self.path.append(Route.ChatDetailView(sessionId: session.id))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             CategoryTabBar(selectedCategory: $selectedCategory)
-            
+
             #if os(iOS)
-            TabView(selection: $selectedCategory) {
-                ForEach(SceneCategory.allCases, id: \.self) { category in
-                    ScenarioList(scenarios: scenarios.filter { $0.category == category })
+                TabView(selection: $selectedCategory) {
+                    ForEach(SceneCategory.allCases, id: \.self) { category in
+                        ScenarioList(
+                            scenarios: scenarios.filter { $0.category == category }, config: config
+                        ) {
+                            scenario in
+                            handleClickScenario(scenario: scenario)
+                        }
                         .tag(category)
+                    }
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .background(DesignSystem.Colors.background)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .background(DesignSystem.Colors.background)
             #else
-            // For macOS, use a simple view switch
-            ForEach(SceneCategory.allCases, id: \.self) { category in
-                if category == selectedCategory {
-                    ScenarioList(scenarios: scenarios.filter { $0.category == category })
+                // For macOS, use a simple view switch
+                ForEach(SceneCategory.allCases, id: \.self) { category in
+                    if category == selectedCategory {
+                        ScenarioList(
+                            scenarios: scenarios.filter { $0.category == category }, config: config
+                        ) { scenario in
+                            handleClickScenario(scenario: scenario)
+                        }
+                    }
                 }
-            }
             #endif
         }
     }
@@ -75,7 +60,7 @@ struct SceneView: View {
 struct CategoryTabBar: View {
     @Binding var selectedCategory: SceneCategory
     @State private var scrollViewProxy: ScrollViewProxy?
-    
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -97,7 +82,9 @@ struct CategoryTabBar: View {
                                             .fill(DesignSystem.Colors.secondaryBackground)
                                     }
                                 }
-                                .foregroundColor(selectedCategory == category ? .white : DesignSystem.Colors.textPrimary)
+                                .foregroundColor(
+                                    selectedCategory == category
+                                        ? .white : DesignSystem.Colors.textPrimary)
                         }
                     }
                 }
@@ -114,71 +101,58 @@ struct CategoryTabBar: View {
 
 struct ScenarioCardInListPage: View {
     let scenario: LearningScenario
-    let onTap: () -> Void
-    let onSecondaryTap: () -> Void
+    let config: Config
+    let onTap: (_ scenario: LearningScenario) -> Void
+
+    @State private var detailVisible: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
             // 标题和描述部分
             HStack(spacing: DesignSystem.Spacing.medium) {
-                // 场景图标
-                Circle()
-                    .fill(DesignSystem.Gradients.iconGradient)
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: "bubble.left.fill")
-                            .foregroundColor(.white)
-                            .font(DesignSystem.Typography.bodyMedium)
-                    )
-                
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxSmall) {
                     Text(scenario.title)
                         .font(DesignSystem.Typography.headingSmall)
                         .foregroundColor(DesignSystem.Colors.textPrimary)
-                    
+                    Spacer()
                     Text(scenario.description)
                         .font(DesignSystem.Typography.bodySmall)
+                        .lineLimit(3)
                         .foregroundColor(DesignSystem.Colors.textSecondary)
-
-                    HStack(spacing: DesignSystem.Spacing.small) {
-                        Circle()
-                            .fill(DesignSystem.Colors.secondary.opacity(0.2))
-                            .frame(width: 24, height: 24)
-                            .overlay(
-                                Image(systemName: "person.fill")
-                                    .font(DesignSystem.Typography.caption)
-                                    .foregroundColor(DesignSystem.Colors.textSecondary)
-                            )
-                        
-                        Text("Native Teacher")
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundColor(DesignSystem.Colors.textSecondary)
-                    }
                 }
 
                 Spacer()
+               
             }
-            
+ 
+            // 替换原来的标签实现
+            ScenarioTags(tags: scenario.tags)
+
             Divider()
-            
+
             HStack {
                 Spacer()
 
-                Button(action: onSecondaryTap) {
+                Button(action: {
+                    detailVisible = true
+                }) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
                         Image(systemName: "info.circle")
                         Text("详情")
-                        .font(DesignSystem.Typography.bodySmall)
+                            .font(DesignSystem.Typography.bodySmall)
                     }
                     .padding(.vertical, DesignSystem.Spacing.xSmall)
                     .padding(.horizontal, DesignSystem.Spacing.xSmall)
                 }
                 .buttonStyle(.bordered)
 
-                Button(action: onTap) {
+                Button(action: {
+                    onTap(scenario)
+                }) {
                     HStack(spacing: DesignSystem.Spacing.xxSmall) {
-                        Text("开始对话")
-                        .font(DesignSystem.Typography.bodySmall)
+                        Image(systemName: "message.fill")
+                        Text("开始新对话")
+                            .font(DesignSystem.Typography.bodySmall)
                     }
                     .padding(.vertical, DesignSystem.Spacing.xSmall)
                     .padding(.horizontal, DesignSystem.Spacing.xSmall)
@@ -189,36 +163,47 @@ struct ScenarioCardInListPage: View {
         .padding(.vertical, DesignSystem.Spacing.cardPadding)
         .padding(.horizontal, DesignSystem.Spacing.cardPadding)
         .shadow()
+        .sheet(isPresented: $detailVisible) {
+            ScenarioDetailView(scenario: scenario, config: config)
+        }
     }
 }
 
-
 struct ScenarioList: View {
     let scenarios: [LearningScenario]
+    let config: Config
+
+    var onTap: (LearningScenario) -> Void
 
     @State private var detailVisible: Bool = false
-    
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 ForEach(scenarios) { scenario in
-                    ScenarioCardInListPage(scenario: scenario, onTap: {
-                        // 开始对话
-                    }, onSecondaryTap: {
-                        detailVisible = true
-                    })
+                    ScenarioCardInListPage(
+                        scenario: scenario,
+                        config: config,
+                        onTap: onTap
+                    )
                 }
             }
             .padding()
-        }
-        .sheet(isPresented: $detailVisible) {
-            ScenarioDetailView(scenario: scenarios[0])
         }
     }
 }
 
 struct ScenarioDetailView: View {
     let scenario: LearningScenario
+    let config: Config
+    private var dialogueMessages: [DialogueMessage] {
+        scenario.example.map { example in
+            DialogueMessage(
+                content: example["content"] ?? "",
+                isMe: example["isMe"] == "true"
+            )
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -230,27 +215,17 @@ struct ScenarioDetailView: View {
                     .frame(height: 200)
                     .clipped()
             }
-            
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.medium) {
                 Text(scenario.title)
                     .font(DesignSystem.Typography.headingLarge)
                     .foregroundColor(DesignSystem.Colors.textPrimary)
-                
                 Text(scenario.description)
                     .font(DesignSystem.Typography.bodyMedium)
                     .foregroundColor(DesignSystem.Colors.textSecondary)
-                
-                Spacer()
+                // 使用新的对话播放器
+                DialoguePlayer(scenario: scenario, dialogues: dialogueMessages, config: config)
             }
             .padding(DesignSystem.Spacing.large)
         }
-    }
-}
-
-
-// MARK: - Preview
-struct SceneView_Previews: PreviewProvider {
-    static var previews: some View {
-        SceneView()
     }
 }

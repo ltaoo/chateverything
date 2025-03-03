@@ -38,25 +38,31 @@ class DefaultRoleResponseHandler: RoleResponseHandler {
             payload_id: UUID(),
             session_id: session.id,
             sender_id: role.id,
-            payload: ChatPayload.message(ChatMessageBiz2(text: "", nodes: [])),
+            payload: ChatPayload.message(ChatTextMsgBiz(text: "", nodes: [])),
             loading: true
         )
-        session.appendTmpBox(box: loadingMessage)
-        print("[BIZ]RoleBiz before chat 1")
-        let isStream = role.config.llm["stream"] as? Bool ?? false
-
+        DispatchQueue.main.async {
+            session.appendTmpBox(box: loadingMessage)
+        }
+        print("[BIZ]RoleBiz before chat 1 \(role.config.autoBlur)")
+        let isStream = role.config.stream
+        var initial: ChatBoxBiz? = nil
         let events = LLMServiceEvents(
             onStart: {
                 print("[BIZ]RoleBiz onStart")
             },
             onChunk: { chunk in
                 print("[BIZ]RoleBiz onChunk: \(chunk)")
-            },
-            onFinish: { result in
-                print("[BIZ]RoleBiz onFinish: \(result)")
-                DispatchQueue.main.async {
+                guard isStream else {
+                    return
+                }
+                guard let box = initial else {
                     session.removeLastBox()
-                    let box = ChatBoxBiz(
+                    let data = ChatTextMsgBiz(text: chunk, nodes: [])
+                    print("before set data blurred1 \(role.config.autoBlur)")
+                    data.blurred = role.config.autoBlur
+                    let payload = ChatPayload.message(data)
+                    initial = ChatBoxBiz(
                         id: UUID(),
                         type: "message",
                         created_at: Date(),
@@ -64,31 +70,72 @@ class DefaultRoleResponseHandler: RoleResponseHandler {
                         payload_id: UUID(),
                         session_id: session.id,
                         sender_id: role.id,
-                        payload: ChatPayload.message(ChatMessageBiz2(text: result, nodes: [])),
-                        loading: false,
-                        blurred: role.config.autoBlur
+                        payload: payload,
+                        loading: false
                     )
-                    session.appendBox(box: box)
+                    data.setSender(role, config)
+                    session.appendTmpBox(box: initial!)
+                    return
                 }
+                if case let ChatPayload.message(msg) = box.payload! {
+                    DispatchQueue.main.async {
+                        msg.text = chunk
+                    }
+                }
+                // box.updateTmpPayload(
+                //     payload: ChatPayload.message(ChatTextMsgBiz(text: chunk, nodes: [])), store: config.store
+                // )
+            },
+            onFinish: { result in
+                print("[BIZ]RoleBiz onFinish: \(result) \(role.config.autoBlur)")
+                guard isStream else {
+
+                    DispatchQueue.main.async {
+                        session.removeLastBox()
+                        let box = ChatBoxBiz(
+                            id: UUID(),
+                            type: "message",
+                            created_at: Date(),
+                            isMe: false,
+                            payload_id: UUID(),
+                            session_id: session.id,
+                            sender_id: role.id,
+                            payload: ChatPayload.message(ChatTextMsgBiz(text: result, nodes: [])),
+                            loading: false
+                        )
+                        session.appendBox(box: box)
+                    }
+                    if let tts = role.tts, role.config.autoSpeak {
+                        tts.speak(result)
+                    }
+                    return
+                }
+                guard let box = initial else {
+                    return
+                }
+                box.save(sessionId: session.id, store: config.store)
                 if let tts = role.tts, role.config.autoSpeak {
                     tts.speak(result)
                 }
             },
             onError: { error in
                 print("[BIZ]RoleBiz onError: \(error)")
-                session.removeLastBox()
-                let box = ChatBoxBiz(
-                    id: UUID(),
-                    type: "error",
-                    created_at: Date(),
-                    isMe: false,
-                    payload_id: UUID(),
-                    session_id: session.id,
-                    sender_id: role.id,
-                    payload: ChatPayload.error(ChatErrorBiz(error: error.localizedDescription)),
-                    loading: false
-                )
-                session.appendBox(box: box)
+                DispatchQueue.main.async {
+                    session.removeLastBox()
+                    let box = ChatBoxBiz(
+                        id: UUID(),
+                        type: "error",
+                        created_at: Date(),
+                        isMe: false,
+                        payload_id: UUID(),
+                        session_id: session.id,
+                        sender_id: role.id,
+                        payload: ChatPayload.error(
+                            ChatErrorMsgBiz(error: error.localizedDescription)),
+                        loading: false
+                    )
+                    session.appendBox(box: box)
+                }
             })
         role.llm?.setEvents(events: events)
         Task {
@@ -114,40 +161,50 @@ class DefaultRolePayloadBuilder: RolePayloadBuilder {
         session: ChatSessionBiz,
         config: Config
     ) -> ChatPayload? {
-        print("[BIZ]DefaultRolePayloadBuilder build: \(role.name)")
+        print("[BIZ]DefaultRolePayloadBuilder build: \(role.name) \(role.config.autoBlur)")
         switch record {
         case BoxPayloadTypes.message(let message):
-            return ChatPayload.message(ChatMessageBiz2(text: message.text!, nodes: []))
+            let data = ChatTextMsgBiz(text: message.text!, nodes: [])
+            let payload = ChatPayload.message(data)
+            print("before set data blurred2 \(role.config.autoBlur)")
+            data.blurred = role.config.autoBlur
+            data.setSender(role, config)
+            // data.handler.setPayload(payload)
+            return payload
         case BoxPayloadTypes.audio(let audio):
-            return ChatPayload.audio(
-                ChatAudioBiz(
-                    text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration))
+            let data = ChatAudioBiz(
+                text: audio.text!, nodes: [], url: audio.uri!, duration: audio.duration)
+            let payload = ChatPayload.audio(data)
+            print("before set data blurred3 \(role.config.autoBlur)")
+            data.blurred = role.config.autoBlur
+            return payload
         case BoxPayloadTypes.puzzle(let puzzle):
             let opts = puzzle.opts
-            let options = (ChatPuzzleBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption])
+            let options =
+                (ChatPuzzleMsgBiz.optionsFromJSON(opts ?? "") ?? [] as! [ChatPuzzleOption])
                 .map { ChatPuzzleOption(id: $0.id, text: $0.text) }
             let selected = options.first { $0.id == puzzle.answer }
             return ChatPayload.puzzle(
-                ChatPuzzleBiz(
+                ChatPuzzleMsgBiz(
                     title: puzzle.title!, options: options, answer: puzzle.answer ?? "",
                     selected: selected, corrected: false))
         case BoxPayloadTypes.image(let image):
             return ChatPayload.image(
-                ChatImageBiz(url: image.url!, width: image.width, height: image.height))
+                ChatImageMsgBiz(url: image.url!, width: image.width, height: image.height))
         case BoxPayloadTypes.video(let video):
             return ChatPayload.video(
-                ChatVideoBiz(
+                ChatVideoMsgBiz(
                     url: video.url!, thumbnail: video.thumbnail!, width: video.width,
                     height: video.height, duration: video.duration))
         case BoxPayloadTypes.error(let error):
-            return ChatPayload.error(ChatErrorBiz(error: error.error!))
+            return ChatPayload.error(ChatErrorMsgBiz(error: error.error!))
         case BoxPayloadTypes.tipText(let tipText):
-            return ChatPayload.tipText(ChatTipTextBiz(content: tipText.content!))
+            return ChatPayload.tipText(ChatTipTextMsgBiz(content: tipText.content!))
         case BoxPayloadTypes.time(let time):
-            return ChatPayload.time(ChatTimeBiz(time: time.time!))
+            return ChatPayload.time(ChatTimeMsgBiz(time: time.time!))
         case BoxPayloadTypes.dictionary(let dictionary):
             return ChatPayload.dictionary(
-                ChatDictionaryBiz(
+                ChatDictionaryMsgBiz(
                     text: dictionary.detected_lang!,
                     detected_lang: dictionary.detected_lang!,
                     target_lang: dictionary.target_lang!,
@@ -172,9 +229,15 @@ public struct RoleProps {
     var avatar: String = "avatar1"
     var prompt: String = ""
     var language: String = "en-US"
+    var type: String = "chat"
     var disabled: Bool = false
     var created_at: Date = Date()
-    var config: RoleConfig = RoleConfig(voice: defaultRoleVoice, llm: defaultRoleLLM)
+    var config: RoleConfig = RoleConfig(
+        voice: defaultRoleTTS,
+        llm: defaultRoleLLM,
+        stream: true,
+        autoSpeak: true,
+        autoBlur: true)
     var responseHandler: RoleResponseHandler = DefaultRoleResponseHandler()
     var payloadBuilder: RolePayloadBuilder = DefaultRolePayloadBuilder()
 
@@ -195,6 +258,7 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
     @Published public var config: RoleConfig
     public var llm: LLMService?
     public var tts: TTSEngine?
+    var type: String = "chat"
 
     @Published var noLLM = true
     @Published var loading = false
@@ -215,6 +279,9 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
         }
         return nil
     }
+    static func Insert() {
+
+    }
 
     init(props: RoleProps) {
         self.id = props.id
@@ -226,17 +293,26 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
         self.language = props.language
         self.disabled = props.disabled
         self.created_at = props.created_at
+        self.type = props.type
         self.config = props.config
         self.llm = nil
         self.tts = nil
         self.responseHandler = props.responseHandler
         self.payloadBuilder = props.payloadBuilder
+
+        print("[BIZ]RoleBiz init: \(self.name) \(props.config.autoBlur)")
     }
 
     // Add convenience init that uses the old parameter list but creates RoleProps internally
     convenience init(
-        id: UUID, name: String, desc: String, avatar: String, prompt: String, language: String,
-        created_at: Date, config: RoleConfig
+        id: UUID,
+        name: String,
+        desc: String,
+        avatar: String,
+        prompt: String,
+        language: String,
+        created_at: Date,
+        config: RoleConfig
     ) {
         var props = RoleProps(id: id)
         props.name = name
@@ -260,7 +336,7 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
         props.created_at = entity.created_at ?? Date()
 
         // 解析 config JSON
-        var voice = defaultRoleVoice
+        var voice = defaultRoleTTS
         var llmHelper = defaultRoleLLM
 
         props.config = RoleConfig(voice: voice, llm: llmHelper)
@@ -278,7 +354,8 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
             $0.id == llmConfig["provider"] as? String
         }
         if let llmProviderController = llmProviderController {
-            let value = llmProviderController.build(config: self.config)
+            var value = llmProviderController.build(config: self.config)
+            value.extra["stream"] = self.config.stream
             // print(
             //     "[BIZ]RoleBiz updateLLM value: \(value.provider) \(value.model) \(value.apiProxyAddress) \(value.apiKey)"
             // )
@@ -312,9 +389,13 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
             ttsConfig[k] = v
         }
         tts.setConfig(config: ttsConfig)
+        // print("[BIZ]RoleBiz updateTTS before set tts")
         self.tts = tts
     }
-    func setMessages(messages: [LLMServiceMessage?]) {
+    func setMessages(messages: [LLMServiceMessage]) {
+        self.messages = messages
+    }
+    func appendMessages(messages: [LLMServiceMessage?]) {
         self.messages = self.messages + messages.compactMap { $0 }
     }
     func buildMessagesWithText(text: String) -> [LLMServiceMessage] {
@@ -323,13 +404,14 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
     }
 
     func load(config: Config) {
-        print("[BIZ]RoleBiz load \(self.id)")
-        let m = config.roles.first { $0.id == self.id }
-        guard let m = m else {
-            print("[BIZ]RoleBiz load error: role not found \(self.id)")
-            self.loading = false
-            return
-        }
+        print("[BIZ]RoleBiz load \(self.id) \(self.config.autoBlur)")
+        // let m = config.roles.first { $0.id == self.id }
+        let m = self
+        // guard let m = m else {
+        //     print("[BIZ]RoleBiz load error: role not found \(self.id)")
+        //     self.loading = false
+        //     return
+        // }
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.name = m.name
@@ -343,6 +425,9 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
                 self.updateLLM(config: config)
                 self.updateTTS(config: config)
             }
+            print(
+                "[BIZ]RoleBiz complete load \(self.id) \(self.config.autoBlur) \(m.name) \(m.config.autoBlur)"
+            )
             self.loading = false  // 移到最后，确保所有数据都加载完成
         }
     }
@@ -374,9 +459,8 @@ public class RoleBiz: ObservableObject, Equatable, Identifiable {
                 payload_id: UUID(),
                 session_id: session.id,
                 sender_id: self.id,
-                payload: ChatPayload.error(ChatErrorBiz(error: "请先配置语言模型")),
-                loading: false,
-                blurred: false
+                payload: ChatPayload.error(ChatErrorMsgBiz(error: "请先配置语言模型")),
+                loading: false
             )
             completion?([box])
             return
@@ -456,14 +540,17 @@ public enum SwiftValueType {
 public class RoleConfig {
     public var voice: [String: Any]
     public var llm: [String: Any]
+    public var stream: Bool = true
     public var autoSpeak: Bool = true
     public var autoBlur: Bool = true
 
     public init(
-        voice: [String: Any], llm: [String: Any], autoSpeak: Bool = true, autoBlur: Bool = true
+        voice: [String: Any], llm: [String: Any], stream: Bool = true, autoSpeak: Bool = true,
+        autoBlur: Bool = true
     ) {
         self.voice = voice
         self.llm = llm
+        self.stream = stream
         self.autoSpeak = autoSpeak
         self.autoBlur = autoBlur
     }
@@ -572,7 +659,7 @@ public class RoleVoice: ObservableObject, Codable {
     }
 
     static func GetDefault() -> [String: Any] {
-        return defaultRoleVoice
+        return defaultRoleTTS
     }
 
     init(engine: String, rate: Double, volume: Double, style: String, role: String) {
