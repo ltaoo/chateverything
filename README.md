@@ -25,10 +25,10 @@ ChatEverything 提供多样化的功能：
 
 ## 界面展示
 
-| 对话界面 | 场景选择 | 模型配置 |
+| 对话界面 |  | 场景选择 |
 |:---:|:---:|:---:|
-| <img src="/website/public/01.png" width="250"/> | <img src="/website/public/02.png" width="250"/> | <img src="/website/public/03.png" width="250"/> |
+| <img src="/website/public/01.png" width="250"/> | <img src="/website/public/06.png" width="250"/> | <img src="/website/public/02.png" width="250"/> |
 
-| 学习反馈 | 进度追踪 | 个性化设置 |
+| 模型配置 |  |  |
 |:---:|:---:|:---:|
-| <img src="/website/public/04.png" width="250"/> | <img src="/website/public/05.png" width="250"/> | <img src="/website/public/06.png" width="250"/> |
+| <img src="/website/public/05.png" width="250"/> | <img src="/website/public/04.png" width="250"/> |  |
