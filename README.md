@@ -32,3 +32,14 @@ ChatEverything 提供多样化的功能：
 | 模型配置 |  |  |
 |:---:|:---:|:---:|
 | <img src="/website/public/05.png" width="250"/> | <img src="/website/public/04.png" width="250"/> |  |
+
+## 许可证
+
+本项目采用 [Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) 许可证](https://creativecommons.org/licenses/by-nc/4.0/)。
+
+根据此许可证：
+- ✅ 你可以自由地使用、修改和分享本项目
+- ✅ 必须标明原作者信息
+- ❌ 禁止将本项目用于商业目的
+
+完整许可证文本可在以上链接查看。
